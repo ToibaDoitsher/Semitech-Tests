@@ -1,8 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { Settings2, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import useSWR from "swr";
+import {
+  ListDataCard,
+  ListPageHeader,
+  ListTableToolbar,
+  LIST_ROW_DELETE_CLASS,
+} from "@/components/ui/ListPage";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 import { TableClearFooter } from "@/components/ui/TableClearFooter";
@@ -120,33 +127,34 @@ export function AssignmentsClient() {
   const rows = aData?.assignments ?? [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">שיבוצי מורות</h1>
-          <p className="mt-1 text-sm text-zinc-600">טבלת כל השיבוצים · יעד אחד בלבד לכל שיבוץ</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <ExportExcelButton
-            label="ייצוא לאקסל"
-            filename="שיבוצי-מורות"
-            sheetName="שיבוצים"
-            exportUrl="/api/export/assignments"
-          />
-          <Link href="/settings/grade-levels" className="text-sm font-medium text-zinc-700 underline-offset-2 hover:underline">
-            ניהול לוקאפים
-          </Link>
-        </div>
-      </div>
+    <div className="space-y-8">
+      <ListPageHeader
+        title="שיבוצי מורות"
+        subtitle="טבלת כל השיבוצים · יעד אחד בלבד לכל שיבוץ"
+        actions={
+          <>
+            <ExportExcelButton
+              label="ייצוא לאקסל"
+              filename="שיבוצי-מורות"
+              sheetName="שיבוצים"
+              exportUrl="/api/export/assignments"
+            />
+            <Link href="/settings/grade-levels" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900/40 dark:text-zinc-200">
+              <Settings2 className="size-4 shrink-0 opacity-80" strokeWidth={2} />
+              ניהול לוקאפים
+            </Link>
+          </>
+        }
+      />
 
       <div>
-        <h2 className="text-lg font-medium text-zinc-900">הוספת שיבוץ</h2>
-        <p className="mt-1 text-sm text-zinc-600">שלב 1: סוג יעד · שלב 2: בחירת ערך מהרשימה</p>
+        <h2 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-zinc-50">הוספת שיבוץ</h2>
+        <p className="mt-1 text-base font-light text-slate-500 dark:text-zinc-400">שלב 1: סוג יעד · שלב 2: בחירת ערך מהרשימה</p>
       </div>
 
       <form
         onSubmit={addAssignment}
-        className="grid gap-4 rounded-xl border border-zinc-200 bg-white p-5 md:grid-cols-2 lg:grid-cols-3"
+        className="grid gap-4 rounded-xl border border-slate-200/90 bg-white p-5 shadow-sm md:grid-cols-2 lg:grid-cols-3 dark:border-slate-700/70 dark:bg-zinc-900/50"
       >
         <label className="block">
           <span className="text-sm font-medium text-zinc-700">מורה *</span>
@@ -234,65 +242,64 @@ export function AssignmentsClient() {
           <button
             type="submit"
             disabled={saving}
-            className="rounded-lg border border-zinc-900 bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+            className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
           >
             {saving ? "שומר…" : "הוספת שיבוץ"}
           </button>
         </div>
       </form>
 
-      <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
-        <div className="flex items-center gap-2 border-b border-zinc-100 px-4 py-2 text-xs text-zinc-500">
+      <ListDataCard>
+        <ListTableToolbar>
           {aLoad ? (
-            <>
+            <span className="inline-flex items-center gap-2">
               <Spinner className="size-4" />
               טוען שיבוצים…
-            </>
+            </span>
           ) : aErr ? (
-            <span className="text-red-700">{(aErr as Error).message}</span>
+            <span className="text-red-600">{(aErr as Error).message}</span>
           ) : (
             <span>{rows.length} שיבוצים</span>
           )}
-        </div>
+        </ListTableToolbar>
         <div className="overflow-x-auto">
-          <table className="min-w-[720px] w-full text-sm">
-            <thead className="bg-zinc-50 text-right text-zinc-600">
+          <table className="app-table min-w-[720px]">
+            <thead>
               <tr>
-                <th className="px-4 py-3 font-medium">מורה</th>
-                <th className="px-4 py-3 font-medium">מקצוע</th>
-                <th className="px-4 py-3 font-medium">סוג שיבוץ</th>
-                <th className="px-4 py-3 font-medium">ערך שיבוץ</th>
-                <th className="px-4 py-3 font-medium">שכבה</th>
-                <th className="px-4 py-3 font-medium">פעיל</th>
-                <th className="px-4 py-3 font-medium" />
+                <th>מורה</th>
+                <th>מקצוע</th>
+                <th>סוג שיבוץ</th>
+                <th>ערך שיבוץ</th>
+                <th>שכבה</th>
+                <th>פעיל</th>
+                <th className="w-[1%] whitespace-nowrap" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-100">
+            <tbody>
               {rows.length ? (
                 rows.map((a) => (
-                  <tr key={a.id} className="hover:bg-zinc-50/80">
-                    <td className="px-4 py-3 font-medium">{a.teachers?.name ?? "—"}</td>
-                    <td className="px-4 py-3">{a.subject}</td>
-                    <td className="px-4 py-3 text-zinc-700">{a.target_type_label ?? a.target_type}</td>
-                    <td className="px-4 py-3 text-zinc-800">{a.target_label ?? a.target_id}</td>
-                    <td className="px-4 py-3">{pickLookupName(a.grade_levels)}</td>
-                    <td className="px-4 py-3">
+                  <tr key={a.id}>
+                    <td className="font-medium text-slate-900 dark:text-zinc-100">{a.teachers?.name ?? "—"}</td>
+                    <td>{a.subject}</td>
+                    <td className="text-slate-600 dark:text-zinc-300">{a.target_type_label ?? a.target_type}</td>
+                    <td className="text-slate-800 dark:text-zinc-200">{a.target_label ?? a.target_id}</td>
+                    <td>{pickLookupName(a.grade_levels)}</td>
+                    <td>
                       <button
                         type="button"
-                        className={`rounded-md border px-2 py-0.5 text-xs font-medium ${
-                          a.active ? "border-zinc-300 bg-white" : "border-zinc-200 bg-zinc-100 text-zinc-600"
+                        className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition ${
+                          a.active
+                            ? "border-slate-200 bg-white shadow-sm hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900/40"
+                            : "border-slate-100 bg-slate-50 text-slate-500 dark:border-zinc-700 dark:bg-zinc-800/50"
                         }`}
                         onClick={() => void toggleActive(a, !a.active)}
                       >
                         {a.active ? "פעיל" : "כבוי"}
                       </button>
                     </td>
-                    <td className="px-4 py-3 text-left">
-                      <button
-                        type="button"
-                        className="text-xs text-red-700 hover:underline"
-                        onClick={() => void removeRow(a.id)}
-                      >
+                    <td>
+                      <button type="button" className={LIST_ROW_DELETE_CLASS} onClick={() => void removeRow(a.id)}>
+                        <Trash2 className="size-3.5 shrink-0 opacity-70" strokeWidth={2} />
                         מחיקה
                       </button>
                     </td>
@@ -300,7 +307,7 @@ export function AssignmentsClient() {
                 ))
               ) : (
                 <tr>
-                  <td className="px-4 py-10 text-center text-zinc-500" colSpan={7}>
+                  <td className="py-14 text-center text-slate-500 dark:text-zinc-400" colSpan={7}>
                     {aLoad ? "טוען…" : "אין שיבוצים"}
                   </td>
                 </tr>
@@ -314,7 +321,7 @@ export function AssignmentsClient() {
           apiPath="/api/teacher-assignments/clear-all"
           onCleared={() => void mutate()}
         />
-      </div>
+      </ListDataCard>
     </div>
   );
 }

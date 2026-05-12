@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { Pencil } from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
+import { ListDataCard, ListPageHeader, ListTableToolbar, LIST_ROW_LINK_CLASS } from "@/components/ui/ListPage";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 import { TableClearFooter } from "@/components/ui/TableClearFooter";
@@ -63,91 +65,93 @@ export function TrackingClient() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">מעקב מבחנים</h1>
-          <p className="mt-1 text-sm text-zinc-600">עריכה בשורה: פתיחה, שינוי שדות ושמירה מפורשת</p>
-        </div>
-        <ExportExcelButton
-          label="ייצוא לאקסל"
-          filename="מעקב-מבחנים"
-          sheetName="מעקב"
-          exportUrl="/api/export/tracking"
-        />
-      </div>
+    <div className="space-y-8">
+      <ListPageHeader
+        title="מעקב מבחנים"
+        subtitle="עריכה בשורה: פתיחה, שינוי שדות ושמירה מפורשת"
+        actions={
+          <ExportExcelButton
+            label="ייצוא לאקסל"
+            filename="מעקב-מבחנים"
+            sheetName="מעקב"
+            exportUrl="/api/export/tracking"
+          />
+        }
+      />
 
-      <div className="flex items-center gap-2 text-xs text-zinc-500">
-        {isLoading ? (
-          <>
-            <Spinner className="size-4" />
-            טוען…
-          </>
-        ) : error ? (
-          <span className="text-red-700">{(error as Error).message}</span>
-        ) : (
-          <span>{data?.tracking?.length ?? 0} שורות</span>
-        )}
-      </div>
-
-      <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
-        <table className="min-w-[960px] w-full text-xs">
-          <thead className="bg-zinc-50 text-right text-zinc-600">
-            <tr>
-              <th className="px-3 py-2 font-medium">מורה</th>
-              <th className="px-3 py-2 font-medium">מקצוע</th>
-              <th className="px-3 py-2 font-medium">תאריך</th>
-              <th className="px-3 py-2 font-medium">מבחן</th>
-              <th className="px-3 py-2 font-medium">עריכה</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-100">
-            {data?.tracking?.length ? (
-              data.tracking.map((row) => (
-                <tr key={row.id} className="align-top hover:bg-zinc-50/80">
-                  <td className="px-3 py-2 font-medium">{row.exam?.teacher_name ?? "—"}</td>
-                  <td className="px-3 py-2">{row.exam?.subject ?? "—"}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{row.exam?.exam_date ?? "—"}</td>
-                  <td className="px-3 py-2">
-                    <Link href={`/exams/${row.exam_id}`} className="text-zinc-900 underline-offset-2 hover:underline">
-                      פתיחת מבחן
-                    </Link>
-                  </td>
-                  <td className="px-3 py-2">
-                    {editingId === row.id ? (
-                      <TrackingRowForm
-                        row={row}
-                        onCancel={() => setEditingId(null)}
-                        onSave={(payload) => void saveRow(row.id, payload)}
-                      />
-                    ) : (
-                      <button
-                        type="button"
-                        className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-50"
-                        onClick={() => setEditingId(row.id)}
-                      >
-                        עריכה
-                      </button>
-                    )}
+      <ListDataCard>
+        <ListTableToolbar>
+          {isLoading ? (
+            <span className="inline-flex items-center gap-2">
+              <Spinner className="size-4" />
+              טוען…
+            </span>
+          ) : error ? (
+            <span className="text-red-600">{(error as Error).message}</span>
+          ) : (
+            <span>{data?.tracking?.length ?? 0} שורות</span>
+          )}
+        </ListTableToolbar>
+        <div className="overflow-x-auto">
+          <table className="app-table app-table--compact min-w-[960px]">
+            <thead>
+              <tr>
+                <th>מורה</th>
+                <th>מקצוע</th>
+                <th>תאריך</th>
+                <th>מבחן</th>
+                <th>עריכה</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data?.tracking?.length ? (
+                data.tracking.map((row) => (
+                  <tr key={row.id} className="align-top">
+                    <td className="font-medium text-slate-900 dark:text-zinc-100">{row.exam?.teacher_name ?? "—"}</td>
+                    <td>{row.exam?.subject ?? "—"}</td>
+                    <td className="whitespace-nowrap">{row.exam?.exam_date ?? "—"}</td>
+                    <td>
+                      <Link href={`/exams/${row.exam_id}`} className={LIST_ROW_LINK_CLASS}>
+                        פתיחת מבחן
+                      </Link>
+                    </td>
+                    <td>
+                      {editingId === row.id ? (
+                        <TrackingRowForm
+                          row={row}
+                          onCancel={() => setEditingId(null)}
+                          onSave={(payload) => void saveRow(row.id, payload)}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 shadow-sm transition hover:border-blue-200 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900/30"
+                          onClick={() => setEditingId(row.id)}
+                        >
+                          <Pencil className="size-3.5 shrink-0 opacity-80" strokeWidth={2} />
+                          עריכה
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td className="py-14 text-center text-slate-500 dark:text-zinc-400" colSpan={5}>
+                    {isLoading ? "טוען…" : "אין נתוני מעקב"}
                   </td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td className="px-4 py-10 text-center text-zinc-500" colSpan={5}>
-                  {isLoading ? "טוען…" : "אין נתוני מעקב"}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              )}
+            </tbody>
+          </table>
+        </div>
         <TableClearFooter
           label="שורות מעקב"
           count={count}
           apiPath="/api/tracking/clear-all"
           onCleared={() => void mutate()}
         />
-      </div>
+      </ListDataCard>
     </div>
   );
 }

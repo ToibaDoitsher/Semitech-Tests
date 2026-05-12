@@ -181,7 +181,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
 
         <motion.main
-          className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-8"
+          className="min-h-0 flex-1 overflow-y-auto px-4 py-8 md:px-10"
           initial={{ opacity: 0.96 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.2 }}

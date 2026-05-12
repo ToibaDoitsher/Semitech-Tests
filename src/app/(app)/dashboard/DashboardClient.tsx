@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { AlarmClock, ArrowLeft, CalendarDays, ClipboardList, Eye, Users } from "lucide-react";
 import Link from "next/link";
 import useSWR from "swr";
+import { ListPageHeader } from "@/components/ui/ListPage";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 
@@ -82,29 +83,29 @@ export function DashboardClient() {
   const { data: stats, error: statsErr } = useSWR<Stats>("/api/stats/dashboard", fetcher);
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">סיכום יומיומי</p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">דף הבית</h2>
-        </div>
-        <ExportExcelButton
-          label="מבחנים קרובים לאקסל"
-          filename="מבחנים-קרובים"
-          sheetName="קרובים"
-          getRows={async () => {
-            const r = await fetch("/api/exams/upcoming?limit=300");
-            const j = (await r.json()) as { items?: Item[]; error?: string };
-            if (!r.ok) throw new Error(j.error ?? "שגיאה");
-            return (j.items ?? []).map((it) => ({
-              תאריך: it.exam_date,
-              מקצוע: it.subject,
-              מורה: it.teacher_name,
-              סטטוס: it.statusLabel,
-            }));
+    <div className="space-y-10">
+      <ListPageHeader
+        title="דף הבית"
+        subtitle="סיכום יומיומי — מבחנים קרובים, סטטיסטיקות וקיצורי דרך"
+        actions={
+          <ExportExcelButton
+            label="מבחנים קרובים לאקסל"
+            filename="מבחנים-קרובים"
+            sheetName="קרובים"
+            getRows={async () => {
+              const r = await fetch("/api/exams/upcoming?limit=300");
+              const j = (await r.json()) as { items?: Item[]; error?: string };
+              if (!r.ok) throw new Error(j.error ?? "שגיאה");
+              return (j.items ?? []).map((it) => ({
+                תאריך: it.exam_date,
+                מקצוע: it.subject,
+                מורה: it.teacher_name,
+                סטטוס: it.statusLabel,
+              }));
           }}
         />
-      </div>
+        }
+      />
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard

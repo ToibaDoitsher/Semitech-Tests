@@ -1,9 +1,17 @@
 "use client";
 
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
 import type { LookupEntitySlug } from "@/lib/lookups/entities";
 import { ENTITY_LABELS } from "@/lib/lookups/entities";
+import {
+  ListDataCard,
+  ListPageHeader,
+  ListTableToolbar,
+  LIST_ROW_DELETE_CLASS,
+  LIST_ROW_LINK_CLASS,
+} from "@/components/ui/ListPage";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 import { TableClearFooter } from "@/components/ui/TableClearFooter";
@@ -77,76 +85,85 @@ export function LookupManagerClient({ entity }: { entity: LookupEntitySlug }) {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">{title}</h1>
-          <p className="mt-1 text-sm text-zinc-600">ערכים קבועים בלבד — ללא הקלדה חופשית במסכים אחרים</p>
-        </div>
-        <ExportExcelButton
-          label="ייצוא לאקסל"
-          filename={`לוקאפ-${entity}`}
-          sheetName={title}
-          exportUrl={`/api/export/lookups?entity=${encodeURIComponent(entity)}`}
-        />
-      </div>
-
-      <form
-        onSubmit={addItem}
-        className="flex flex-col gap-3 rounded-2xl border border-violet-100 bg-gradient-to-br from-white to-violet-50/40 p-5 shadow-sm sm:flex-row sm:items-end"
-      >
-        <label className="min-w-0 flex-1">
-          <span className="text-sm font-medium text-zinc-700">שם חדש</span>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm shadow-inner outline-none focus:border-violet-400"
-            placeholder="לדוגמה: יא3"
+    <div className="space-y-8">
+      <ListPageHeader
+        title={title}
+        subtitle="ערכים קבועים בלבד — ללא הקלדה חופשית במסכים אחרים"
+        actions={
+          <ExportExcelButton
+            label="ייצוא לאקסל"
+            filename={`לוקאפ-${entity}`}
+            sheetName={title}
+            exportUrl={`/api/export/lookups?entity=${encodeURIComponent(entity)}`}
           />
-        </label>
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-xl bg-gradient-to-l from-violet-600 to-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-md hover:opacity-95 disabled:opacity-50"
-        >
-          {saving ? "שומר…" : "הוספה"}
-        </button>
-      </form>
+        }
+      />
 
-      <div className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-md">
-        <div className="flex items-center gap-2 border-b border-zinc-100 px-4 py-2.5 text-xs text-zinc-500">
+      <ListDataCard>
+        <form
+          onSubmit={addItem}
+          className="flex flex-col gap-4 border-b border-slate-100 p-4 sm:flex-row sm:items-end sm:p-5 dark:border-slate-800"
+        >
+          <label className="min-w-0 flex-1">
+            <span className="text-sm font-medium text-slate-700 dark:text-zinc-300">שם חדש</span>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-inner outline-none transition focus:border-blue-300 dark:border-zinc-600 dark:bg-zinc-900/40"
+              placeholder="לדוגמה: יא3"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={saving}
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+          >
+            <Plus className="size-4 shrink-0" strokeWidth={2} />
+            {saving ? "שומר…" : "הוספה"}
+          </button>
+        </form>
+      </ListDataCard>
+
+      <ListDataCard>
+        <ListTableToolbar>
           {isLoading ? (
-            <>
+            <span className="inline-flex items-center gap-2">
               <Spinner className="size-4" />
               טוען…
-            </>
+            </span>
           ) : error ? (
-            <span className="text-red-700">{(error as Error).message}</span>
+            <span className="text-red-600">{(error as Error).message}</span>
           ) : (
             <span>{data?.items?.length ?? 0} רשומות</span>
           )}
-        </div>
-        <ul className="divide-y divide-zinc-100">
-          {data?.items?.map((item) => (
-            <li key={item.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        </ListTableToolbar>
+        <ul>
+          {data?.items?.map((item, idx) => (
+            <li
+              key={item.id}
+              className={[
+                "flex flex-col gap-2 border-b border-slate-100 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5 dark:border-slate-800",
+                idx % 2 === 1 ? "bg-slate-50/50 dark:bg-zinc-800/25" : "",
+              ].join(" ")}
+            >
               {editingId === item.id ? (
                 <>
                   <input
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
-                    className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm sm:max-w-md"
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm sm:max-w-md dark:border-zinc-600 dark:bg-zinc-900/40"
                   />
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs text-white"
+                      className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
                       onClick={() => void saveEdit(item.id)}
                     >
                       שמירה
                     </button>
                     <button
                       type="button"
-                      className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs"
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs dark:border-zinc-600"
                       onClick={() => setEditingId(null)}
                     >
                       ביטול
@@ -155,23 +172,21 @@ export function LookupManagerClient({ entity }: { entity: LookupEntitySlug }) {
                 </>
               ) : (
                 <>
-                  <span className="font-medium text-zinc-900">{item.name}</span>
-                  <div className="flex gap-2">
+                  <span className="font-medium text-slate-900 dark:text-zinc-100">{item.name}</span>
+                  <div className="flex flex-wrap gap-1">
                     <button
                       type="button"
-                      className="text-xs font-medium text-violet-700 hover:underline"
+                      className={LIST_ROW_LINK_CLASS}
                       onClick={() => {
                         setEditingId(item.id);
                         setEditName(item.name);
                       }}
                     >
+                      <Pencil className="size-3.5 shrink-0 opacity-80" strokeWidth={2} />
                       עריכה
                     </button>
-                    <button
-                      type="button"
-                      className="text-xs font-medium text-red-700 hover:underline"
-                      onClick={() => void removeItem(item.id)}
-                    >
+                    <button type="button" className={LIST_ROW_DELETE_CLASS} onClick={() => void removeItem(item.id)}>
+                      <Trash2 className="size-3.5 shrink-0 opacity-70" strokeWidth={2} />
                       מחיקה
                     </button>
                   </div>
@@ -187,7 +202,7 @@ export function LookupManagerClient({ entity }: { entity: LookupEntitySlug }) {
           confirmHint="אם יש תלמידות או שיבוצים שמפנים לערכים האלה, המחיקה עלולה להיכשל — יש לנקות קודם."
           onCleared={() => void mutate()}
         />
-      </div>
+      </ListDataCard>
     </div>
   );
 }

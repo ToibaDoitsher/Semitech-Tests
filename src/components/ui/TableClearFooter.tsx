@@ -50,12 +50,12 @@ export function TableClearFooter({ label, count, apiPath, localClear, onCleared,
   }
 
   return (
-    <div className="border-t border-[var(--border)] bg-slate-50/90 px-4 py-2.5 text-center dark:bg-zinc-900/40">
+    <div className="border-t border-[var(--border)] bg-slate-50/80 px-4 py-3 text-center dark:bg-zinc-900/40">
       <button
         type="button"
         disabled={count === 0}
         onClick={() => setOpen(true)}
-        className="rounded-lg px-2 py-1.5 text-xs font-semibold text-red-700 underline decoration-red-300 underline-offset-2 ring-red-200 transition hover:bg-red-50 hover:text-red-900 hover:decoration-red-500 hover:shadow-md hover:ring-2 active:scale-[0.98] disabled:cursor-not-allowed disabled:text-slate-400 disabled:no-underline disabled:shadow-none disabled:ring-0 dark:hover:bg-red-950/40"
+        className="rounded-lg px-3 py-1.5 text-xs font-medium text-slate-500 underline decoration-slate-300/80 underline-offset-2 transition hover:bg-red-50 hover:text-red-700 hover:decoration-red-400 active:scale-[0.98] disabled:cursor-not-allowed disabled:text-slate-400 disabled:no-underline disabled:hover:bg-transparent dark:text-zinc-500 dark:hover:bg-red-950/30 dark:hover:text-red-400"
       >
         מחיקת כל הרשומות — {label}
       </button>

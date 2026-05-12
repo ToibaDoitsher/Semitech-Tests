@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { FileDown, List } from "lucide-react";
 import { useCallback, useState } from "react";
+import { ListPageHeader, LIST_SECONDARY_LINK_CLASS } from "@/components/ui/ListPage";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 import { TableClearFooter } from "@/components/ui/TableClearFooter";
@@ -85,28 +87,25 @@ export function ImportStudentsClient() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-zinc-900">ייבוא תלמידות מאקסל</h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            כותרות בעברית (או באנגלית) — הערכים בשורות חייבים להתאים בדיוק לשמות בלוקאפים (הגדרות).
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <a
-            href="/api/students/import/template"
-            className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm hover:bg-zinc-50"
-          >
-            הורדת תבנית Excel
-          </a>
-          <Link href="/students" className="rounded-lg border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50">
-            חזרה לרשימה
-          </Link>
-        </div>
-      </div>
+    <div className="space-y-8">
+      <ListPageHeader
+        title="ייבוא תלמידות מאקסל"
+        subtitle="כותרות בעברית (או באנגלית) — הערכים בשורות חייבים להתאים בדיוק לשמות בלוקאפים (הגדרות)."
+        actions={
+          <>
+            <a href="/api/students/import/template" className={LIST_SECONDARY_LINK_CLASS}>
+              <FileDown className="size-4 shrink-0" strokeWidth={2} />
+              הורדת תבנית Excel
+            </a>
+            <Link href="/students" className={LIST_SECONDARY_LINK_CLASS}>
+              <List className="size-4 shrink-0" strokeWidth={2} />
+              חזרה לרשימה
+            </Link>
+          </>
+        }
+      />
 
-      <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-50 px-6 py-14 text-center text-sm text-zinc-600 hover:border-zinc-400">
+      <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/80 px-6 py-14 text-center text-sm text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-white dark:border-zinc-600 dark:bg-zinc-900/30">
         <input
           type="file"
           accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

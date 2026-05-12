@@ -9,6 +9,7 @@ import FullCalendar from "@fullcalendar/react";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ListDataCard, ListPageHeader } from "@/components/ui/ListPage";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 
@@ -152,48 +153,49 @@ export function CalendarClient() {
   );
 
   return (
-    <div className="space-y-4" dir="rtl">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-zinc-900">יומן מבחנים</h1>
-          <p className="mt-1 text-sm text-zinc-600">חודש / שבוע / יום · צבעים לפי סטטוס · ריענון כל 30 שניות</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <ExportExcelButton
-            label="יומן (מסננים) לאקסל"
-            filename="יומן-מבחנים"
-            sheetName="אירועים"
-            getRows={async () =>
-              visibleEvents.map((ev) => {
-                const xp = ev.extendedProps as unknown as XProps;
-                const c = xp?.counts;
-                return {
-                  תאריך: eventStartYmd(ev),
-                  מקצוע: xp?.subject ?? "",
-                  מורה: xp?.teacherName ?? "",
-                  סוג_יעד: xp?.targetTypeLabel ?? xp?.targetType ?? "",
-                  שם_יעד: xp?.targetLabel ?? "",
-                  שכבה: xp?.gradeLevelName ?? "",
-                  סהכ_תלמידות: c?.total ?? 0,
-                  נבחנו: c?.took ?? 0,
-                  חסרות: c?.missing ?? 0,
-                  השלמות: c?.makeup ?? 0,
-                  הושלמו: c?.completed ?? 0,
-                  ממתין: c?.pending ?? 0,
-                };
-              })
-            }
-          />
-          {loading ? (
-            <div className="flex items-center gap-2 text-xs text-zinc-500">
-              <Spinner className="size-4" />
-              טוען אירועים…
-            </div>
-          ) : null}
-        </div>
-      </div>
+    <div className="space-y-8" dir="rtl">
+      <ListPageHeader
+        title="יומן מבחנים"
+        subtitle="חודש / שבוע / יום · צבעים לפי סטטוס · ריענון כל 30 שניות"
+        actions={
+          <>
+            <ExportExcelButton
+              label="יומן (מסננים) לאקסל"
+              filename="יומן-מבחנים"
+              sheetName="אירועים"
+              getRows={async () =>
+                visibleEvents.map((ev) => {
+                  const xp = ev.extendedProps as unknown as XProps;
+                  const c = xp?.counts;
+                  return {
+                    תאריך: eventStartYmd(ev),
+                    מקצוע: xp?.subject ?? "",
+                    מורה: xp?.teacherName ?? "",
+                    סוג_יעד: xp?.targetTypeLabel ?? xp?.targetType ?? "",
+                    שם_יעד: xp?.targetLabel ?? "",
+                    שכבה: xp?.gradeLevelName ?? "",
+                    סהכ_תלמידות: c?.total ?? 0,
+                    נבחנו: c?.took ?? 0,
+                    חסרות: c?.missing ?? 0,
+                    השלמות: c?.makeup ?? 0,
+                    הושלמו: c?.completed ?? 0,
+                    ממתין: c?.pending ?? 0,
+                  };
+                })
+              }
+            />
+            {loading ? (
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <Spinner className="size-4" />
+                טוען אירועים…
+              </div>
+            ) : null}
+          </>
+        }
+      />
 
-      <div className="grid gap-2 rounded-xl border border-zinc-200 bg-white p-3 sm:grid-cols-2 lg:grid-cols-4">
+      <ListDataCard>
+        <div className="grid gap-3 p-4 sm:p-5 sm:grid-cols-2 lg:grid-cols-4">
         <FilterSelect label="מורה" value={fTeacher} onChange={setFTeacher} options={filterOptions.teachers.map(([id, name]) => ({ id, name }))} />
         <FilterSelect label="מקצוע" value={fSubject} onChange={setFSubject} options={filterOptions.subjects.map((s) => ({ id: s, name: s }))} />
         <FilterSelect
@@ -230,6 +232,7 @@ export function CalendarClient() {
           }))}
         />
       </div>
+      </ListDataCard>
 
       <div className="legend flex flex-wrap gap-3 text-xs text-zinc-600">
         <span className="inline-flex items-center gap-1">

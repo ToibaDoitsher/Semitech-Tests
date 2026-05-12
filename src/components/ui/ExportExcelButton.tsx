@@ -50,9 +50,9 @@ export function ExportExcelButton(props: Props) {
       type="button"
       disabled={busy}
       onClick={() => void run()}
-      className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/90 px-3 py-2 text-sm font-medium text-emerald-900 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-100 hover:shadow-md active:scale-[0.98] disabled:opacity-50"
+      className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-blue-200 hover:bg-slate-50 hover:text-blue-900 active:scale-[0.98] disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-900/40 dark:text-zinc-200 dark:hover:border-blue-500/40 dark:hover:bg-zinc-800/60 dark:hover:text-blue-200"
     >
-      <Download className="size-4 shrink-0" strokeWidth={1.75} />
+      <Download className="size-4 shrink-0 text-blue-700 opacity-90 dark:text-blue-400" strokeWidth={1.75} />
       {busy ? "מייצא…" : props.label}
     </button>
   );
