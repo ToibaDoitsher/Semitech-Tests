@@ -21,19 +21,19 @@ import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 
-type NavItem = { href: string; label: string; icon: LucideIcon };
+type NavItem = { href: string; label: string; icon: LucideIcon; iconClass: string };
 
 const nav: NavItem[] = [
-  { href: "/dashboard", label: "בית", icon: LayoutDashboard },
-  { href: "/students", label: "תלמידות", icon: Users },
-  { href: "/students/import", label: "ייבוא", icon: Upload },
-  { href: "/teachers", label: "מורות", icon: GraduationCap },
-  { href: "/assignments", label: "שיבוצים", icon: ListChecks },
-  { href: "/exams", label: "מבחנים", icon: BookOpen },
-  { href: "/calendar", label: "יומן", icon: CalendarDays },
-  { href: "/makeups", label: "השלמות", icon: AlarmClock },
-  { href: "/tracking", label: "מעקב", icon: Eye },
-  { href: "/settings", label: "לוקאפים", icon: Settings2 },
+  { href: "/dashboard", label: "בית", icon: LayoutDashboard, iconClass: "text-sky-600 dark:text-sky-400" },
+  { href: "/students", label: "תלמידות", icon: Users, iconClass: "text-violet-600 dark:text-violet-400" },
+  { href: "/students/import", label: "ייבוא", icon: Upload, iconClass: "text-emerald-600 dark:text-emerald-400" },
+  { href: "/teachers", label: "מורות", icon: GraduationCap, iconClass: "text-amber-600 dark:text-amber-400" },
+  { href: "/assignments", label: "שיבוצים", icon: ListChecks, iconClass: "text-rose-600 dark:text-rose-400" },
+  { href: "/exams", label: "מבחנים", icon: BookOpen, iconClass: "text-indigo-600 dark:text-indigo-400" },
+  { href: "/calendar", label: "יומן", icon: CalendarDays, iconClass: "text-cyan-600 dark:text-cyan-400" },
+  { href: "/makeups", label: "השלמות", icon: AlarmClock, iconClass: "text-orange-600 dark:text-orange-400" },
+  { href: "/tracking", label: "מעקב", icon: Eye, iconClass: "text-teal-600 dark:text-teal-400" },
+  { href: "/settings", label: "לוקאפים", icon: Settings2, iconClass: "text-fuchsia-600 dark:text-fuchsia-400" },
 ];
 
 function isNavActive(pathname: string, item: NavItem): boolean {
@@ -113,7 +113,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             className="rounded-xl p-2 text-[var(--muted)] ring-1 ring-transparent transition hover:bg-white hover:text-[var(--foreground)] hover:shadow-md hover:ring-slate-200/80 active:scale-95 dark:hover:bg-white/10 dark:hover:ring-white/15"
             title={collapsed ? "הרחבה" : "כיווץ"}
           >
-            <ChevronLeft className={`size-5 transition-transform ${collapsed ? "rotate-180" : ""}`} />
+            <ChevronLeft className={`size-5 text-sky-600 transition-transform hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 ${collapsed ? "rotate-180" : ""}`} />
           </button>
         </div>
 
@@ -126,15 +126,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className={[
-                  "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium outline-none ring-1 ring-transparent transition-all",
+                  "group flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium outline-none ring-1 ring-transparent transition-all",
                   active
-                    ? "bg-[var(--color-primary)] text-white shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.14),0_4px_14px_-4px_rgb(37_99_235_/_0.45)] ring-[var(--color-primary)]/30 hover:bg-[var(--color-primary-hover)] hover:shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.16),0_6px_18px_-4px_rgb(37_99_235_/_0.4)] [&_svg]:text-white"
-                    : "text-slate-700 hover:bg-white hover:text-slate-900 hover:shadow-md hover:ring-slate-200/90 [&_svg]:text-[var(--muted)] hover:[&_svg]:text-[var(--color-primary)] active:scale-[0.98] dark:text-zinc-200 dark:hover:bg-white/10 dark:hover:text-white dark:hover:ring-white/10 dark:[&_svg]:text-zinc-400 dark:hover:[&_svg]:text-white",
+                    ? "bg-[var(--color-primary)] text-white shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.14),0_4px_14px_-4px_rgb(37_99_235_/_0.45)] ring-[var(--color-primary)]/30 hover:bg-[var(--color-primary-hover)] hover:shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.16),0_6px_18px_-4px_rgb(37_99_235_/_0.4)]"
+                    : "text-slate-700 hover:bg-white hover:text-slate-900 hover:shadow-md hover:ring-slate-200/90 active:scale-[0.98] dark:text-zinc-200 dark:hover:bg-white/10 dark:hover:text-white dark:hover:ring-white/10",
                   collapsed ? "justify-center px-2" : "",
                 ].join(" ")}
                 title={collapsed ? item.label : undefined}
               >
-                <Icon className="size-5 shrink-0 opacity-90" strokeWidth={1.75} />
+                <Icon
+                  className={[
+                    "size-5 shrink-0 transition-transform duration-200",
+                    active ? "text-white opacity-95 scale-105" : `${item.iconClass} opacity-95 group-hover:scale-110`,
+                  ].join(" ")}
+                  strokeWidth={active ? 2.1 : 1.85}
+                />
                 {!collapsed ? <span className="truncate text-inherit">{item.label}</span> : null}
               </Link>
             );
@@ -159,12 +165,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             type="button"
             onClick={() => void logout()}
             className={[
-              "flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-slate-600 ring-1 ring-transparent transition hover:bg-red-50 hover:text-red-700 hover:shadow-md hover:ring-red-100 active:scale-[0.98] dark:text-zinc-400 dark:hover:bg-red-950/25 dark:hover:text-red-300 dark:hover:ring-red-900/30",
+              "group flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-slate-600 ring-1 ring-transparent transition hover:bg-red-50 hover:text-red-700 hover:shadow-md hover:ring-red-100 active:scale-[0.98] dark:text-zinc-400 dark:hover:bg-red-950/25 dark:hover:text-red-300 dark:hover:ring-red-900/30",
               collapsed ? "justify-center" : "",
             ].join(" ")}
             title={collapsed ? "יציאה" : undefined}
           >
-            <LogOut className="size-5 shrink-0" strokeWidth={1.75} />
+            <LogOut className="size-5 shrink-0 text-rose-500 transition-colors group-hover:text-rose-600 dark:text-rose-400 dark:group-hover:text-rose-300" strokeWidth={1.75} />
             {!collapsed ? "יציאה" : null}
           </button>
         </div>

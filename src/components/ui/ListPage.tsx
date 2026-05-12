@@ -1,6 +1,11 @@
 "use client";
 
+import { motion, useReducedMotion } from "framer-motion";
+import { usePathname } from "next/navigation";
+import { useMemo } from "react";
+
 import { cn } from "@/lib/utils";
+import { listToolbarAccentClasses, tableAccentKeyFromPathname } from "@/lib/tableAccent";
 
 type HeaderProps = {
   title: string;
@@ -32,26 +37,42 @@ export function ListPageHeader({ title, subtitle, actions }: HeaderProps) {
 }
 
 /** כרטיס עטיף לטבלה / תוכן רשימה */
-export function ListDataCard({ children, className }: { children: React.ReactNode; className?: string }) {
+export function ListDataCard({
+  children,
+  className,
+  enterDelay = 0,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  /** עיכוב כניסה (שניות) — לדירוג כרטיסים אחד אחרי השני */
+  enterDelay?: number;
+}) {
+  const reduce = useReducedMotion();
   return (
-    <div
+    <motion.div
+      initial={reduce ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: reduce ? 0 : 0.44,
+        ease: [0.22, 1, 0.36, 1],
+        delay: reduce ? 0 : enterDelay,
+      }}
       className={cn(
         "overflow-hidden rounded-3xl border border-slate-200/70 bg-white/95 shadow-[var(--shadow-card)] ring-1 ring-slate-900/[0.02] dark:border-slate-700/60 dark:bg-zinc-900/55 dark:ring-white/[0.04]",
         className,
       )}
     >
       {children}
-    </div>
+    </motion.div>
   );
 }
 
-/** פס מטא מעל הטבלה (טעינה / ספירה) */
+/** פס מטא מעל הטבלה (טעינה / ספירה) — צבע לפי עמוד (כמו אייקון הניווט) */
 export function ListTableToolbar({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="border-b border-slate-100/90 bg-gradient-to-l from-slate-50/90 to-white px-5 py-3.5 text-sm text-slate-600 dark:border-slate-800 dark:from-slate-900/50 dark:to-zinc-900/30 dark:text-zinc-400">
-      {children}
-    </div>
-  );
+  const pathname = usePathname();
+  const accentKey = useMemo(() => tableAccentKeyFromPathname(pathname), [pathname]);
+  const barClass = listToolbarAccentClasses(accentKey);
+  return <div className={barClass}>{children}</div>;
 }
 
 /** קישור פעולה ראשית (כפתור כהה) */

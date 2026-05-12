@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { AlarmClock, ArrowLeft, CalendarDays, ClipboardList, Eye, Users } from "lucide-react";
 import Link from "next/link";
 import useSWR from "swr";
@@ -35,19 +35,27 @@ function StatCard({
   hint,
   icon: Icon,
   href,
+  staggerIndex = 0,
 }: {
   title: string;
   value: number;
   hint: string;
   icon: typeof Users;
   href?: string;
+  staggerIndex?: number;
 }) {
+  const reduce = useReducedMotion();
   const inner = (
     <motion.div
-      layout
       className="rounded-2xl border border-slate-200/70 bg-white/95 p-5 shadow-[var(--shadow-card)] ring-1 ring-slate-900/[0.02] transition-all hover:-translate-y-[1px] hover:border-slate-300/80 hover:shadow-lg dark:border-zinc-700/60 dark:bg-zinc-900/45 dark:ring-white/[0.04] dark:hover:border-zinc-600/70"
+      initial={reduce ? { opacity: 1, y: 0 } : { opacity: 0, y: 22 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: reduce ? 0 : 0.44,
+        ease: [0.22, 1, 0.36, 1],
+        delay: reduce ? 0 : staggerIndex * 0.07,
+      }}
       whileHover={{ y: -1 }}
-      transition={{ type: "spring", stiffness: 400, damping: 28 }}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -79,6 +87,7 @@ function StatCard({
 }
 
 export function DashboardClient() {
+  const reduceMotion = useReducedMotion();
   const { data, error, isLoading } = useSWR<{ items: Item[] }>("/api/exams/upcoming?limit=8", fetcher);
   const { data: stats, error: statsErr } = useSWR<Stats>("/api/stats/dashboard", fetcher);
 
@@ -114,6 +123,7 @@ export function DashboardClient() {
           hint="כל הזמנים"
           icon={ClipboardList}
           href="/exams"
+          staggerIndex={0}
         />
         <StatCard
           title="מבחנים קרובים"
@@ -121,6 +131,7 @@ export function DashboardClient() {
           hint="מהיום והלאה"
           icon={CalendarDays}
           href="/calendar"
+          staggerIndex={1}
         />
         <StatCard
           title="השלמות פתוחות"
@@ -128,6 +139,7 @@ export function DashboardClient() {
           hint="דורשות טיפול"
           icon={AlarmClock}
           href="/makeups"
+          staggerIndex={2}
         />
         <StatCard
           title="מעקב לטיפול"
@@ -135,6 +147,7 @@ export function DashboardClient() {
           hint="ללא ציונים / לא הועבר"
           icon={Eye}
           href="/tracking"
+          staggerIndex={3}
         />
         <StatCard
           title="תלמידות במערכת"
@@ -142,6 +155,7 @@ export function DashboardClient() {
           hint="רשומות פעילות"
           icon={Users}
           href="/students"
+          staggerIndex={4}
         />
       </section>
 
@@ -150,7 +164,16 @@ export function DashboardClient() {
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <section className="rounded-2xl border border-zinc-200/70 bg-white p-5 shadow-sm shadow-zinc-900/5 ring-1 ring-transparent transition-shadow hover:shadow-md hover:shadow-zinc-900/10 hover:ring-zinc-900/5 dark:border-zinc-700/60 dark:bg-zinc-900/40 dark:shadow-black/30 dark:hover:ring-white/10 lg:col-span-2">
+        <motion.section
+          className="rounded-2xl border border-zinc-200/70 bg-white p-5 shadow-sm shadow-zinc-900/5 ring-1 ring-transparent transition-shadow hover:shadow-md hover:shadow-zinc-900/10 hover:ring-zinc-900/5 dark:border-zinc-700/60 dark:bg-zinc-900/40 dark:shadow-black/30 dark:hover:ring-white/10 lg:col-span-2"
+          initial={reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 22 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{
+            duration: reduceMotion ? 0 : 0.46,
+            ease: [0.22, 1, 0.36, 1],
+            delay: reduceMotion ? 0 : 0.4,
+          }}
+        >
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-base font-semibold text-zinc-950 dark:text-zinc-50">מבחנים קרובים</h3>
             <Link
@@ -206,9 +229,18 @@ export function DashboardClient() {
               </li>
             ) : null}
           </ul>
-        </section>
+        </motion.section>
 
-        <section className="space-y-3 rounded-2xl border border-zinc-200/70 bg-white p-5 shadow-sm shadow-zinc-900/5 ring-1 ring-transparent transition-shadow hover:shadow-md hover:shadow-zinc-900/10 hover:ring-zinc-900/5 dark:border-zinc-700/60 dark:bg-zinc-900/40 dark:shadow-black/30 dark:hover:ring-white/10">
+        <motion.section
+          className="space-y-3 rounded-2xl border border-zinc-200/70 bg-white p-5 shadow-sm shadow-zinc-900/5 ring-1 ring-transparent transition-shadow hover:shadow-md hover:shadow-zinc-900/10 hover:ring-zinc-900/5 dark:border-zinc-700/60 dark:bg-zinc-900/40 dark:shadow-black/30 dark:hover:ring-white/10"
+          initial={reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 22 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{
+            duration: reduceMotion ? 0 : 0.46,
+            ease: [0.22, 1, 0.36, 1],
+            delay: reduceMotion ? 0 : 0.5,
+          }}
+        >
           <h3 className="text-base font-semibold text-zinc-950 dark:text-zinc-50">פעולות מהירות</h3>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">מעבר לעמודים המרכזיים</p>
           <div className="mt-2 flex flex-col gap-2">
@@ -228,7 +260,7 @@ export function DashboardClient() {
               </Link>
             ))}
           </div>
-        </section>
+        </motion.section>
       </div>
     </div>
   );

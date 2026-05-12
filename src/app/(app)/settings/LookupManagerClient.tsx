@@ -124,7 +124,7 @@ export function LookupManagerClient({ entity }: { entity: LookupEntitySlug }) {
         </form>
       </ListDataCard>
 
-      <ListDataCard>
+      <ListDataCard enterDelay={0.09}>
         <ListTableToolbar>
           {isLoading ? (
             <span className="inline-flex items-center gap-2">

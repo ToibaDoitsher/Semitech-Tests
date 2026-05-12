@@ -1,5 +1,7 @@
 import Image from "next/image";
 import { redirect } from "next/navigation";
+import { LoginTimeGreeting } from "@/components/LoginTimeGreeting";
+import { LoginPasswordDots } from "@/components/LoginPasswordDots";
 import { requireServiceRoleEnv } from "@/lib/env";
 import { clearAppSession, setAppSession } from "@/lib/auth/passwordSession";
 
@@ -48,22 +50,12 @@ export default function LoginPage({
       </div>
 
       <div className="relative z-10 flex flex-1 items-center justify-center px-6 pb-12 pt-2 md:w-[60%] md:py-16 md:pe-12 md:ps-4">
-        <div className="w-full max-w-md rounded-[1.75rem] border border-slate-200/80 bg-white/95 p-9 shadow-[0_24px_64px_-20px_rgb(15_23_42_/_0.18)] ring-1 ring-slate-900/[0.03] backdrop-blur-md dark:border-slate-600/60 dark:bg-slate-900/90 dark:ring-white/5">
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--color-primary)] dark:text-blue-200">כניסה למערכת</h1>
-          <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">הכניסי סיסמה כללית כדי להמשיך.</p>
+        <div className="animate-card-lift w-full max-w-md rounded-[1.75rem] border border-slate-200/80 bg-white/95 p-9 shadow-[0_24px_64px_-20px_rgb(15_23_42_/_0.18)] ring-1 ring-slate-900/[0.03] backdrop-blur-md dark:border-slate-600/60 dark:bg-slate-900/90 dark:ring-white/5">
+          <LoginTimeGreeting />
+          <h1 className="mt-4 text-2xl font-bold tracking-tight text-[var(--color-primary)] dark:text-blue-200">כניסה למערכת</h1>
 
-          <form action={login} className="mt-8 space-y-5">
-            <label className="block">
-              <div className="text-sm font-medium text-slate-800 dark:text-zinc-200">סיסמה</div>
-              <input
-                name="password"
-                type="password"
-                required
-                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-3 outline-none ring-[var(--color-primary)]/0 transition-shadow focus:border-[var(--color-primary)] focus:bg-white focus:ring-4 focus:ring-[var(--color-primary)]/15 dark:border-zinc-600 dark:bg-zinc-800/50 dark:focus:bg-zinc-900"
-                dir="ltr"
-                autoFocus
-              />
-            </label>
+          <form id="login-form" action={login} className="mt-8 space-y-5">
+            <LoginPasswordDots />
 
             <LoginError searchParams={searchParams} />
 
@@ -85,7 +77,7 @@ async function LoginError({ searchParams }: { searchParams: Promise<{ error?: st
   if (error !== "wrong_password") return null;
   return (
     <div className="rounded-2xl border border-red-200/90 bg-red-50 px-4 py-2.5 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
-      סיסמה שגויה
+      קוד שגוי
     </div>
   );
 }

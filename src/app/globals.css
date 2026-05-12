@@ -44,7 +44,7 @@
   --color-foreground: var(--foreground);
   --color-primary: var(--color-primary);
   --color-surface: var(--surface);
-  --font-sans: var(--font-heebo);
+  --font-sans: var(--font-rubik);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -104,4 +104,78 @@ body {
 
 .calendar-shell .fc .fc-toolbar-title {
   font-size: 1.05rem;
+}
+
+@keyframes card-lift-in {
+  from {
+    opacity: 0;
+    transform: translateY(1.125rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-card-lift {
+  animation: card-lift-in 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-card-lift {
+    animation: none;
+  }
+}
+
+@keyframes login-star-pop {
+  0% {
+    transform: scale(0.65);
+    opacity: 0.45;
+    filter: brightness(1.35);
+  }
+  55% {
+    transform: scale(1.12);
+    opacity: 1;
+    filter: brightness(1.12);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
+
+.login-star-slot--filled {
+  animation: login-star-pop 0.42s cubic-bezier(0.34, 1.45, 0.64, 1) both;
+}
+
+@keyframes login-caret-blink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.login-password-caret {
+  width: 2px;
+  height: 1.45rem;
+  border-radius: 1px;
+  background: var(--color-primary);
+  flex-shrink: 0;
+  vertical-align: middle;
+  animation: login-caret-blink 1.05s step-end infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-star-slot--filled {
+    animation: none;
+  }
+  .login-password-caret {
+    animation: none;
+    opacity: 1;
+  }
 }

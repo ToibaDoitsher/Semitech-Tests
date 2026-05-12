@@ -1,6 +1,10 @@
+"use client";
+
 import * as React from "react";
+import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/utils";
+import { tableAccentKeyFromPathname, tableHeaderAccentClasses } from "@/lib/tableAccent";
 
 /** טבלה בסגנון shadcn/ui — https://ui.shadcn.com/docs/components/table (RTL: יישור ימין) */
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
@@ -13,16 +17,11 @@ const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableE
 Table.displayName = "Table";
 
 const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
-  ({ className, ...props }, ref) => (
-    <thead
-      ref={ref}
-      className={cn(
-        "sticky top-0 z-10 bg-gradient-to-b from-slate-50 to-white shadow-[inset_0_-1px_0_0_rgb(226_232_240)] dark:from-zinc-900 dark:to-zinc-950 dark:shadow-[inset_0_-1px_0_0_rgb(39_39_42)] [&_tr]:border-b-0",
-        className,
-      )}
-      {...props}
-    />
-  ),
+  ({ className, ...props }, ref) => {
+    const pathname = usePathname();
+    const accent = tableHeaderAccentClasses(tableAccentKeyFromPathname(pathname));
+    return <thead ref={ref} className={cn(accent, className)} {...props} />;
+  },
 );
 TableHeader.displayName = "TableHeader";
 
@@ -66,7 +65,7 @@ const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<
     <th
       ref={ref}
       className={cn(
-        "h-11 px-3 text-right align-middle text-xs font-medium text-slate-500 [&:has([role=checkbox])]:pr-0 dark:text-zinc-400",
+        "h-11 px-3 text-right align-middle text-xs font-semibold text-inherit opacity-95 [&:has([role=checkbox])]:pr-0",
         className,
       )}
       {...props}

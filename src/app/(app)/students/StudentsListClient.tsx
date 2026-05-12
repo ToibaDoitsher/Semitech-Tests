@@ -176,7 +176,7 @@ export function StudentsListClient() {
         </div>
       </ListDataCard>
 
-      <ListDataCard>
+      <ListDataCard enterDelay={0.09}>
         <ListTableToolbar>
           {isLoading ? (
             <span className="inline-flex items-center gap-2">
