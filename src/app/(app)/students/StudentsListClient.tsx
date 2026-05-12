@@ -19,6 +19,9 @@ import { TableClearFooter } from "@/components/ui/TableClearFooter";
 import { pickLookupName } from "@/lib/lookups/display";
 import type { Student } from "@/lib/types/db";
 
+const filterControlClass =
+  "mt-1.5 w-full rounded-2xl border border-slate-200/90 bg-white px-3.5 py-2.5 text-sm shadow-sm outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-blue-500/25 dark:border-zinc-600 dark:bg-zinc-950/40 dark:focus:ring-blue-400/20";
+
 const fetcher = (url: string) => fetch(url).then((r) => {
   if (!r.ok) throw new Error("שגיאת טעינה");
   return r.json();
@@ -76,99 +79,101 @@ export function StudentsListClient() {
       />
 
       <ListDataCard>
-        <div className="grid gap-4 p-4 sm:p-5 sm:grid-cols-2 lg:grid-cols-5">
-          <label className="block sm:col-span-2 lg:col-span-2">
-            <span className="block text-sm font-medium text-zinc-700">חיפוש</span>
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="למשל: יעל כהן · או כהן יעל · או ת״ז…"
-              className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm shadow-inner outline-none focus:border-violet-400"
-              dir="rtl"
-            />
-          </label>
-
-          <label className="block">
-            <span className="block text-sm font-medium text-zinc-700">שכבה</span>
-            <select
-              value={gradeLevelId}
-              onChange={(e) => setGradeLevelId(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-violet-400"
-            >
-              <option value="">הכל</option>
-              {(glData?.items ?? []).map((it) => (
-                <option key={it.id} value={it.id}>
-                  {it.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="block text-sm font-medium text-zinc-700">כיתה</span>
-            <select
-              value={classId}
-              onChange={(e) => setClassId(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-violet-400"
-            >
-              <option value="">הכל</option>
-              {(clData?.items ?? []).map((it) => (
-                <option key={it.id} value={it.id}>
-                  {it.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="block text-sm font-medium text-zinc-700">מסלול</span>
-            <select
-              value={trackId}
-              onChange={(e) => setTrackId(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-violet-400"
-            >
-              <option value="">הכל</option>
-              {(trData?.items ?? []).map((it) => (
-                <option key={it.id} value={it.id}>
-                  {it.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="block text-sm font-medium text-zinc-700">התמחות</span>
-            <select
-              value={specializationId}
-              onChange={(e) => setSpecializationId(e.target.value)}
-              className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-violet-400"
-            >
-              <option value="">הכל</option>
-              {(spData?.items ?? []).map((it) => (
-                <option key={it.id} value={it.id}>
-                  {it.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        {(gradeLevelId || classId || trackId || specializationId) && (
-          <div className="mt-3 text-xs text-zinc-600">
-            <button
-              type="button"
-              className="text-violet-700 hover:underline"
-              onClick={() => {
-                setGradeLevelId("");
-                setClassId("");
-                setSpecializationId("");
-                setTrackId("");
-              }}
-            >
-              ניקוי סינון
-            </button>
+        <div className="bg-gradient-to-bl from-slate-50/95 via-white to-sky-50/35 p-5 sm:p-6 dark:from-slate-900/50 dark:via-zinc-900/35 dark:to-slate-900/25">
+          <div className="mb-4 flex flex-col gap-2 border-b border-slate-200/60 pb-4 dark:border-slate-700/50 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm font-semibold text-slate-800 dark:text-zinc-100">סינון תוצאות</p>
+            {(gradeLevelId || classId || trackId || specializationId) ? (
+              <button
+                type="button"
+                className="self-start text-sm font-medium text-[var(--color-primary)] underline-offset-2 hover:underline dark:text-blue-300"
+                onClick={() => {
+                  setGradeLevelId("");
+                  setClassId("");
+                  setSpecializationId("");
+                  setTrackId("");
+                }}
+              >
+                ניקוי סינון
+              </button>
+            ) : null}
           </div>
-        )}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <label className="block sm:col-span-2 lg:col-span-2">
+              <span className="block text-xs font-semibold text-slate-600 dark:text-zinc-400">חיפוש</span>
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="למשל: יעל כהן · או כהן יעל · או ת״ז…"
+                className={filterControlClass}
+                dir="rtl"
+              />
+            </label>
+
+            <label className="block">
+              <span className="block text-xs font-semibold text-slate-600 dark:text-zinc-400">שכבה</span>
+              <select
+                value={gradeLevelId}
+                onChange={(e) => setGradeLevelId(e.target.value)}
+                className={filterControlClass}
+              >
+                <option value="">הכל</option>
+                {(glData?.items ?? []).map((it) => (
+                  <option key={it.id} value={it.id}>
+                    {it.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="block text-xs font-semibold text-slate-600 dark:text-zinc-400">כיתה</span>
+              <select
+                value={classId}
+                onChange={(e) => setClassId(e.target.value)}
+                className={filterControlClass}
+              >
+                <option value="">הכל</option>
+                {(clData?.items ?? []).map((it) => (
+                  <option key={it.id} value={it.id}>
+                    {it.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="block text-xs font-semibold text-slate-600 dark:text-zinc-400">מסלול</span>
+              <select
+                value={trackId}
+                onChange={(e) => setTrackId(e.target.value)}
+                className={filterControlClass}
+              >
+                <option value="">הכל</option>
+                {(trData?.items ?? []).map((it) => (
+                  <option key={it.id} value={it.id}>
+                    {it.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="block text-xs font-semibold text-slate-600 dark:text-zinc-400">התמחות</span>
+              <select
+                value={specializationId}
+                onChange={(e) => setSpecializationId(e.target.value)}
+                className={filterControlClass}
+              >
+                <option value="">הכל</option>
+                {(spData?.items ?? []).map((it) => (
+                  <option key={it.id} value={it.id}>
+                    {it.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
       </ListDataCard>
 
       <ListDataCard>

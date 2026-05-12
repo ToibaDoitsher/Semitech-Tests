@@ -1,24 +1,31 @@
 @import "tailwindcss";
 
-/* Design tokens — מערכת צבעים מקצועית (מצב בהיר + תשתית למצב כהה) */
+/*
+  שפת עיצוב — השראה מאתרים מקצועיים RTL (רקע רך, סרגל בהיר, כרטיסים מרחפים, כחול עמוח).
+  לחזרה למראה הקודם: git checkout -- src/app/globals.css (או כתבי «לא אוהבת» ונשחזר את כל השינוי בקומיט).
+*/
 :root {
-  --background: #f8fafc;
+  --background: #f0f4fa;
   --foreground: #0f172a;
-  --app-bg: #f8fafc;
+  --app-bg: #f0f4fa;
   --surface: #ffffff;
   --border: #e2e8f0;
-  --muted: #64748b;
+  --muted: #5c6b7e;
+  --sidebar-bg: #f8fafc;
 
   --color-primary: #2563eb;
   --color-primary-hover: #1d4ed8;
+  --color-accent: #ea580c;
+  --color-accent-soft: rgb(234 88 12 / 0.12);
   --color-success: #16a34a;
   --color-warning: #f59e0b;
   --color-danger: #dc2626;
   --color-info: #0891b2;
 
-  --sidebar-w: 16rem;
+  --sidebar-w: 17rem;
   --sidebar-w-collapsed: 4.5rem;
-  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.05);
+  --shadow-card: 0 14px 48px -12px rgb(15 23 42 / 0.1), 0 4px 12px -4px rgb(37 99 235 / 0.08);
+  --radius-card: 1.25rem;
 }
 
 .dark {
@@ -28,7 +35,8 @@
   --surface: #1e293b;
   --border: #334155;
   --muted: #94a3b8;
-  --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --sidebar-bg: #1a2332;
+  --shadow-card: 0 12px 40px -12px rgb(0 0 0 / 0.35), 0 2px 8px rgb(0 0 0 / 0.2);
 }
 
 @theme inline {
@@ -47,14 +55,25 @@
     --surface: #1e293b;
     --border: #334155;
     --muted: #94a3b8;
+    --sidebar-bg: #1a2332;
   }
 }
 
+html {
+  min-height: 100%;
+}
+
 body {
-  background: var(--background);
+  min-height: 100%;
+  background: linear-gradient(165deg, #e4eef9 0%, #eef2f7 38%, #f0f4fa 100%);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", Arial,
     sans-serif;
+}
+
+.dark body,
+:root.dark body {
+  background: var(--background);
 }
 
 /* תגי סטטוס רכים */

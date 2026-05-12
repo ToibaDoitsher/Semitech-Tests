@@ -87,35 +87,37 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const sidebarWidthClass = collapsed ? "w-[var(--sidebar-w-collapsed)]" : "w-[var(--sidebar-w)]";
 
   return (
-    <div className="flex min-h-screen w-full bg-[var(--background)] text-[var(--foreground)]">
+    <div className="flex min-h-screen w-full bg-transparent text-[var(--foreground)]">
       <aside
-        className={`flex shrink-0 flex-col border-e border-[var(--border)] bg-[var(--surface)] shadow-sm transition-[width] duration-200 ${sidebarWidthClass}`}
+        className={`flex shrink-0 flex-col border-e border-[var(--border)] bg-[var(--sidebar-bg)] shadow-[inset_-1px_0_0_rgb(226_232_240_/_0.6)] transition-[width] duration-200 dark:shadow-[inset_-1px_0_0_rgb(51_65_85_/_0.35)] ${sidebarWidthClass}`}
       >
-        <div className="flex h-14 items-center justify-between gap-2 border-b border-[var(--border)] px-3">
+        <div className="flex h-[3.75rem] items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--surface)]/60 px-3 backdrop-blur-sm dark:bg-[var(--surface)]/40">
           <Link
             href="/dashboard"
             className={[
-              "flex min-w-0 items-center gap-2 rounded-xl px-1.5 py-1 transition hover:bg-slate-100 dark:hover:bg-white/10",
+              "flex min-w-0 items-center gap-2.5 rounded-2xl px-2 py-1.5 transition hover:bg-white hover:shadow-sm dark:hover:bg-white/10",
               collapsed ? "justify-center" : "",
             ].join(" ")}
             title="בית"
           >
-            <span className="relative size-9 shrink-0 overflow-hidden rounded-full border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-              <Image src="/logo.png" alt="לוגו" fill className="object-contain p-1.5" sizes="36px" priority />
+            <span className="relative size-12 shrink-0 overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-md ring-2 ring-white/80 dark:border-zinc-600 dark:bg-zinc-900 dark:ring-zinc-800/80">
+              <Image src="/logo.png" alt="לוגו" fill className="object-contain p-2" sizes="48px" priority />
             </span>
-            {!collapsed ? <span className="truncate text-sm font-bold text-[var(--foreground)]">מערכת מבחנים</span> : null}
+            {!collapsed ? (
+              <span className="truncate text-base font-extrabold tracking-tight text-slate-800 dark:text-zinc-50">מערכת מבחנים</span>
+            ) : null}
           </Link>
           <button
             type="button"
             onClick={() => setCollapsed((c) => !c)}
-            className="rounded-lg p-1.5 text-[var(--muted)] ring-1 ring-transparent transition hover:bg-slate-100 hover:text-[var(--foreground)] hover:ring-slate-300 hover:shadow-sm active:scale-95 dark:hover:bg-white/10 dark:hover:ring-white/20"
+            className="rounded-xl p-2 text-[var(--muted)] ring-1 ring-transparent transition hover:bg-white hover:text-[var(--foreground)] hover:shadow-md hover:ring-slate-200/80 active:scale-95 dark:hover:bg-white/10 dark:hover:ring-white/15"
             title={collapsed ? "הרחבה" : "כיווץ"}
           >
             <ChevronLeft className={`size-5 transition-transform ${collapsed ? "rotate-180" : ""}`} />
           </button>
         </div>
 
-        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-2.5">
           {nav.map((item) => {
             const active = isNavActive(pathname, item);
             const Icon = item.icon;
@@ -124,10 +126,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className={[
-                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium ring-1 ring-transparent transition-all outline-none",
+                  "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium outline-none ring-1 ring-transparent transition-all",
                   active
-                    ? "bg-[var(--color-primary)] text-white shadow-md hover:bg-[var(--color-primary-hover)] hover:text-white hover:shadow-lg [&_svg]:text-white [&_svg]:opacity-100 hover:[&_svg]:text-white"
-                    : "text-[var(--foreground)] hover:bg-slate-100 hover:text-slate-900 hover:shadow-md hover:ring-slate-200/90 [&_svg]:text-[var(--muted)] hover:[&_svg]:text-slate-800 active:scale-[0.98] dark:hover:bg-slate-700/90 dark:hover:text-zinc-50 dark:hover:ring-slate-500/40 dark:[&_svg]:text-zinc-400 dark:hover:[&_svg]:text-zinc-50",
+                    ? "bg-[var(--color-primary)] text-white shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.14),0_4px_14px_-4px_rgb(37_99_235_/_0.45)] ring-[var(--color-primary)]/30 hover:bg-[var(--color-primary-hover)] hover:shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.16),0_6px_18px_-4px_rgb(37_99_235_/_0.4)] [&_svg]:text-white"
+                    : "text-slate-700 hover:bg-white hover:text-slate-900 hover:shadow-md hover:ring-slate-200/90 [&_svg]:text-[var(--muted)] hover:[&_svg]:text-[var(--color-primary)] active:scale-[0.98] dark:text-zinc-200 dark:hover:bg-white/10 dark:hover:text-white dark:hover:ring-white/10 dark:[&_svg]:text-zinc-400 dark:hover:[&_svg]:text-white",
                   collapsed ? "justify-center px-2" : "",
                 ].join(" ")}
                 title={collapsed ? item.label : undefined}
@@ -139,15 +141,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <div className="border-t border-[var(--border)] p-2">
+        <div className="border-t border-[var(--border)] bg-[var(--surface)]/50 p-2.5 dark:bg-[var(--surface)]/30">
           <div className={["mb-2 flex flex-col gap-2", collapsed ? "items-center" : ""].join(" ")}>
             <a
               href="mailto:t025959714@gmail.com"
-              className={["group rounded-xl border border-zinc-200 bg-white/70 p-2 shadow-sm transition hover:bg-white hover:shadow-md dark:border-zinc-700/60 dark:bg-zinc-900/30 dark:hover:bg-white/5", collapsed ? "w-auto" : "w-full"].join(" ")}
+              className={["group rounded-2xl border border-slate-200/90 bg-white p-2.5 shadow-sm transition hover:shadow-md dark:border-zinc-600/80 dark:bg-zinc-900/50 dark:hover:bg-zinc-900/80", collapsed ? "w-auto" : "w-full"].join(" ")}
               title="שליחת מייל"
             >
               <div className="flex justify-center">
-                <span className="relative h-9 w-28 shrink-0 overflow-hidden rounded-lg">
+                <span className="relative h-9 w-28 shrink-0 overflow-hidden rounded-xl">
                   <Image src="/footer-logo.png" alt="T.Doitsher" fill className="object-contain" sizes="112px" />
                 </span>
               </div>
@@ -157,7 +159,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             type="button"
             onClick={() => void logout()}
             className={[
-              "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-red-700 ring-1 ring-transparent transition hover:bg-red-50 hover:shadow-md hover:ring-red-200 active:scale-[0.98] dark:hover:bg-red-950/30 dark:hover:ring-red-900/40",
+              "flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium text-slate-600 ring-1 ring-transparent transition hover:bg-red-50 hover:text-red-700 hover:shadow-md hover:ring-red-100 active:scale-[0.98] dark:text-zinc-400 dark:hover:bg-red-950/25 dark:hover:text-red-300 dark:hover:ring-red-900/30",
               collapsed ? "justify-center" : "",
             ].join(" ")}
             title={collapsed ? "יציאה" : undefined}
@@ -168,10 +170,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-4 border-b border-[var(--border)] bg-[var(--surface)]/90 px-4 backdrop-blur-md md:px-8">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col bg-[linear-gradient(145deg,rgb(248_250_252_/_0.95)_0%,rgb(239_246_255_/_0.45)_32%,var(--background)_58%)] dark:bg-[linear-gradient(145deg,rgb(15_23_42_/_0.98)_0%,rgb(30_41_59_/_0.6)_45%,var(--background)_70%)]">
+        <header className="sticky top-0 z-30 flex h-[3.75rem] shrink-0 items-center gap-4 border-b border-[var(--border)] bg-[var(--surface)]/85 px-4 shadow-sm backdrop-blur-md md:px-8 dark:bg-[var(--surface)]/80">
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-lg font-semibold tracking-tight text-slate-900 dark:text-zinc-50">{pageTitle}</h1>
+            <h1 className="truncate text-lg font-bold tracking-tight text-[var(--color-primary)] dark:text-blue-200">{pageTitle}</h1>
             <p className="truncate text-xs text-[var(--muted)]">
               <span className="font-mono text-[10px] opacity-70" dir="ltr">
                 {pathname}
@@ -181,12 +183,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
 
         <motion.main
-          className="min-h-0 flex-1 overflow-y-auto px-4 py-8 md:px-10"
+          className="min-h-0 flex-1 overflow-y-auto px-4 py-8 md:px-10 md:py-10"
           initial={{ opacity: 0.96 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.2 }}
         >
-          <div className="mx-auto w-full max-w-6xl">{children}</div>
+          <div className="mx-auto w-full max-w-6xl pb-4">{children}</div>
         </motion.main>
       </div>
     </div>

@@ -45,7 +45,7 @@ function StatCard({
   const inner = (
     <motion.div
       layout
-      className="rounded-2xl border border-zinc-200/70 bg-white p-5 shadow-sm shadow-zinc-900/5 ring-1 ring-transparent transition-all hover:-translate-y-[1px] hover:border-zinc-200 hover:shadow-md hover:shadow-zinc-900/10 hover:ring-zinc-900/5 dark:border-zinc-700/60 dark:bg-zinc-900/40 dark:shadow-black/30 dark:hover:border-zinc-600/70 dark:hover:ring-white/10"
+      className="rounded-2xl border border-slate-200/70 bg-white/95 p-5 shadow-[var(--shadow-card)] ring-1 ring-slate-900/[0.02] transition-all hover:-translate-y-[1px] hover:border-slate-300/80 hover:shadow-lg dark:border-zinc-700/60 dark:bg-zinc-900/45 dark:ring-white/[0.04] dark:hover:border-zinc-600/70"
       whileHover={{ y: -1 }}
       transition={{ type: "spring", stiffness: 400, damping: 28 }}
     >
