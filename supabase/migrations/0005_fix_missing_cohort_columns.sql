@@ -32,3 +32,6 @@ alter table public.academic_years add constraint academic_years_cohorts_differen
 
 create index if not exists idx_academic_years_cohort_a on public.academic_years (cohort_a_id);
 create index if not exists idx_academic_years_cohort_b on public.academic_years (cohort_b_id);
+
+-- רענון מטמון ה-API של Supabase (חשוב אחרי הוספת עמודות)
+notify pgrst, 'reload schema';

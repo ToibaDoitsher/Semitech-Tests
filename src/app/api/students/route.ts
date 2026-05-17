@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { enrichStudentsWithGradeForYear } from "@/lib/academic/studentGrade";
+import { enrichStudentsWithGrade } from "@/lib/academic/studentGrade";
 import { loadYearCohortConfig } from "@/lib/academic/yearCohorts";
 import { resolveAcademicYearId } from "@/lib/academic/year";
 import { getStudentWithLookupsSelect } from "@/lib/db/studentSelect";
@@ -8,6 +8,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  try {
   const { searchParams } = new URL(request.url);
   const q = (searchParams.get("q") ?? "").trim();
   const cohortGrade = (searchParams.get("cohort_grade") ?? "").trim();
@@ -67,7 +68,11 @@ export async function GET(request: Request) {
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const students = await enrichStudentsWithGradeForYear(supabase, data ?? [], yearId);
+  const students = enrichStudentsWithGrade(data ?? [], year);
 
   return NextResponse.json({ students });
+  } catch (e) {
+    const msg = (e as Error).message ?? "שגיאת שרת";
+    return NextResponse.json({ error: msg, students: [] }, { status: 500 });
+  }
 }

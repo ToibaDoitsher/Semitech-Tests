@@ -5,13 +5,24 @@ type YearCohortSchema = "columns" | "placements";
 
 let cachedYearCohortSchema: YearCohortSchema | null = null;
 
+function isMissingCohortColumnError(message: string | undefined): boolean {
+  if (!message) return false;
+  const m = message.toLowerCase();
+  return (
+    m.includes("cohort_a_id") &&
+    (m.includes("does not exist") || m.includes("schema cache") || m.includes("could not find"))
+  );
+}
+
 async function detectYearCohortSchema(supabase: SupabaseClient): Promise<YearCohortSchema> {
   if (cachedYearCohortSchema) return cachedYearCohortSchema;
   const probe = await supabase.from("academic_years").select("cohort_a_id").limit(1);
-  if (probe.error?.message?.includes("cohort_a_id") && probe.error.message.includes("does not exist")) {
+  if (!probe.error) {
+    cachedYearCohortSchema = "columns";
+  } else if (isMissingCohortColumnError(probe.error.message)) {
     cachedYearCohortSchema = "placements";
   } else {
-    cachedYearCohortSchema = "columns";
+    cachedYearCohortSchema = "placements";
   }
   return cachedYearCohortSchema;
 }
@@ -137,7 +148,15 @@ export async function loadYearCohortConfig(
   if (schema === "placements") {
     return loadYearCohortConfigFromPlacements(supabase, academicYearId);
   }
-  return loadYearCohortConfigFromColumns(supabase, { column: "id", value: academicYearId });
+  try {
+    return await loadYearCohortConfigFromColumns(supabase, { column: "id", value: academicYearId });
+  } catch (e) {
+    if (isMissingCohortColumnError((e as Error).message)) {
+      cachedYearCohortSchema = "placements";
+      return loadYearCohortConfigFromPlacements(supabase, academicYearId);
+    }
+    throw e;
+  }
 }
 
 export async function loadYearCohortConfigByName(
@@ -155,7 +174,22 @@ export async function loadYearCohortConfigByName(
     if (!year) return null;
     return loadYearCohortConfigFromPlacements(supabase, year.id as string);
   }
-  return loadYearCohortConfigFromColumns(supabase, { column: "name", value: yearName.trim() });
+  try {
+    return await loadYearCohortConfigFromColumns(supabase, { column: "name", value: yearName.trim() });
+  } catch (e) {
+    if (isMissingCohortColumnError((e as Error).message)) {
+      cachedYearCohortSchema = "placements";
+      const { data: year, error } = await supabase
+        .from("academic_years")
+        .select("id")
+        .eq("name", yearName.trim())
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!year) return null;
+      return loadYearCohortConfigFromPlacements(supabase, year.id as string);
+    }
+    throw e;
+  }
 }
 
 export async function resolveImportTarget(

@@ -23,10 +23,12 @@ import type { Student } from "@/lib/types/db";
 const filterControlClass =
   "mt-1.5 w-full rounded-2xl border border-slate-200/90 bg-white px-3.5 py-2.5 text-sm shadow-sm outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-blue-500/25 dark:border-zinc-600 dark:bg-zinc-950/40 dark:focus:ring-blue-400/20";
 
-const fetcher = (url: string) => fetch(url).then((r) => {
-  if (!r.ok) throw new Error("שגיאת טעינה");
-  return r.json();
-});
+const fetcher = async (url: string) => {
+  const r = await fetch(url);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error((j as { error?: string }).error ?? "שגיאת טעינה");
+  return j;
+};
 
 export function StudentsListClient() {
   const [q, setQ] = useState("");
