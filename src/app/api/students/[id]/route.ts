@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { enrichStudentsWithGradeForYear } from "@/lib/academic/studentGrade";
-import { resolveAcademicYearId } from "@/lib/academic/year";
 import { writeAudit } from "@/lib/audit/log";
 import { getCurrentUser } from "@/lib/auth/currentUser";
+import { asStudentRow } from "@/lib/db/studentRow";
 import { getStudentWithLookupsSelect } from "@/lib/db/studentSelect";
 import { recordStudentHistoryIfChanged } from "@/lib/students/history";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -13,7 +12,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
   const { id } = await ctx.params;
   const supabase = createSupabaseAdminClient();
 
-  const studentSelect = await getStudentWithLookupsSelect(supabase);
+  const studentSelect = await getStudentWithLookupsSelect();
   const { data: student, error: sErr } = await supabase
     .from("students")
     .select(studentSelect)
@@ -21,12 +20,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
     .single();
   if (sErr || !student) return NextResponse.json({ error: "לא נמצאה תלמידה" }, { status: 404 });
 
-  const yearId =
-    (student as { academic_year_id?: string }).academic_year_id ??
-    (await resolveAcademicYearId(supabase));
-  const enriched = yearId
-    ? (await enrichStudentsWithGradeForYear(supabase, [student], yearId))[0]
-    : student;
+  const row = asStudentRow(student);
 
   const { data: examStudents } = await supabase
     .from("exam_students")
@@ -86,7 +80,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
     exam: makeupExamsMeta[m.exam_id] ?? null,
   }));
 
-  return NextResponse.json({ student: enriched, exam_students, makeups: makeupsEnriched });
+  return NextResponse.json({ student: row, exam_students, makeups: makeupsEnriched });
 }
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -115,21 +109,16 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     .from("students")
     .update(patch)
     .eq("id", id)
-    .select(await getStudentWithLookupsSelect(supabase))
+    .select(await getStudentWithLookupsSelect())
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
   if (before && data) {
-    const after = data as {
-      class_id: string;
-      specialization_id: string | null;
-      track_id: string | null;
-      academic_year_id: string | null;
-    };
+    const after = asStudentRow(data);
     await recordStudentHistoryIfChanged(
       supabase,
       id,
-      before as typeof after,
+      before as Pick<typeof after, "class_id" | "specialization_id" | "track_id" | "academic_year_id">,
       after,
       user?.id ?? null,
     );

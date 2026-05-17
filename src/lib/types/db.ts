@@ -1,9 +1,8 @@
+import type { GradeLevel } from "@/lib/students/gradeLevel";
+
 export type ExamTargetType = "class" | "specialization" | "track";
 export type ExamStudentStatus = "pending" | "took" | "missing" | "makeup" | "completed";
 export type MakeupExamStatus = "open" | "completed";
-
-import type { CohortGrade } from "@/lib/academic/yearCohorts";
-
 export type StudentStatus = "active" | "left" | "graduated";
 
 export type LookupRow = {
@@ -16,7 +15,8 @@ export type Student = {
   first_name: string;
   last_name: string;
   tz: string;
-  cohort_id: string;
+  cohort_number: number;
+  grade_level: GradeLevel;
   academic_year_id: string;
   class_id: string;
   specialization_id: string | null;
@@ -24,12 +24,9 @@ export type Student = {
   notes?: string | null;
   status?: StudentStatus;
   created_at: string;
-  cohorts?: LookupRow | null;
   classes?: LookupRow | null;
   specializations?: LookupRow | null;
   tracks?: LookupRow | null;
-  computed_grade_level?: CohortGrade | null;
-  cohort_name?: string | null;
 };
 
 export type Teacher = {
@@ -42,11 +39,10 @@ export type TeacherAssignment = {
   id: string;
   teacher_id: string;
   subject: string;
-  grade_level_id: string;
+  academic_year_id: string;
   target_type: ExamTargetType;
   target_id: string;
   active: boolean;
-  grade_levels?: LookupRow | null;
   teachers?: { name: string } | null;
 };
 
@@ -87,4 +83,13 @@ export type ExamTracking = {
   grades_submitted: boolean;
   grades_approved: boolean;
   transferred_to_system: boolean;
+  photocopied: boolean;
+  notes: string | null;
+};
+
+export type AppUser = {
+  id: string;
+  username: string;
+  full_name: string;
+  active: boolean;
 };

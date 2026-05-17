@@ -12,10 +12,8 @@ import { TableClearFooter } from "@/components/ui/TableClearFooter";
 
 type ImportPlan = {
   academicYearName: string;
-  cohortName: string;
+  cohortNumber: number;
   targetGrade: string | null;
-  cohortAName: string | null;
-  cohortBName: string | null;
   willImportCount: number;
 };
 
@@ -31,11 +29,7 @@ type PreviewRow = {
   warnings?: string[];
 };
 
-type YearOption = {
-  name: string;
-  cohort_a_name: string | null;
-  cohort_b_name: string | null;
-};
+type YearOption = { name: string };
 
 export function ImportStudentsClient() {
   const [busy, setBusy] = useState(false);
@@ -112,7 +106,7 @@ export function ImportStudentsClient() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          cohort_name: cohortName.trim(),
+          cohort_number: cohortName.trim(),
           academic_year_name: academicYearName.trim(),
           valid_count: validCount,
         }),
@@ -149,7 +143,7 @@ export function ImportStudentsClient() {
         body: JSON.stringify({
           rows: payload,
           updateExisting,
-          cohort_name: cohortName.trim(),
+          cohort_number: cohortName.trim(),
           academic_year_name: academicYearName.trim(),
         }),
       });
@@ -175,8 +169,8 @@ export function ImportStudentsClient() {
 
   const planHint = plan
     ? [
-        `שנה: ${plan.academicYearName} (א׳: ${plan.cohortAName ?? "—"}, ב׳: ${plan.cohortBName ?? "—"})`,
-        `מחזור ${plan.cohortName} → שכבה ${plan.targetGrade ?? "—"}`,
+        `שנה: ${plan.academicYearName}`,
+        `מחזור ${plan.cohortNumber} → שכבה ${plan.targetGrade ?? "—"}`,
         `ייובאו ${plan.willImportCount} תלמידות`,
       ].join("\n")
     : "";
@@ -253,11 +247,6 @@ export function ImportStudentsClient() {
               ))}
             </select>
           </label>
-          {selectedYear ? (
-            <p className="text-xs text-zinc-500">
-              א׳: מחזור {selectedYear.cohort_a_name ?? "—"} · ב׳: מחזור {selectedYear.cohort_b_name ?? "—"}
-            </p>
-          ) : null}
           <label className="block text-sm">
             <span className="font-medium">מחזור יעד</span>
             <input

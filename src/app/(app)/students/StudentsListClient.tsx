@@ -40,7 +40,7 @@ export function StudentsListClient() {
   const url = useMemo(() => {
     const p = new URLSearchParams();
     if (deferred.trim()) p.set("q", deferred.trim());
-    if (cohortGrade) p.set("cohort_grade", cohortGrade);
+    if (cohortGrade) p.set("grade_level", cohortGrade === "A" ? "א" : cohortGrade === "B" ? "ב" : cohortGrade);
     if (classId) p.set("class_id", classId);
     if (specializationId) p.set("specialization_id", specializationId);
     if (trackId) p.set("track_id", trackId);
@@ -119,8 +119,8 @@ export function StudentsListClient() {
                 className={filterControlClass}
               >
                 <option value="">הכל</option>
-                <option value="A">A</option>
-                <option value="B">B</option>
+                <option value="א">א</option>
+                <option value="ב">ב</option>
               </select>
             </label>
 
@@ -216,8 +216,7 @@ export function StudentsListClient() {
                     {s.tz}
                   </TableCell>
                   <TableCell>
-                    {formatCohortGradeLabel(s.computed_grade_level)}
-                    {s.cohort_name ? ` (מחזור ${s.cohort_name})` : ""}
+                    {formatCohortGradeLabel(s.grade_level)} · מחזור {s.cohort_number}
                   </TableCell>
                   <TableCell>{pickLookupName(s.classes)}</TableCell>
                   <TableCell>{pickLookupName(s.tracks)}</TableCell>

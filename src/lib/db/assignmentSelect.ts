@@ -1,5 +1,1 @@
-export const ASSIGNMENT_WITH_LOOKUPS = `
-  *,
-  teachers(name),
-  grade_levels(id,name)
-`;
+export const ASSIGNMENT_WITH_LOOKUPS = `*, teachers(name)`;

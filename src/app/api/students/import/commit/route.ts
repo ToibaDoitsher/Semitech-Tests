@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { resolveImportTarget } from "@/lib/academic/yearCohorts";
 import { setAcademicYearCookie } from "@/lib/academic/year";
+import { resolveImportTarget } from "@/lib/students/importTarget";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   validateImportRows,
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 type CommitBody = {
   rows?: ParsedImportRow[];
   updateExisting?: boolean;
-  cohort_name?: string;
+  cohort_number?: string | number;
   academic_year_name?: string;
 };
 
@@ -21,16 +21,16 @@ export async function POST(request: Request) {
   const body = (await request.json()) as CommitBody;
   const rowsIn = body.rows ?? [];
   const updateExisting = Boolean(body.updateExisting);
-  const cohortName = (body.cohort_name ?? "").trim();
+  const cohortInput = String(body.cohort_number ?? "").trim();
   const academicYearName = (body.academic_year_name ?? "").trim();
 
   if (!rowsIn.length) return NextResponse.json({ error: "אין שורות לייבוא" }, { status: 400 });
-  if (!cohortName || !academicYearName) {
+  if (!cohortInput || !academicYearName) {
     return NextResponse.json({ error: "חובה מחזור ושנת לימודים" }, { status: 400 });
   }
 
   const supabase = createSupabaseAdminClient();
-  const target = await resolveImportTarget(supabase, academicYearName, cohortName);
+  const target = await resolveImportTarget(supabase, academicYearName, cohortInput);
   if (target.error) return NextResponse.json({ error: target.error }, { status: 400 });
 
   await setAcademicYearCookie(target.yearId);
@@ -75,7 +75,8 @@ export async function POST(request: Request) {
       class_id: r.resolved.class_id,
       specialization_id: r.resolved.specialization_id,
       track_id: r.resolved.track_id,
-      cohort_id: target.cohortId,
+      cohort_number: target.cohortNumber,
+      grade_level: target.grade,
       academic_year_id: target.yearId,
       status: "active",
     };
@@ -105,13 +106,16 @@ export async function POST(request: Request) {
       updated += 1;
     }
   } catch (e) {
-    return NextResponse.json({
-      error: (e as Error).message,
-      imported: inserted,
-      updated,
-      failed: rowErrors.length,
-      errors: rowErrors,
-    }, { status: 400 });
+    return NextResponse.json(
+      {
+        error: (e as Error).message,
+        imported: inserted,
+        updated,
+        failed: rowErrors.length,
+        errors: rowErrors,
+      },
+      { status: 400 },
+    );
   }
 
   return NextResponse.json({
@@ -122,7 +126,7 @@ export async function POST(request: Request) {
     skipped: rowsIn.length - good.length - inserted - updated,
     errors: rowErrors,
     academic_year_id: target.yearId,
-    cohort_id: target.cohortId,
+    cohort_number: target.cohortNumber,
     grade: target.grade,
   });
 }

@@ -1,14 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSessionUserId } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import type { AppUser } from "@/lib/types/db";
 
-export type AppUser = {
-  id: string;
-  username: string;
-  full_name: string;
-  role: "admin" | "secretary";
-  active: boolean;
-};
+export type { AppUser };
 
 export async function getCurrentUser(supabase?: SupabaseClient): Promise<AppUser | null> {
   const userId = await getSessionUserId();
@@ -16,7 +11,7 @@ export async function getCurrentUser(supabase?: SupabaseClient): Promise<AppUser
   const db = supabase ?? createSupabaseAdminClient();
   const { data, error } = await db
     .from("users")
-    .select("id, username, full_name, role, active")
+    .select("id, username, full_name, active")
     .eq("id", userId)
     .maybeSingle();
   if (error || !data || !data.active) return null;
@@ -29,8 +24,7 @@ export async function requireCurrentUser(): Promise<AppUser> {
   return u;
 }
 
+/** כל המשתמשים הם מנהלים — שמירה על תאימות API */
 export async function requireAdmin(): Promise<AppUser> {
-  const u = await requireCurrentUser();
-  if (u.role !== "admin") throw new Error("Forbidden");
-  return u;
+  return requireCurrentUser();
 }

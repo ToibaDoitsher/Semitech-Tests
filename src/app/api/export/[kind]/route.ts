@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { enrichStudentsWithGradeForYear, formatCohortGradeLabel } from "@/lib/academic/studentGrade";
+import { formatCohortGradeLabel } from "@/lib/academic/studentGrade";
 import { resolveAcademicYearId } from "@/lib/academic/year";
 import { ASSIGNMENT_WITH_LOOKUPS } from "@/lib/db/assignmentSelect";
+import { asStudentRows, type StudentWithLookupsRow } from "@/lib/db/studentRow";
 import { getStudentWithLookupsSelect } from "@/lib/db/studentSelect";
 import { resolveExamTargetLabels } from "@/lib/exams/resolveTargetNames";
 import { pickLookupName } from "@/lib/lookups/display";
@@ -92,8 +93,8 @@ export async function GET(_request: Request, ctx: { params: Promise<{ kind: stri
   try {
     if (kind === "students") {
       const yearId = await resolveAcademicYearId(supabase);
-      const studentSelect = await getStudentWithLookupsSelect(supabase);
-      const data = await paginateSelect((from, to) => {
+      const studentSelect = await getStudentWithLookupsSelect();
+      const data = await paginateSelect<StudentWithLookupsRow>(async (from, to) => {
         let q = supabase
           .from("students")
           .select(studentSelect)
@@ -101,22 +102,24 @@ export async function GET(_request: Request, ctx: { params: Promise<{ kind: stri
           .order("first_name")
           .range(from, to);
         if (yearId) q = q.eq("academic_year_id", yearId);
-        return q;
+        const res = await q;
+        return {
+          data: asStudentRows(res.data),
+          error: res.error,
+        };
       });
-      const enriched = yearId
-        ? await enrichStudentsWithGradeForYear(supabase, data, yearId)
-        : data.map((s) => ({ ...s, computed_grade_level: null, cohort_name: null }));
-      const rows = enriched.map((s) => ({
+      const rows = asStudentRows(data);
+      const exportRows = rows.map((s) => ({
         תעודת_זהות: s.tz,
         שם_פרטי: s.first_name,
         שם_משפחה: s.last_name,
-        מחזור: s.cohort_name ?? pickLookupName(s.cohorts),
-        שכבה: formatCohortGradeLabel(s.computed_grade_level),
+        מחזור: s.cohort_number,
+        שכבה: formatCohortGradeLabel(s.grade_level),
         כיתה: pickLookupName(s.classes),
         התמחות: pickLookupName(s.specializations),
         מסלול: pickLookupName(s.tracks),
       }));
-      return NextResponse.json({ rows });
+      return NextResponse.json({ rows: exportRows });
     }
 
     if (kind === "teachers") {
