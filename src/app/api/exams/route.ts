@@ -1,23 +1,11 @@
 import { NextResponse } from "next/server";
-import { writeAudit } from "@/lib/audit/log";
 import { getCurrentUser } from "@/lib/auth/currentUser";
-import {
-  assertTeacherAssignmentMatchesExam,
-  fetchStudentIdsForTarget,
-  isTeachingTrackId,
-  targetColumnsFromAssignment,
-} from "@/lib/exams/logic";
-import {
-  normalizeTargetInput,
-  validateAssignmentWithCategory,
-} from "@/lib/assignments/target";
-import type { AssignmentCategory } from "@/lib/types/db";
+import { createOneExam } from "@/lib/exams/createOneExam";
+import { resolveTeacherAssignmentForGrade } from "@/lib/exams/resolveAssignmentForGrade";
+import { getGradeLevelOptionById } from "@/lib/gradeLevels/options";
 import type { TeachingTrackType } from "@/lib/types/db";
-import { resolveExamTargetLabels } from "@/lib/exams/resolveTargetNames";
-import { assertNoDuplicateExam } from "@/lib/validations/exams";
 import type { GradeLevel } from "@/lib/types/db";
 import { notDeleted } from "@/lib/db/softDelete";
-import { buildExamStudentRows } from "@/lib/exams/snapshots";
 import { formatGradeLabel, parseGradeLevel } from "@/lib/academicYears/labels";
 import {
   readOnlyResponse,
@@ -86,12 +74,8 @@ export async function POST(request: Request) {
     subject?: string;
     exam_date?: string;
     grade_level?: string;
+    grade_level_option_id?: string;
     teacher_assignment_id?: string;
-    class_id?: string | null;
-    specialization_id?: string | null;
-    track_id?: string | null;
-    psychology_enabled?: boolean;
-    lesson_name?: string | null;
     teaching_track_type?: TeachingTrackType | null;
   };
 
@@ -99,13 +83,9 @@ export async function POST(request: Request) {
   const subject = (body.subject ?? "").trim();
   const exam_date = (body.exam_date ?? "").trim();
   const teacher_assignment_id = (body.teacher_assignment_id ?? "").trim();
-  const grade_level = parseGradeLevel(String(body.grade_level ?? ""));
 
-  if (!teacher_id || !subject || !exam_date) {
-    return NextResponse.json({ error: "כל השדות חובה" }, { status: 400 });
-  }
-  if (!grade_level) {
-    return NextResponse.json({ error: "שכבה חובה" }, { status: 400 });
+  if (!teacher_id || !subject || !exam_date || !teacher_assignment_id) {
+    return NextResponse.json({ error: "מורה, שיבוץ, מקצוע ותאריך חובה" }, { status: 400 });
   }
 
   const supabase = createSupabaseAdminClient();
@@ -117,209 +97,93 @@ export async function POST(request: Request) {
     return NextResponse.json(readOnlyResponse(), { status: 403 });
   }
 
-  let examCategory: AssignmentCategory = "חובה";
-  let examTarget = normalizeTargetInput({
-    class_id: body.class_id,
-    specialization_id: body.specialization_id,
-    track_id: body.track_id,
-    psychology_enabled: body.psychology_enabled,
-  });
+  let gradeLevels: GradeLevel[];
+  const optionId = body.grade_level_option_id?.trim();
+  if (optionId) {
+    const opt = await getGradeLevelOptionById(supabase, optionId);
+    if (!opt?.is_active) {
+      return NextResponse.json({ error: "אפשרות שכבה לא נמצאה" }, { status: 400 });
+    }
+    gradeLevels = opt.grade_levels;
+  } else {
+    const gl = parseGradeLevel(String(body.grade_level ?? ""));
+    if (!gl) return NextResponse.json({ error: "בחרי שכבה" }, { status: 400 });
+    gradeLevels = [gl];
+  }
 
-  let teaching_track_type: TeachingTrackType | null =
+  if (!gradeLevels.length) {
+    return NextResponse.json({ error: "בחרי שכבה" }, { status: 400 });
+  }
+
+  const { data: templateTa, error: taLoadErr } = await supabase
+    .from("teacher_assignments")
+    .select(
+      "id, grade_level, teacher_id, subject, assignment_category, class_id, specialization_id, track_id, psychology_enabled, lesson_name",
+    )
+    .eq("id", teacher_assignment_id)
+    .maybeSingle();
+  if (taLoadErr) return NextResponse.json({ error: taLoadErr.message }, { status: 500 });
+  if (!templateTa) return NextResponse.json({ error: "שיבוץ לא נמצא" }, { status: 400 });
+  if (templateTa.teacher_id !== teacher_id || templateTa.subject !== subject) {
+    return NextResponse.json({ error: "שיבוץ לא תואם למורה/מקצוע" }, { status: 400 });
+  }
+
+  const teaching_track_type: TeachingTrackType | null =
     body.teaching_track_type === "full" || body.teaching_track_type === "short"
       ? body.teaching_track_type
       : null;
 
   const user = await getCurrentUser(supabase);
+  const created: { exam: Record<string, unknown>; students_count: number; grade_level: GradeLevel }[] = [];
 
-  const scope = {
-    academic_year_id: yearScope.year.id,
-    grade_level,
-  };
-  let assignmentId = teacher_assignment_id;
-  let assignmentTeachingMode: "full" | "short" | null = null;
-
-  if (assignmentId) {
-    const { data: ta } = await supabase
-      .from("teacher_assignments")
-      .select(
-        "id, academic_year_id, grade_level, teacher_id, subject, assignment_category, class_id, specialization_id, track_id, psychology_enabled, teaching_mode",
-      )
-      .eq("id", assignmentId)
-      .maybeSingle();
-    if (!ta) return NextResponse.json({ error: "שיבוץ לא נמצא" }, { status: 400 });
-    if (ta.academic_year_id !== yearScope.year.id) {
-      return NextResponse.json({ error: "שיבוץ לא שייך לשנה הנוכחית" }, { status: 400 });
-    }
-    if (ta.grade_level !== grade_level) {
-      return NextResponse.json({ error: "שיבוץ לא תואם לשכבה" }, { status: 400 });
-    }
-    if (ta.teacher_id !== teacher_id || ta.subject !== subject) {
-      return NextResponse.json({ error: "שיבוץ לא תואם למורה/מקצוע" }, { status: 400 });
-    }
-    examTarget = targetColumnsFromAssignment(ta);
-    examCategory = ta.assignment_category as AssignmentCategory;
-    assignmentTeachingMode = (ta.teaching_mode as "full" | "short" | null) ?? null;
-  } else {
-    let assignmentQuery = supabase
-      .from("teacher_assignments")
-      .select(
-        "id, assignment_category, class_id, specialization_id, track_id, psychology_enabled, teaching_mode, lesson_name",
-      )
-      .eq("teacher_id", teacher_id)
-      .eq("subject", subject)
-      .eq("academic_year_id", yearScope.year.id)
-      .eq("grade_level", grade_level)
-      .is("deleted_at", null);
-
-    if (examTarget.psychology_enabled) {
-      assignmentQuery = assignmentQuery.eq("assignment_category", "חובה").eq("psychology_enabled", true);
-    } else if (examTarget.class_id) {
-      assignmentQuery = assignmentQuery.eq("assignment_category", "חובה").eq("class_id", examTarget.class_id);
-    } else if (examTarget.specialization_id) {
-      assignmentQuery = assignmentQuery
-        .eq("assignment_category", "התמחות")
-        .eq("specialization_id", examTarget.specialization_id);
-    } else if (examTarget.track_id) {
-      assignmentQuery = assignmentQuery.eq("assignment_category", "חובה").eq("track_id", examTarget.track_id);
+  for (const gradeLevel of gradeLevels) {
+    const resolved = await resolveTeacherAssignmentForGrade(
+      supabase,
+      yearScope.year.id,
+      {
+        id: templateTa.id as string,
+        grade_level: templateTa.grade_level as GradeLevel,
+        teacher_id: templateTa.teacher_id as string,
+        subject: templateTa.subject as string,
+        assignment_category: templateTa.assignment_category as string,
+        class_id: templateTa.class_id as string | null,
+        specialization_id: templateTa.specialization_id as string | null,
+        track_id: templateTa.track_id as string | null,
+        psychology_enabled: templateTa.psychology_enabled as boolean,
+        lesson_name: templateTa.lesson_name as string | null,
+      },
+      gradeLevel,
+    );
+    if ("error" in resolved) {
+      return NextResponse.json({ error: resolved.error }, { status: 400 });
     }
 
-    const lessonFilter = body.lesson_name?.trim();
-    if (lessonFilter) assignmentQuery = assignmentQuery.eq("lesson_name", lessonFilter);
-
-    const { data: assignment } = await assignmentQuery.limit(1).maybeSingle();
-    assignmentId = (assignment?.id as string) ?? "";
-    if (assignment?.assignment_category) {
-      examCategory = assignment.assignment_category as AssignmentCategory;
-      examTarget = targetColumnsFromAssignment(assignment);
-    }
-    assignmentTeachingMode = (assignment?.teaching_mode as "full" | "short" | null) ?? null;
-  }
-
-  if (!assignmentId) {
-    return NextResponse.json({ error: "לא נמצא שיבוץ לשכבה" }, { status: 400 });
-  }
-
-  const targetErr = validateAssignmentWithCategory(examCategory, examTarget);
-  if (targetErr) return NextResponse.json({ error: targetErr }, { status: 400 });
-
-  const dup = await assertNoDuplicateExam(supabase, {
-    gradeLevel: grade_level,
-    teacherId: teacher_id,
-    subject,
-    target: examTarget,
-    examDate: exam_date,
-  });
-  if (!dup.ok) return NextResponse.json({ error: dup.error }, { status: 400 });
-
-  const check = await assertTeacherAssignmentMatchesExam(
-    supabase,
-    teacher_id,
-    subject,
-    examTarget,
-    scope,
-  );
-  if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 });
-
-  if (assignmentTeachingMode && !teaching_track_type) {
-    teaching_track_type = assignmentTeachingMode;
-  }
-
-  if (examTarget.track_id) {
-    const teachingTrack = await isTeachingTrackId(supabase, examTarget.track_id);
-    if (teachingTrack && !teaching_track_type) {
-      return NextResponse.json({ error: "במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)" }, { status: 400 });
-    }
-    if (!teachingTrack) teaching_track_type = null;
-  } else {
-    teaching_track_type = null;
-  }
-
-  const { ids: studentIds, error: stErr } = await fetchStudentIdsForTarget(
-    supabase,
-    examTarget,
-    scope,
-    { teachingTrackType: teaching_track_type, category: examCategory },
-  );
-  if (stErr) return NextResponse.json({ error: stErr }, { status: 500 });
-  if (!studentIds.length) {
-    return NextResponse.json({ error: "לא נמצאו תלמידות לפי היעד והשכבה" }, { status: 400 });
-  }
-
-  const insertRow: Record<string, unknown> = {
-    academic_year_id: yearScope.year.id,
-    teacher_id,
-    subject,
-    exam_date,
-    assignment_category: examCategory,
-    class_id: examTarget.class_id,
-    specialization_id: examTarget.specialization_id,
-    track_id: examTarget.track_id,
-    psychology_enabled: examTarget.psychology_enabled,
-    grade_level,
-    teacher_assignment_id: assignmentId,
-  };
-  if (teaching_track_type) insertRow.teaching_track_type = teaching_track_type;
-
-  const { data: exam, error: eErr } = await supabase.from("exams").insert(insertRow).select("*").single();
-
-  if (eErr || !exam) {
-    return NextResponse.json({ error: eErr?.message ?? "שגיאה ביצירת מבחן" }, { status: 400 });
-  }
-
-  const examId = exam.id as string;
-
-  const { error: trErr } = await supabase.from("exam_tracking").insert({
-    exam_id: examId,
-    teacher_id,
-  });
-  if (trErr) {
-    await supabase.from("exams").delete().eq("id", examId);
-    return NextResponse.json({ error: trErr.message }, { status: 400 });
-  }
-
-  const { data: teacherRow } = await supabase
-    .from("teachers")
-    .select("first_name, last_name, full_name_generated")
-    .eq("id", teacher_id)
-    .single();
-  const teacherName = teacherEmbedDisplayName(teacherRow);
-
-  const targetLabels = await resolveExamTargetLabels(supabase, [
-    { id: examId, ...examTarget },
-  ]);
-
-  const rows = await buildExamStudentRows(supabase, {
-    examId,
-    studentIds,
-    teacherName,
-    subject,
-    gradeLevel: grade_level,
-    academicYearName: yearScope.year.year_name,
-    targetName: targetLabels[examId] ?? null,
-  });
-
-  const { error: esErr } = await supabase.from("exam_students").insert(rows);
-  if (esErr) {
-    await supabase.from("exams").delete().eq("id", examId);
-    return NextResponse.json({ error: esErr.message }, { status: 400 });
-  }
-
-  await writeAudit(supabase, {
-    userId: user?.id ?? null,
-    entityType: "exam",
-    entityId: examId,
-    actionType: "create",
-    entityNameSnapshot: subject,
-    newValue: {
-      teacher_id,
+    const result = await createOneExam({
+      supabase,
+      academicYearId: yearScope.year.id,
+      academicYearName: yearScope.year.year_name,
+      teacherId: teacher_id,
       subject,
-      exam_date,
-      ...examTarget,
-      grade_level,
-      teacher_assignment_id: assignmentId,
-    },
-  });
+      examDate: exam_date,
+      gradeLevel,
+      assignmentId: resolved.id,
+      teachingTrackType: teaching_track_type,
+      auditUserId: user?.id ?? null,
+    });
 
-  return NextResponse.json({ exam, students_count: studentIds.length });
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+
+    created.push({ ...result, grade_level: gradeLevel });
+  }
+
+  const studentsTotal = created.reduce((s, c) => s + c.students_count, 0);
+
+  return NextResponse.json({
+    exam: created[0]?.exam,
+    exams: created.map((c) => c.exam),
+    students_count: studentsTotal,
+    created_count: created.length,
+  });
 }

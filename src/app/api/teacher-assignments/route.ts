@@ -14,6 +14,7 @@ import {
   resolveAcademicYearScope,
   scopeFromSearchParams,
 } from "@/lib/academicYears/scope";
+import { normalizeSubjectLessonFields } from "@/lib/assignments/excelImport";
 import { ASSIGNMENT_WITH_LOOKUPS } from "@/lib/db/assignmentSelect";
 import { resolveAssignmentTeachingMode } from "@/lib/teachers/assignments";
 import type { GradeLevel } from "@/lib/types/db";
@@ -126,12 +127,17 @@ export async function POST(request: Request) {
       teaching_mode?: string;
     };
     const teacher_id = body.teacher_id?.trim();
-    const subject = (body.subject ?? "").trim();
-    const lesson_name = (body.lesson_name ?? "").trim() || null;
+    const subjectLesson = normalizeSubjectLessonFields(
+      body.subject ?? "",
+      body.lesson_name ?? "",
+    );
     const grade_level = parseGradeLevel(String(body.grade_level ?? ""));
 
-    if (!teacher_id || !subject || !grade_level) {
-      return NextResponse.json({ error: "כל השדות חובה כולל שכבה" }, { status: 400 });
+    if (!teacher_id || !grade_level) {
+      return NextResponse.json({ error: "מורה ושכבה חובה" }, { status: 400 });
+    }
+    if (subjectLesson.error) {
+      return NextResponse.json({ error: subjectLesson.error }, { status: 400 });
     }
 
     const category = parseAssignmentCategory(body.assignment_category ?? "");
@@ -162,8 +168,8 @@ export async function POST(request: Request) {
       .insert({
         academic_year_id: scope.year.id,
         teacher_id,
-        subject,
-        lesson_name,
+        subject: subjectLesson.subject,
+        lesson_name: subjectLesson.lesson_name,
         assignment_category: category,
         grade_level,
         class_id: target.class_id,

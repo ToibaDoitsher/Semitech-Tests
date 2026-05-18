@@ -113,6 +113,9 @@ export function AssignmentsClient() {
     e.preventDefault();
     if (readOnly) return alert("שנה בארכיון — צפייה בלבד");
     if (!teacherId) return alert("בחרי מורה");
+    if (!subject.trim() && !lessonName.trim()) {
+      return alert("מלאי מקצוע או שם שיעור (לפחות אחד)");
+    }
     if (!gradeLevel) return alert("בחרי שכבה");
     if (!assignmentCategory) return alert("בחרי סוג שיבוץ: חובה או התמחות");
     if (assignmentCategory === "התמחות") {
@@ -187,6 +190,9 @@ export function AssignmentsClient() {
 
   async function saveEdit(id: string) {
     if (!editDraft || readOnly) return;
+    if (!editDraft.subject.trim() && !editDraft.lesson_name.trim()) {
+      return alert("מלאי מקצוע או שם שיעור (לפחות אחד)");
+    }
     setEditSaving(true);
     try {
       const r = await fetch(withYearQuery(`/api/teacher-assignments/${id}`, viewingYear?.id), {
@@ -279,9 +285,8 @@ export function AssignmentsClient() {
         <TeacherSearchCombobox value={teacherId} onChange={(id) => setTeacherId(id)} required />
 
         <label className="block md:col-span-1">
-          <span className="text-sm font-medium text-zinc-700">מקצוע *</span>
+          <span className="text-sm font-medium text-zinc-700">מקצוע</span>
           <input
-            required
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-400"
@@ -297,6 +302,7 @@ export function AssignmentsClient() {
             className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-400"
             placeholder="פוטושופ 1, הנה״ח מתקדם…"
           />
+          <p className="mt-1 text-xs text-zinc-500">מקצוע או שם שיעור — חובה למלא אחד מהם</p>
         </label>
 
         <label className="block">

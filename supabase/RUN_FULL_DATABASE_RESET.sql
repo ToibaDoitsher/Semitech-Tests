@@ -85,6 +85,19 @@ create table public.tracks (
   unique (name)
 );
 
+create table public.grade_level_options (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  grade_levels text[] not null,
+  is_active boolean not null default true,
+  constraint grade_level_options_levels_check check (
+    cardinality(grade_levels) >= 1
+    and grade_levels <@ array['א', 'ב', 'ג']::text[]
+  )
+);
+
+create index idx_grade_level_options_active on public.grade_level_options (is_active) where is_active = true;
+
 create table public.users (
   id uuid primary key default gen_random_uuid(),
   username text not null,
@@ -616,6 +629,7 @@ alter table public.academic_years enable row level security;
 alter table public.classes enable row level security;
 alter table public.specializations enable row level security;
 alter table public.tracks enable row level security;
+alter table public.grade_level_options enable row level security;
 alter table public.users enable row level security;
 alter table public.teachers enable row level security;
 alter table public.students enable row level security;
@@ -637,6 +651,13 @@ on conflict (name) do nothing;
 
 insert into public.tracks (name) values
   ('הוראה'), ('הוראה קצרה'), ('ללא הוראה')
+on conflict (name) do nothing;
+
+insert into public.grade_level_options (name, grade_levels) values
+  ('א', array['א']::text[]),
+  ('ב', array['ב']::text[]),
+  ('ג', array['ג']::text[]),
+  ('א+ב', array['א', 'ב']::text[])
 on conflict (name) do nothing;
 
 insert into public.academic_years (year_name, is_active) values

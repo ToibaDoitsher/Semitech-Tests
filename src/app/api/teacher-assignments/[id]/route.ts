@@ -10,6 +10,7 @@ import {
   resolveAcademicYearScope,
   scopeFromSearchParams,
 } from "@/lib/academicYears/scope";
+import { normalizeSubjectLessonFields } from "@/lib/assignments/excelImport";
 import { ASSIGNMENT_WITH_LOOKUPS } from "@/lib/db/assignmentSelect";
 import { notDeleted } from "@/lib/db/softDelete";
 import { resolveAssignmentTeachingMode } from "@/lib/teachers/assignments";
@@ -31,7 +32,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     supabase
       .from("teacher_assignments")
       .select(
-        "id, assignment_category, class_id, specialization_id, track_id, psychology_enabled",
+        "id, subject, lesson_name, assignment_category, class_id, specialization_id, track_id, psychology_enabled",
       ),
   )
     .eq("id", id)
@@ -59,8 +60,17 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     if (!tid) return NextResponse.json({ error: "מורה חובה" }, { status: 400 });
     patch.teacher_id = tid;
   }
-  if (body.subject !== undefined) patch.subject = body.subject.trim();
-  if (body.lesson_name !== undefined) patch.lesson_name = (body.lesson_name ?? "").trim() || null;
+  if (body.subject !== undefined || body.lesson_name !== undefined) {
+    const subjectLesson = normalizeSubjectLessonFields(
+      body.subject ?? String(existing.subject ?? ""),
+      body.lesson_name ?? String(existing.lesson_name ?? ""),
+    );
+    if (subjectLesson.error) {
+      return NextResponse.json({ error: subjectLesson.error }, { status: 400 });
+    }
+    patch.subject = subjectLesson.subject;
+    patch.lesson_name = subjectLesson.lesson_name;
+  }
   if (body.grade_level !== undefined) {
     const gl = parseGradeLevel(body.grade_level);
     if (!gl) return NextResponse.json({ error: "שכבה לא תקינה" }, { status: 400 });

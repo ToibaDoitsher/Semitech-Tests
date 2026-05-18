@@ -9,6 +9,11 @@ import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TableClearFooter } from "@/components/ui/TableClearFooter";
+import {
+  examTrackingDueDate,
+  EXAM_SUBMISSION_DUE_OFFSET,
+  GRADES_SUBMISSION_DUE_OFFSET,
+} from "@/lib/tracking/dates";
 
 const fetcher = (url: string) => fetch(url).then((r) => {
   if (!r.ok) throw new Error("שגיאת טעינה");
@@ -123,7 +128,9 @@ export function TrackingClient() {
             <TableRow>
               <TableHead>מורה</TableHead>
               <TableHead>מקצוע</TableHead>
+              <TableHead className="whitespace-nowrap">הגשת המבחן</TableHead>
               <TableHead>תאריך</TableHead>
+              <TableHead className="whitespace-nowrap">הגשת ציונים</TableHead>
               <TableHead>מבחן</TableHead>
               <TableHead className="whitespace-nowrap">הוגש מבחן</TableHead>
               <TableHead className="whitespace-nowrap">אישור רכזת</TableHead>
@@ -140,7 +147,13 @@ export function TrackingClient() {
                 <TableRow key={row.id} className="align-top">
                   <TableCell className="font-medium text-slate-900 dark:text-zinc-100">{row.exam?.teacher_name ?? "—"}</TableCell>
                   <TableCell>{row.exam?.subject ?? "—"}</TableCell>
+                  <TableCell className="whitespace-nowrap tabular-nums text-zinc-600">
+                    {examTrackingDueDate(row.exam?.exam_date, EXAM_SUBMISSION_DUE_OFFSET)}
+                  </TableCell>
                   <TableCell className="whitespace-nowrap">{row.exam?.exam_date ?? "—"}</TableCell>
+                  <TableCell className="whitespace-nowrap tabular-nums text-zinc-600">
+                    {examTrackingDueDate(row.exam?.exam_date, GRADES_SUBMISSION_DUE_OFFSET)}
+                  </TableCell>
                   <TableCell>
                     <Link href={`/exams/${row.exam_id}`} className={LIST_ROW_LINK_CLASS}>
                       פתיחת מבחן
@@ -184,7 +197,7 @@ export function TrackingClient() {
               ))
             ) : (
               <TableRow>
-                <TableCell className="py-14 text-center text-slate-500 dark:text-zinc-400" colSpan={11}>
+                <TableCell className="py-14 text-center text-slate-500 dark:text-zinc-400" colSpan={13}>
                   {isLoading ? "טוען…" : "אין נתוני מעקב"}
                 </TableCell>
               </TableRow>

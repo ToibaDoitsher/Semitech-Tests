@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { parseGradeLevelsFromName } from "@/lib/gradeLevels/options";
 import { ENTITY_TO_TABLE, isLookupEntity } from "@/lib/lookups/entities";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
-const LOOKUPS_WITH_IS_ACTIVE = new Set(["classes", "specializations", "tracks"]);
+const LOOKUPS_WITH_IS_ACTIVE = new Set(["classes", "specializations", "tracks", "grade_level_options"]);
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ entity: string; id: string }> }) {
   const { entity, id } = await ctx.params;
@@ -22,8 +23,20 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ entity: s
   if (body.is_active !== undefined) patch.is_active = body.is_active;
 
   const table = ENTITY_TO_TABLE[entity];
+  if (table === "grade_level_options" && body.name !== undefined) {
+    const grade_levels = parseGradeLevelsFromName(String(patch.name));
+    if (!grade_levels.length) {
+      return NextResponse.json(
+        { error: "שם שכבה לא תקין — למשל: א, ב, ג או א+ב" },
+        { status: 400 },
+      );
+    }
+    patch.grade_levels = grade_levels;
+  }
+
   const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase.from(table).update(patch).eq("id", id).select("id,name").single();
+  const selectCols = table === "grade_level_options" ? "id,name,grade_levels" : "id,name";
+  const { data, error } = await supabase.from(table).update(patch).eq("id", id).select(selectCols).single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ item: data });

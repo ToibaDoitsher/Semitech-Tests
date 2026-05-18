@@ -319,9 +319,26 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
           exam_id: string;
         };
         const ex = examsBy[row.exam_id];
+        const examDate = ex?.exam_date ?? "";
+        const dueBefore = examDate
+          ? (() => {
+              const d = new Date(`${examDate}T12:00:00`);
+              d.setDate(d.getDate() - 7);
+              return d.toISOString().slice(0, 10);
+            })()
+          : "";
+        const dueAfter = examDate
+          ? (() => {
+              const d = new Date(`${examDate}T12:00:00`);
+              d.setDate(d.getDate() + 7);
+              return d.toISOString().slice(0, 10);
+            })()
+          : "";
         return {
           מקצוע: ex?.subject ?? "",
-          תאריך: ex?.exam_date ?? "",
+          הגשת_המבחן: dueBefore,
+          תאריך: examDate,
+          הגשת_ציונים: dueAfter,
           מורה: ex ? teacherNameCell(ex.teachers) : "",
           הוגש_מבחן: row.submitted_exam ? row.submitted_exam.slice(0, 19) : "",
           אושר_על_ידי_רכזת: row.approved_by_coordinator ? "כן" : "לא",

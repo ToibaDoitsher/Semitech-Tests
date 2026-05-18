@@ -132,6 +132,7 @@ export function ImportAssignmentsClient() {
           subject: r.subject,
           lesson_name: r.lesson_name,
           grade_level: r.grade_level,
+          assignment_category_raw: r.assignment_category_raw,
           class_name: r.class_name,
           specialization_name: r.specialization_name,
           track_name: r.track_name,
@@ -309,6 +310,7 @@ export function ImportAssignmentsClient() {
                 <TableHead>#</TableHead>
                 <TableHead>מורה</TableHead>
                 <TableHead>מקצוע</TableHead>
+                <TableHead>שם שיעור</TableHead>
                 <TableHead>יעד</TableHead>
                 <TableHead>שכבה</TableHead>
                 <TableHead>הערות</TableHead>
@@ -321,7 +323,8 @@ export function ImportAssignmentsClient() {
                   <TableCell>
                     {r.teacher_first_name} {r.teacher_last_name}
                   </TableCell>
-                  <TableCell>{r.subject}</TableCell>
+                  <TableCell>{r.subject || "—"}</TableCell>
+                  <TableCell>{r.lesson_name || "—"}</TableCell>
                   <TableCell>{targetPreview(r)}</TableCell>
                   <TableCell>{r.grade_level}</TableCell>
                   <TableCell className="text-red-800">

@@ -26,8 +26,9 @@ export const runtime = "nodejs";
 const REQUIRED_HEADER_LABELS = [
   ASSIGNMENT_FIELD_ALIASES.teacher_first_name[0],
   ASSIGNMENT_FIELD_ALIASES.teacher_last_name[0],
-  ASSIGNMENT_FIELD_ALIASES.subject[0],
+  "מקצוע או שם שיעור",
   ASSIGNMENT_FIELD_ALIASES.grade_level[0],
+  ASSIGNMENT_FIELD_ALIASES.assignment_category_raw[0],
 ];
 
 export async function POST(request: Request) {

@@ -73,7 +73,6 @@ export const ASSIGNMENT_FIELD_ALIASES: Record<
 const REQUIRED_FIELDS: (keyof typeof ASSIGNMENT_FIELD_ALIASES)[] = [
   "teacher_first_name",
   "teacher_last_name",
-  "subject",
   "grade_level",
   "assignment_category_raw",
 ];
@@ -115,6 +114,24 @@ function cellFromRow(obj: Record<string, unknown>, field: keyof typeof ASSIGNMEN
   return "";
 }
 
+export function normalizeSubjectLessonFields(
+  subject: string,
+  lessonName: string,
+): { subject: string; lesson_name: string | null; error?: string } {
+  const s = subject.trim();
+  const l = lessonName.trim();
+  if (!s && !l) {
+    return {
+      subject: "",
+      lesson_name: null,
+      error: "מקצוע או שם שיעור — למלא לפחות אחד",
+    };
+  }
+  if (s && l) return { subject: s, lesson_name: l };
+  if (s) return { subject: s, lesson_name: null };
+  return { subject: l, lesson_name: l };
+}
+
 export function assertAssignmentRequiredHeaders(rawKeys: string[]): string | null {
   const nk = new Set(rawKeys.map((k) => normalizeHeaderKey(k)).filter(Boolean));
   const missing: string[] = [];
@@ -122,6 +139,10 @@ export function assertAssignmentRequiredHeaders(rawKeys: string[]): string | nul
     const ok = ASSIGNMENT_FIELD_ALIASES[field].some((a) => nk.has(normalizeHeaderKey(a)));
     if (!ok) missing.push(ASSIGNMENT_FIELD_ALIASES[field][0]);
   }
+  const hasSubjectOrLesson =
+    ASSIGNMENT_FIELD_ALIASES.subject.some((a) => nk.has(normalizeHeaderKey(a))) ||
+    ASSIGNMENT_FIELD_ALIASES.lesson_name.some((a) => nk.has(normalizeHeaderKey(a)));
+  if (!hasSubjectOrLesson) missing.push("מקצוע או שם שיעור");
   if (!missing.length) return null;
   return `חסרות עמודות חובה: ${missing.join(", ")}. הורידי את התבנית ממסך ייבוא השיבוצים.`;
 }
@@ -273,7 +294,8 @@ export function validateAssignmentImportRows(
 
     if (!r.teacher_first_name.trim()) errors.push("שם פרטי מורה חסר");
     if (!r.teacher_last_name.trim()) errors.push("שם משפחה מורה חסר");
-    if (!r.subject.trim()) errors.push("מקצוע חסר");
+    const subjectLesson = normalizeSubjectLessonFields(r.subject, r.lesson_name);
+    if (subjectLesson.error) errors.push(subjectLesson.error);
     if (!r.grade_level.trim()) errors.push("שכבה חסרה");
 
     const category = parseAssignmentCategory(r.assignment_category_raw);
@@ -306,11 +328,11 @@ export function validateAssignmentImportRows(
     }
 
     const resolved =
-      errors.length === 0 && teacher.id && grade_level && category
+      errors.length === 0 && teacher.id && grade_level && category && !subjectLesson.error
         ? {
             teacher_id: teacher.id,
-            subject: r.subject.trim(),
-            lesson_name: r.lesson_name.trim() || null,
+            subject: subjectLesson.subject,
+            lesson_name: subjectLesson.lesson_name,
             grade_level,
             assignment_category: category,
             ...target,
