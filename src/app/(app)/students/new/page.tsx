@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { loadCurrentCohorts, cohortLabel } from "@/lib/cohorts/active";
+import { loadActiveCohortPair, cohortLabel } from "@/lib/cohorts/active";
+import { gradeInPair } from "@/lib/cohorts/grades";
 import { hasAppSession } from "@/lib/auth/passwordSession";
 import { findCohortByLabel, createCohortByLabel } from "@/lib/cohorts/db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -9,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export default async function NewStudentPage() {
   const supabase = createSupabaseAdminClient();
-  const current = await loadCurrentCohorts(supabase);
+  const current = await loadActiveCohortPair(supabase);
 
   const [cl, sp, tr] = await Promise.all([
     supabase.from("classes").select("id,name").order("name"),
@@ -39,8 +40,8 @@ export default async function NewStudentPage() {
   }
 
   const activeHint = [
-    current.cohortA ? `מחזור ${cohortLabel(current.cohortA)} — שכבה א` : null,
-    current.cohortB ? `מחזור ${cohortLabel(current.cohortB)} — שכבה ב` : null,
+    current ? `מחזור ${cohortLabel(current.cohortA)} — שכבה ${gradeInPair(current.cohortA.id, current)}` : null,
+    current ? `מחזור ${cohortLabel(current.cohortB)} — שכבה ${gradeInPair(current.cohortB.id, current)}` : null,
   ]
     .filter(Boolean)
     .join(" · ");

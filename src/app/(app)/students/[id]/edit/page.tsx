@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { formatCohortGradeLabel, enrichStudentsWithGradeForYear } from "@/lib/academic/studentGrade";
+import { formatCohortGradeLabel } from "@/lib/academic/studentGrade";
+import { enrichStudentsWithGradeForYear } from "@/lib/academic/studentGrade.server";
 import { hasAppSession } from "@/lib/auth/passwordSession";
 import { findCohortByLabel, createCohortByLabel } from "@/lib/cohorts/db";
 import { asStudentRow } from "@/lib/db/studentRow";

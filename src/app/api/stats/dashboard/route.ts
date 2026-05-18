@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { activeCohortIds } from "@/lib/cohorts/active";
-import { shouldShowArchivedCohorts } from "@/lib/cohorts/server";
+import { notDeleted } from "@/lib/db/softDelete";
+import { selectedCohortIdList } from "@/lib/cohorts/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -14,14 +14,17 @@ function todayISODate(): string {
 export async function GET() {
   const supabase = createSupabaseAdminClient();
   const today = todayISODate();
-  const includeArchived = await shouldShowArchivedCohorts();
-  const cohortIds = includeArchived ? null : await activeCohortIds(supabase);
+  const cohortIds = await selectedCohortIdList(supabase);
 
-  let examsTotalQ = supabase.from("exams").select("id", { count: "exact", head: true });
-  let examsTodayQ = supabase.from("exams").select("id", { count: "exact", head: true }).eq("exam_date", today);
-  let examsUpcomingQ = supabase.from("exams").select("id", { count: "exact", head: true }).gte("exam_date", today);
-  let studentsQ = supabase.from("students").select("id", { count: "exact", head: true });
-  if (cohortIds?.length) {
+  let examsTotalQ = notDeleted(supabase.from("exams").select("id", { count: "exact", head: true }));
+  let examsTodayQ = notDeleted(
+    supabase.from("exams").select("id", { count: "exact", head: true }),
+  ).eq("exam_date", today);
+  let examsUpcomingQ = notDeleted(
+    supabase.from("exams").select("id", { count: "exact", head: true }),
+  ).gte("exam_date", today);
+  let studentsQ = notDeleted(supabase.from("students").select("id", { count: "exact", head: true }));
+  if (cohortIds.length) {
     examsTotalQ = examsTotalQ.in("cohort_id", cohortIds);
     examsTodayQ = examsTodayQ.in("cohort_id", cohortIds);
     examsUpcomingQ = examsUpcomingQ.in("cohort_id", cohortIds);
@@ -29,7 +32,7 @@ export async function GET() {
   }
 
   const trackingQ =
-    cohortIds?.length
+    cohortIds.length
       ? supabase
           .from("exam_tracking")
           .select("id, exams!inner(cohort_id)", { count: "exact", head: true })

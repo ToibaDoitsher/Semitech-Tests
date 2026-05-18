@@ -2,8 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   createCohortByNumber,
   findCohortByNumber,
-  type GradeLevel,
 } from "@/lib/cohorts/active";
+import { gradeInPair } from "@/lib/cohorts/grades";
+import { resolveSelectedCohortPair } from "@/lib/cohorts/server";
+import type { GradeLevel } from "@/lib/cohorts/types";
 
 export async function resolveImportTarget(
   supabase: SupabaseClient,
@@ -23,9 +25,12 @@ export async function resolveImportTarget(
     }
   }
 
+  const pair = await resolveSelectedCohortPair(supabase);
+  const grade = pair ? gradeInPair(cohort.id, pair) : null;
+
   return {
     cohortId: cohort.id,
     cohortNumber,
-    grade: cohort.grade_level,
+    grade,
   };
 }

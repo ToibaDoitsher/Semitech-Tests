@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { enrichStudentsWithGrade, formatCohortGradeLabel } from "@/lib/academic/studentGrade";
-import { activeCohortIds } from "@/lib/cohorts/active";
-import { shouldShowArchivedCohorts } from "@/lib/cohorts/server";
+import { resolveSelectedCohortPair, selectedCohortIdList } from "@/lib/cohorts/server";
 import { ASSIGNMENT_WITH_LOOKUPS } from "@/lib/db/assignmentSelect";
 import { asStudentRows, type StudentWithLookupsRow } from "@/lib/db/studentRow";
 import { getStudentWithLookupsSelect } from "@/lib/db/studentSelect";
@@ -93,8 +92,8 @@ export async function GET(_request: Request, ctx: { params: Promise<{ kind: stri
 
   try {
     if (kind === "students") {
-      const includeArchived = await shouldShowArchivedCohorts();
-      const cohortIds = includeArchived ? null : await activeCohortIds(supabase);
+      const pair = await resolveSelectedCohortPair(supabase);
+      const cohortIds = await selectedCohortIdList(supabase);
       const studentSelect = await getStudentWithLookupsSelect();
       const data = await paginateSelect<StudentWithLookupsRow>(async (from, to) => {
         let q = supabase
@@ -103,7 +102,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ kind: stri
           .order("last_name")
           .order("first_name")
           .range(from, to);
-        if (cohortIds?.length) q = q.in("cohort_id", cohortIds);
+        if (cohortIds.length) q = q.in("cohort_id", cohortIds);
         const res = await q;
         return {
           data: asStudentRows(res.data),
@@ -111,7 +110,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ kind: stri
         };
       });
       const rows = asStudentRows(data);
-      const enriched = enrichStudentsWithGrade(rows);
+      const enriched = enrichStudentsWithGrade(rows, pair);
       const exportRows = enriched.map((s) => ({
         תעודת_זהות: s.tz,
         שם_פרטי: s.first_name,
@@ -176,7 +175,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ kind: stri
       const raw = data as {
         id: string;
         subject: string;
-        active: boolean;
+        is_active: boolean;
         target_type: ExamTargetType;
         target_id: string;
         teachers: unknown;
@@ -197,7 +196,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ kind: stri
         שכבה: grade,
         סוג_שיבוץ: targetTypeHe[a.target_type] ?? a.target_type,
         ערך_שיבוץ: labels[a.id] ?? a.target_id,
-        פעיל: a.active ? "כן" : "לא",
+        פעיל: a.is_active ? "כן" : "לא",
       };
       });
       return NextResponse.json({ rows });

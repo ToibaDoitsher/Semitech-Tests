@@ -4,19 +4,26 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
+const LOOKUPS_WITH_IS_ACTIVE = new Set(["classes", "specializations", "tracks"]);
+
 export async function PATCH(request: Request, ctx: { params: Promise<{ entity: string; id: string }> }) {
   const { entity, id } = await ctx.params;
   if (!isLookupEntity(entity)) {
     return NextResponse.json({ error: "סוג לוקאפ לא תקין" }, { status: 404 });
   }
 
-  const body = (await request.json()) as { name?: string };
-  const name = (body.name ?? "").trim();
-  if (!name) return NextResponse.json({ error: "שם חובה" }, { status: 400 });
+  const body = (await request.json()) as { name?: string; is_active?: boolean };
+  const patch: Record<string, unknown> = {};
+  if (body.name !== undefined) {
+    const name = body.name.trim();
+    if (!name) return NextResponse.json({ error: "שם חובה" }, { status: 400 });
+    patch.name = name;
+  }
+  if (body.is_active !== undefined) patch.is_active = body.is_active;
 
   const table = ENTITY_TO_TABLE[entity];
   const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase.from(table).update({ name }).eq("id", id).select("id,name").single();
+  const { data, error } = await supabase.from(table).update(patch).eq("id", id).select("id,name").single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ item: data });
@@ -30,8 +37,19 @@ export async function DELETE(_request: Request, ctx: { params: Promise<{ entity:
 
   const table = ENTITY_TO_TABLE[entity];
   const supabase = createSupabaseAdminClient();
-  const { error } = await supabase.from(table).delete().eq("id", id);
 
+  if (LOOKUPS_WITH_IS_ACTIVE.has(table)) {
+    const { data, error } = await supabase
+      .from(table)
+      .update({ is_active: false })
+      .eq("id", id)
+      .select("id,name")
+      .single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ item: data, deactivated: true });
+  }
+
+  const { error } = await supabase.from(table).delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ ok: true });
 }

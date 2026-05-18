@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { enrichStudentsWithGrade } from "@/lib/academic/studentGrade";
-import { listCohortsForFilter, loadCurrentCohorts } from "@/lib/cohorts/active";
-import { shouldShowArchivedCohorts } from "@/lib/cohorts/server";
+import { gradeInPair } from "@/lib/cohorts/grades";
+import { listAllCohorts } from "@/lib/cohorts/active";
+import { resolveSelectedCohortPair, selectedCohortIdList } from "@/lib/cohorts/server";
 import { asStudentRows } from "@/lib/db/studentRow";
 import { getStudentWithLookupsSelect } from "@/lib/db/studentSelect";
+import { notDeleted } from "@/lib/db/softDelete";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -17,28 +19,24 @@ export async function GET(request: Request) {
     const classId = (searchParams.get("class_id") ?? "").trim();
     const specializationId = (searchParams.get("specialization_id") ?? "").trim();
     const trackId = (searchParams.get("track_id") ?? "").trim();
-    const includeArchived =
-      searchParams.get("include_archived") === "1" || (await shouldShowArchivedCohorts());
 
     const supabase = createSupabaseAdminClient();
-    const current = await loadCurrentCohorts(supabase);
+    const pair = await resolveSelectedCohortPair(supabase);
+    const cohortIds = await selectedCohortIdList(supabase);
 
     const studentSelect = await getStudentWithLookupsSelect();
-    let query = supabase
-      .from("students")
-      .select(studentSelect)
+    let query = notDeleted(
+      supabase.from("students").select(studentSelect),
+    )
       .order("last_name", { ascending: true })
       .order("first_name", { ascending: true })
       .limit(500);
 
-    if (!includeArchived) {
-      const ids = [current.cohortA?.id, current.cohortB?.id].filter(Boolean) as string[];
-      if (ids.length) query = query.in("cohort_id", ids);
-    }
+    if (cohortIds.length) query = query.in("cohort_id", cohortIds);
 
     const gl = gradeLevel === "A" ? "א" : gradeLevel === "B" ? "ב" : gradeLevel;
-    if (gl === "א" && current.cohortA?.id) query = query.eq("cohort_id", current.cohortA.id);
-    if (gl === "ב" && current.cohortB?.id) query = query.eq("cohort_id", current.cohortB.id);
+    if (pair && gl === "א") query = query.eq("cohort_id", pair.cohortA.id);
+    if (pair && gl === "ב") query = query.eq("cohort_id", pair.cohortB.id);
     if (cohortId) query = query.eq("cohort_id", cohortId);
     if (classId) query = query.eq("class_id", classId);
     if (specializationId) query = query.eq("specialization_id", specializationId);
@@ -66,10 +64,20 @@ export async function GET(request: Request) {
     const { data, error } = await query;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    const students = enrichStudentsWithGrade(asStudentRows(data));
-    const cohorts = await listCohortsForFilter(supabase, includeArchived);
+    const students = enrichStudentsWithGrade(asStudentRows(data), pair);
+    const cohorts = await listAllCohorts(supabase);
 
-    return NextResponse.json({ students, current, cohorts, includeArchived });
+    return NextResponse.json({
+      students,
+      pair: pair
+        ? {
+            label: `${pair.cohortA.number} + ${pair.cohortB.number}`,
+            cohortA: { id: pair.cohortA.id, number: pair.cohortA.number, grade: gradeInPair(pair.cohortA.id, pair) },
+            cohortB: { id: pair.cohortB.id, number: pair.cohortB.number, grade: gradeInPair(pair.cohortB.id, pair) },
+          }
+        : null,
+      cohorts,
+    });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message, students: [] }, { status: 500 });
   }

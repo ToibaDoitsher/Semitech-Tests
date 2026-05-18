@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { loadCohortConfig } from "@/lib/cohorts/active";
+import { loadActiveCohortPair } from "@/lib/cohorts/active";
+import { cohortDisplayNumber } from "@/lib/cohorts/grades";
 import { resolveImportTarget } from "@/lib/cohorts/import";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -23,13 +24,13 @@ export async function POST(request: Request) {
   const target = await resolveImportTarget(supabase, cohortInput);
   if (target.error) return NextResponse.json({ error: target.error }, { status: 400 });
 
-  const cfg = await loadCohortConfig(supabase);
+  const activePair = await loadActiveCohortPair(supabase);
 
   return NextResponse.json({
     plan: {
       cohortNumber: target.cohortNumber,
-      cohortAName: cfg?.cohortAName ?? null,
-      cohortBName: cfg?.cohortBName ?? null,
+      cohortAName: activePair ? cohortDisplayNumber(activePair.cohortA) : null,
+      cohortBName: activePair ? cohortDisplayNumber(activePair.cohortB) : null,
       targetGrade: target.grade,
       willImportCount: validCount,
     },

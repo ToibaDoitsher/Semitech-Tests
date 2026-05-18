@@ -1,6 +1,5 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { cohortLabel } from "@/lib/cohorts/active";
-import type { CohortRow, GradeLevel } from "@/lib/cohorts/types";
+import { cohortDisplayNumber, gradeInPair } from "@/lib/cohorts/grades";
+import type { CohortPairView, CohortRow, GradeLevel } from "@/lib/cohorts/types";
 
 export type { GradeLevel };
 
@@ -10,23 +9,16 @@ export function formatCohortGradeLabel(grade: GradeLevel | null | undefined): st
 
 export type StudentCohortRef = {
   cohort_id: string;
-  cohorts?: CohortRow | null;
+  cohorts?: Pick<CohortRow, "id" | "name" | "number"> | null;
 };
 
 export function enrichStudentsWithGrade<T extends StudentCohortRef>(
   students: T[],
+  pair: CohortPairView | null,
 ): (T & { grade_level: GradeLevel | null; cohort_name: string | null })[] {
   return students.map((s) => ({
     ...s,
-    grade_level: (s.cohorts?.grade_level as GradeLevel | null) ?? null,
-    cohort_name: s.cohorts ? cohortLabel(s.cohorts) : null,
+    grade_level: pair ? gradeInPair(s.cohort_id, pair) : null,
+    cohort_name: s.cohorts ? cohortDisplayNumber(s.cohorts as CohortRow) : null,
   }));
-}
-
-export async function enrichStudentsWithGradeForYear<T extends StudentCohortRef>(
-  _supabase: SupabaseClient,
-  students: T[],
-  _academicYearId?: string,
-): Promise<(T & { grade_level: GradeLevel | null; cohort_name: string | null })[]> {
-  return enrichStudentsWithGrade(students);
 }

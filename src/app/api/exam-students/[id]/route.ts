@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { writeAudit } from "@/lib/audit/log";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import type { ExamStudentStatus } from "@/lib/types/db";
-import { assertValidExamStudentStatusTransition } from "@/lib/validations/exams";
+import {
+  assertNoOpenMakeupDuplicate,
+  assertValidExamStudentStatusTransition,
+} from "@/lib/validations/exams";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +45,13 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   }
 
   if (status === "missing") {
+    const dupMakeup = await assertNoOpenMakeupDuplicate(
+      supabase,
+      row.student_id as string,
+      row.exam_id as string,
+    );
+    if (!dupMakeup.ok) return NextResponse.json({ error: dupMakeup.error }, { status: 400 });
+
     const { error: mErr } = await supabase.from("makeup_exams").upsert(
       {
         student_id: row.student_id,

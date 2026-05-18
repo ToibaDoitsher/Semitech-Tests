@@ -129,6 +129,7 @@ export function MakeupsClient() {
           label="רשומות השלמה"
           count={count}
           apiPath="/api/makeups/clear-all"
+          scopePreviewPath="/api/scope/delete-preview"
           onCleared={() => void mutate()}
         />
       </ListDataCard>

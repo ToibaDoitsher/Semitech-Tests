@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { writeAudit } from "@/lib/audit/log";
 import { getCurrentUser } from "@/lib/auth/currentUser";
-import { enrichStudentsWithGradeForYear } from "@/lib/academic/studentGrade";
+import { enrichStudentsWithGradeForYear } from "@/lib/academic/studentGrade.server";
 import { asStudentRow } from "@/lib/db/studentRow";
 import { getStudentWithLookupsSelect } from "@/lib/db/studentSelect";
 import { recordStudentHistoryIfChanged } from "@/lib/students/history";

@@ -20,7 +20,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { CohortArchiveToggle } from "@/components/CohortArchiveToggle";
+import { CohortPairSelector } from "@/components/CohortPairSelector";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { NotificationsBell } from "@/components/NotificationsBell";
 
@@ -186,7 +186,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-lg font-bold tracking-tight text-[var(--color-primary)] dark:text-blue-200">{pageTitle}</h1>
           </div>
-          <CohortArchiveToggle />
+          <CohortPairSelector />
           <div className="hidden w-full max-w-sm md:block md:w-72">
             <GlobalSearch />
           </div>

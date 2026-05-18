@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { notDeleted } from "@/lib/db/softDelete";
 import type { ExamTargetType } from "@/lib/types/db";
 
 export async function fetchStudentIdsForTarget(
@@ -14,7 +15,7 @@ export async function fetchStudentIdsForTarget(
         ? "specialization_id"
         : "track_id";
 
-  let q = supabase.from("students").select("id").eq(col, targetId);
+  let q = notDeleted(supabase.from("students").select("id")).eq(col, targetId);
   if (cohortId) q = q.eq("cohort_id", cohortId);
 
   const { data, error } = await q;
@@ -31,15 +32,15 @@ export async function assertTeacherAssignmentMatchesExam(
   targetId: string,
   cohortId: string,
 ): Promise<{ ok: boolean; error: string | null }> {
-  const { data, error } = await supabase
-    .from("teacher_assignments")
-    .select("id")
+  const { data, error } = await notDeleted(
+    supabase.from("teacher_assignments").select("id"),
+  )
     .eq("teacher_id", teacherId)
     .eq("subject", subject)
     .eq("target_type", targetType)
     .eq("target_id", targetId)
     .eq("cohort_id", cohortId)
-    .eq("active", true)
+    .eq("is_active", true)
     .limit(1);
 
   if (error) return { ok: false, error: error.message };

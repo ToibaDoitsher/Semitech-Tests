@@ -23,7 +23,7 @@ export type Student = {
   notes?: string | null;
   status?: StudentStatus;
   created_at: string;
-  cohorts?: { id: string; number?: number; name?: string; grade_level?: GradeLevel | null } | null;
+  cohorts?: { id: string; number?: number; name?: string; display_order?: number | null } | null;
   classes?: LookupRow | null;
   specializations?: LookupRow | null;
   tracks?: LookupRow | null;
@@ -44,7 +44,7 @@ export type TeacherAssignment = {
   cohort_id: string;
   target_type: ExamTargetType;
   target_id: string;
-  active: boolean;
+  is_active: boolean;
   teachers?: { name: string } | null;
   cohorts?: { id: string; name?: string; number?: number; grade_level?: GradeLevel | null } | null;
 };

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { activeCohortIds } from "@/lib/cohorts/active";
-import { shouldShowArchivedCohorts } from "@/lib/cohorts/server";
+import { notDeleted } from "@/lib/db/softDelete";
+import { selectedCohortIdList } from "@/lib/cohorts/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -10,26 +10,29 @@ export async function GET(request: Request) {
   if (q.length < 2) return NextResponse.json({ results: [] });
 
   const supabase = createSupabaseAdminClient();
-  const includeArchived = await shouldShowArchivedCohorts();
-  const cohortIds = includeArchived ? null : await activeCohortIds(supabase);
+  const cohortIds = await selectedCohortIdList(supabase);
   const escape = q.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
   const pattern = `%${escape}%`;
 
-  let studentsQ = supabase
-    .from("students")
-    .select("id, first_name, last_name, tz")
-    .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},tz.ilike.${pattern}`)
-    .limit(8);
-  if (cohortIds?.length) studentsQ = studentsQ.in("cohort_id", cohortIds);
+  let studentsQ = notDeleted(
+    supabase
+      .from("students")
+      .select("id, first_name, last_name, tz")
+      .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},tz.ilike.${pattern}`)
+      .limit(8),
+  );
+  if (cohortIds.length) studentsQ = studentsQ.in("cohort_id", cohortIds);
 
-  const teachersQ = supabase.from("teachers").select("id, name").ilike("name", pattern).limit(5);
+  const teachersQ = notDeleted(
+    supabase.from("teachers").select("id, name").ilike("name", pattern).limit(5),
+  );
 
-  let examsQ = supabase
-    .from("exams")
-    .select("id, subject, exam_date, teachers(name)")
+  let examsQ = notDeleted(
+    supabase.from("exams").select("id, subject, exam_date, teachers(name)"),
+  )
     .ilike("subject", pattern)
     .limit(8);
-  if (cohortIds?.length) examsQ = examsQ.in("cohort_id", cohortIds);
+  if (cohortIds.length) examsQ = examsQ.in("cohort_id", cohortIds);
 
   const [students, teachers, exams] = await Promise.all([studentsQ, teachersQ, examsQ]);
 

@@ -1,26 +1,69 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ConfirmDangerDialog } from "@/components/ui/ConfirmDangerDialog";
 
 const CONFIRM_PHRASE = "מחק הכל";
 
 type Props = {
-  /** תיאור לטבלה (למשל "שיבוצי מורות") */
   label: string;
   count: number;
-  /** POST endpoint שמוחק את כל הרשומות (או השתמשו ב־localClear במקום) */
   apiPath?: string;
-  /** מחיקה מקומית בלי שרת — למשל איפוס תצוגה מקדימה */
   localClear?: () => void | Promise<void>;
   onCleared: () => void;
-  /** טקסט נוסף בחלון האישור (אזהרות) */
   confirmHint?: string;
+  /** טוען תצוגה מקדימה (למשל מחיקה לפי זוג מחזורים) */
+  scopePreviewPath?: string;
 };
 
-export function TableClearFooter({ label, count, apiPath, localClear, onCleared, confirmHint }: Props) {
+type ScopePreview = {
+  students: number;
+  exams: number;
+  assignments: number;
+  makeups: number;
+};
+
+export function TableClearFooter({
+  label,
+  count,
+  apiPath,
+  localClear,
+  onCleared,
+  confirmHint,
+  scopePreviewPath,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [scopePreview, setScopePreview] = useState<ScopePreview | null>(null);
+
+  useEffect(() => {
+    if (!open || !scopePreviewPath) {
+      setScopePreview(null);
+      return;
+    }
+    void (async () => {
+      try {
+        const r = await fetch(scopePreviewPath);
+        const j = await r.json();
+        if (r.ok) setScopePreview((j as { preview: ScopePreview }).preview ?? null);
+      } catch {
+        setScopePreview(null);
+      }
+    })();
+  }, [open, scopePreviewPath]);
+
+  const scopeHint = scopePreview
+    ? [
+        `בזוג המחזורים הנבחר יימחקו:`,
+        scopePreview.students ? `• ${scopePreview.students} תלמידות` : null,
+        scopePreview.exams ? `• ${scopePreview.exams} מבחנים` : null,
+        scopePreview.assignments ? `• ${scopePreview.assignments} שיבוצים` : null,
+        scopePreview.makeups ? `• ${scopePreview.makeups} השלמות` : null,
+        `ובמסך זה: ${count} רשומות מ«${label}».`,
+      ]
+        .filter(Boolean)
+        .join("\n")
+    : null;
 
   async function runDelete() {
     if (count === 0) return;
@@ -41,7 +84,7 @@ export function TableClearFooter({ label, count, apiPath, localClear, onCleared,
         return;
       }
       const n = (j as { deleted?: number }).deleted;
-      alert(typeof n === "number" ? `נמחקו ${n} רשומות.` : "המחיקה הושלמה.");
+      alert(typeof n === "number" ? `נמחקו ${n} רשומות (מחיקה רכה).` : "המחיקה הושלמה.");
       onCleared();
       setOpen(false);
     } finally {
@@ -64,10 +107,10 @@ export function TableClearFooter({ label, count, apiPath, localClear, onCleared,
         open={open}
         onClose={() => !busy && setOpen(false)}
         title="האם את בטוחה?"
-        description={`פעולה בלתי הפיכה: יימחקו ${count} רשומות מתוך «${label}».`}
-        hint={confirmHint}
+        description={`פעולה בלתי הפיכה: יימחקו ${count} רשומות מתוך «${label}» (מחיקה רכה).`}
+        hint={scopeHint ?? confirmHint}
         requiredPhrase={CONFIRM_PHRASE}
-        confirmLabel="כן, מחק לצמיתות"
+        confirmLabel="כן, מחק"
         cancelLabel="ביטול"
         busy={busy}
         onConfirm={() => runDelete()}

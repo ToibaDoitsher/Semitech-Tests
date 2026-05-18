@@ -1,36 +1,31 @@
 import { NextResponse } from "next/server";
-import { loadCurrentCohorts } from "@/lib/cohorts/active";
-import { shouldShowArchivedCohorts } from "@/lib/cohorts/server";
 import { writeAudit } from "@/lib/audit/log";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { assertTeacherAssignmentMatchesExam, fetchStudentIdsForTarget } from "@/lib/exams/logic";
 import { resolveExamTargetLabels } from "@/lib/exams/resolveTargetNames";
 import { assertNoDuplicateExam } from "@/lib/validations/exams";
 import type { ExamTargetType } from "@/lib/types/db";
+import { notDeleted } from "@/lib/db/softDelete";
+import { buildExamStudentRows } from "@/lib/exams/snapshots";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { selectedCohortIdList } from "@/lib/cohorts/server";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const cohortId = searchParams.get("cohort_id")?.trim();
-  const includeArchived =
-    searchParams.get("include_archived") === "1" || (await shouldShowArchivedCohorts());
 
   const supabase = createSupabaseAdminClient();
-  let query = supabase
-    .from("exams")
-    .select("*, teachers(name), cohorts(id, name, number, grade_level)")
+  const cohortIds = cohortId ? [cohortId] : await selectedCohortIdList(supabase);
+
+  let query = notDeleted(
+    supabase.from("exams").select("*, teachers(name), cohorts(id, name, number)"),
+  )
     .order("exam_date", { ascending: false })
     .order("created_at", { ascending: false });
 
-  if (cohortId) {
-    query = query.eq("cohort_id", cohortId);
-  } else if (!includeArchived) {
-    const current = await loadCurrentCohorts(supabase);
-    const ids = [current.cohortA?.id, current.cohortB?.id].filter(Boolean) as string[];
-    if (ids.length) query = query.in("cohort_id", ids);
-  }
+  if (cohortIds.length) query = query.in("cohort_id", cohortIds);
 
   const { data, error } = await query;
 
@@ -50,7 +45,7 @@ export async function GET(request: Request) {
     return { ...e, target_label: labels[row.id] ?? row.id };
   });
 
-  return NextResponse.json({ exams: enriched, includeArchived });
+  return NextResponse.json({ exams: enriched });
 }
 
 export async function POST(request: Request) {
@@ -61,6 +56,7 @@ export async function POST(request: Request) {
     target_type?: ExamTargetType;
     target_id?: string;
     cohort_id?: string;
+    teacher_assignment_id?: string;
   };
 
   const teacher_id = body.teacher_id?.trim();
@@ -68,7 +64,7 @@ export async function POST(request: Request) {
   const exam_date = (body.exam_date ?? "").trim();
   const target_type = body.target_type;
   const target_id = (body.target_id ?? "").trim();
-  let cohort_id = (body.cohort_id ?? "").trim();
+  const teacher_assignment_id = (body.teacher_assignment_id ?? "").trim();
 
   if (!teacher_id || !subject || !exam_date || !target_type || !target_id) {
     return NextResponse.json({ error: "כל השדות חובה" }, { status: 400 });
@@ -80,22 +76,37 @@ export async function POST(request: Request) {
   const supabase = createSupabaseAdminClient();
   const user = await getCurrentUser(supabase);
 
-  if (!cohort_id) {
+  let cohort_id = (body.cohort_id ?? "").trim();
+  let assignmentId = teacher_assignment_id;
+
+  if (assignmentId) {
+    const { data: ta } = await supabase
+      .from("teacher_assignments")
+      .select("id, cohort_id, teacher_id, subject, target_type, target_id")
+      .eq("id", assignmentId)
+      .maybeSingle();
+    if (!ta) return NextResponse.json({ error: "שיבוץ לא נמצא" }, { status: 400 });
+    cohort_id = ta.cohort_id as string;
+    if (ta.teacher_id !== teacher_id || ta.subject !== subject) {
+      return NextResponse.json({ error: "שיבוץ לא תואם למורה/מקצוע" }, { status: 400 });
+    }
+  } else {
     const { data: assignment } = await supabase
       .from("teacher_assignments")
-      .select("cohort_id")
+      .select("id, cohort_id")
       .eq("teacher_id", teacher_id)
       .eq("subject", subject)
       .eq("target_type", target_type)
       .eq("target_id", target_id)
-      .eq("active", true)
+      .eq("is_active", true)
       .limit(1)
       .maybeSingle();
     cohort_id = (assignment?.cohort_id as string) ?? "";
+    assignmentId = (assignment?.id as string) ?? "";
   }
 
   if (!cohort_id) {
-    return NextResponse.json({ error: "לא נמצא שנתון לשיבוץ — בחרי שנתון או צרי שיבוץ" }, { status: 400 });
+    return NextResponse.json({ error: "לא נמצא שנתון לשיבוץ" }, { status: 400 });
   }
 
   const dup = await assertNoDuplicateExam(supabase, {
@@ -129,18 +140,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "לא נמצאו תלמידות לפי היעד ושנתון שנבחרו" }, { status: 400 });
   }
 
-  const { data: exam, error: eErr } = await supabase
-    .from("exams")
-    .insert({
-      teacher_id,
-      subject,
-      exam_date,
-      target_type,
-      target_id,
-      cohort_id,
-    })
-    .select("*")
-    .single();
+  const insertRow: Record<string, unknown> = {
+    teacher_id,
+    subject,
+    exam_date,
+    target_type,
+    target_id,
+    cohort_id,
+  };
+  if (assignmentId) insertRow.teacher_assignment_id = assignmentId;
+
+  const { data: exam, error: eErr } = await supabase.from("exams").insert(insertRow).select("*").single();
 
   if (eErr || !exam) {
     return NextResponse.json({ error: eErr?.message ?? "שגיאה ביצירת מבחן" }, { status: 400 });
@@ -157,11 +167,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: trErr.message }, { status: 400 });
   }
 
-  const rows = studentIds.map((student_id) => ({
-    exam_id: examId,
-    student_id,
-    status: "pending" as const,
-  }));
+  const { data: teacherRow } = await supabase.from("teachers").select("name").eq("id", teacher_id).single();
+  const teacherName = (teacherRow?.name as string) ?? "";
+
+  const rows = await buildExamStudentRows(supabase, {
+    examId,
+    studentIds,
+    teacherName,
+  });
 
   const { error: esErr } = await supabase.from("exam_students").insert(rows);
   if (esErr) {
@@ -174,7 +187,7 @@ export async function POST(request: Request) {
     entityType: "exam",
     entityId: examId,
     actionType: "create",
-    newValue: { teacher_id, subject, exam_date, target_type, target_id, cohort_id },
+    newValue: { teacher_id, subject, exam_date, target_type, target_id, cohort_id, teacher_assignment_id: assignmentId },
   });
 
   return NextResponse.json({ exam, students_count: studentIds.length });

@@ -1,25 +1,23 @@
 export type GradeLevel = "א" | "ב";
 
-export const ARCHIVED_COHORTS_COOKIE = "show_archived_cohorts";
-
 export type CohortRow = {
   id: string;
-  name: string;
-  number?: number | null;
-  grade_level: GradeLevel | null;
-  is_current: boolean;
-  is_archived: boolean;
+  name?: string | null;
+  number: number;
+  display_order: number | null;
 };
 
-export type CurrentCohorts = {
-  cohortA: CohortRow | null;
-  cohortB: CohortRow | null;
+export type CohortPairView = {
+  cohortA: CohortRow;
+  cohortB: CohortRow;
+  gradeByCohortId: Map<string, GradeLevel>;
 };
 
-export type YearCohortConfig = {
-  cohortAId: string | null;
-  cohortBId: string | null;
-  cohortAName: string;
-  cohortBName: string;
-  cohortToGrade: Map<string, GradeLevel>;
+export type CohortPairOption = {
+  cohortAId: string;
+  cohortBId: string;
+  label: string;
+  cohortANumber: number;
+  cohortBNumber: number;
+  isDefaultPair: boolean;
 };

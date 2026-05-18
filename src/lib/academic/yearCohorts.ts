@@ -1,8 +1,5 @@
-/** @deprecated Prefer @/lib/cohorts/active */
-export type { GradeLevel, CohortRow, CurrentCohorts, YearCohortConfig } from "@/lib/cohorts/active";
-export {
-  cohortLabel,
-  loadCohortConfig as loadYearCohortConfig,
-  gradeForCohortInYear,
-} from "@/lib/cohorts/active";
+/** @deprecated Use @/lib/cohorts/active and @/lib/cohorts/server */
+export type { GradeLevel, CohortRow, CohortPairView } from "@/lib/cohorts/types";
+export { cohortLabel, loadActiveCohortPair as loadYearCohortConfig } from "@/lib/cohorts/active";
+export { gradeInPair as gradeForCohortInYear } from "@/lib/cohorts/grades";
 export { resolveImportTarget } from "@/lib/cohorts/import";

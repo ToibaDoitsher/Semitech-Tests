@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { resolveImportTarget } from "@/lib/cohorts/import";
+import { assertUniqueStudentTz } from "@/lib/validations/students";
+import { notDeleted } from "@/lib/db/softDelete";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   validateImportRows,
@@ -29,9 +31,9 @@ export async function POST(request: Request) {
   if (target.error) return NextResponse.json({ error: target.error }, { status: 400 });
 
   const [cl, sp, tr] = await Promise.all([
-    supabase.from("classes").select("id,name"),
-    supabase.from("specializations").select("id,name"),
-    supabase.from("tracks").select("id,name"),
+    supabase.from("classes").select("id,name").eq("is_active", true),
+    supabase.from("specializations").select("id,name").eq("is_active", true),
+    supabase.from("tracks").select("id,name").eq("is_active", true),
   ]);
 
   for (const res of [cl, sp, tr]) {
@@ -52,12 +54,15 @@ export async function POST(request: Request) {
     return true;
   });
 
-  const { data: existingRows, error: exErr } = await supabase.from("students").select("id,tz");
+  const { data: existingRows, error: exErr } = await notDeleted(
+    supabase.from("students").select("id,tz"),
+  );
   if (exErr) return NextResponse.json({ error: exErr.message }, { status: 500 });
   const tzToId = new Map((existingRows ?? []).map((r) => [r.tz.trim(), r.id] as const));
 
   const toInsert: Record<string, unknown>[] = [];
   const toUpdate: { id: string; patch: Record<string, unknown> }[] = [];
+  const rowErrors: { rowNumber: number; errors: string[] }[] = [...failed];
 
   for (const r of good as ValidatedImportRow[]) {
     if (!r.resolved) continue;
@@ -75,6 +80,11 @@ export async function POST(request: Request) {
     if (id) {
       if (updateExisting) toUpdate.push({ id, patch });
     } else {
+      const tzOk = await assertUniqueStudentTz(supabase, r.tz);
+      if (!tzOk.ok) {
+        rowErrors.push({ rowNumber: r.rowNumber, errors: [tzOk.error ?? "ת״ז כפולה"] });
+        continue;
+      }
       toInsert.push(patch);
     }
   }
@@ -82,7 +92,6 @@ export async function POST(request: Request) {
   const chunk = 80;
   let inserted = 0;
   let updated = 0;
-  const rowErrors: { rowNumber: number; errors: string[] }[] = [...failed];
 
   try {
     for (let i = 0; i < toInsert.length; i += chunk) {

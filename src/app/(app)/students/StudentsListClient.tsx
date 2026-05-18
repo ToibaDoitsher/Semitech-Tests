@@ -242,6 +242,7 @@ export function StudentsListClient() {
           label="תלמידות"
           count={count}
           apiPath="/api/students/clear-all"
+          scopePreviewPath="/api/scope/delete-preview"
           onCleared={() => void mutate()}
         />
       </ListDataCard>

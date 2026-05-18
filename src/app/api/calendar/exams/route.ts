@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { activeCohortIds } from "@/lib/cohorts/active";
-import { shouldShowArchivedCohorts } from "@/lib/cohorts/server";
+import { selectedCohortIdList } from "@/lib/cohorts/server";
 import { resolveExamTargetLabels } from "@/lib/exams/resolveTargetNames";
 import type { ExamTargetType } from "@/lib/types/db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -73,15 +72,14 @@ export async function GET(request: Request) {
   }
 
   const supabase = createSupabaseAdminClient();
-  const includeArchived = await shouldShowArchivedCohorts();
-  const cohortIds = includeArchived ? null : await activeCohortIds(supabase);
+  const cohortIds = await selectedCohortIdList(supabase);
 
   let examsQuery = supabase
     .from("exams")
     .select("id, subject, exam_date, target_type, target_id, teacher_id, teachers(name)")
     .gte("exam_date", start)
     .lte("exam_date", end);
-  if (cohortIds?.length) examsQuery = examsQuery.in("cohort_id", cohortIds);
+  if (cohortIds.length) examsQuery = examsQuery.in("cohort_id", cohortIds);
 
   const { data: examsRaw, error: eErr } = await examsQuery;
 
@@ -158,7 +156,7 @@ export async function GET(request: Request) {
       .from("teacher_assignments")
       .select("teacher_id, subject, target_type, target_id, grade_level_id")
       .in("teacher_id", teacherIds)
-      .eq("active", true);
+      .eq("is_active", true);
     if (aErr) return NextResponse.json({ error: aErr.message }, { status: 500 });
     for (const a of assigns ?? []) {
       const row = a as {

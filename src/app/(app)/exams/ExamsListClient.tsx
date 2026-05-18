@@ -121,7 +121,8 @@ export function ExamsListClient() {
           label="מבחנים"
           count={count}
           apiPath="/api/exams/clear-all"
-          confirmHint="יימחקו כל המבחנים, שורות תלמידות במבחן, השלמות ושורות מעקב הקשורות למבחנים."
+          scopePreviewPath="/api/scope/delete-preview"
+          confirmHint="מחיקה רכה של מבחנים בזוג המחזורים הנבחר."
           onCleared={() => void mutate()}
         />
       </ListDataCard>

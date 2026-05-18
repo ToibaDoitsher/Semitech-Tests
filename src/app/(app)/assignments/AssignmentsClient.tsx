@@ -29,9 +29,10 @@ type AssignmentRow = {
   teacher_id: string;
   subject: string;
   cohort_id: string;
+  grade_level?: string | null;
   target_type: ExamTargetType;
   target_id: string;
-  active: boolean;
+  is_active: boolean;
   target_label?: string;
   target_type_label?: string;
   teachers: { name: string } | null;
@@ -104,7 +105,7 @@ export function AssignmentsClient() {
     const r = await fetch(`/api/teacher-assignments/${row.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ active }),
+      body: JSON.stringify({ is_active: active }),
     });
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
@@ -295,20 +296,20 @@ export function AssignmentsClient() {
                   <TableCell className="text-slate-800 dark:text-zinc-200">{a.target_label ?? a.target_id}</TableCell>
                   <TableCell>
                     {a.cohorts
-                      ? `מחזור ${a.cohorts.name ?? a.cohorts.number ?? ""}${a.cohorts.grade_level ? ` · ${a.cohorts.grade_level}` : ""}`
+                      ? `מחזור ${a.cohorts.name ?? a.cohorts.number ?? ""}${a.grade_level ? ` · שכבה ${a.grade_level}` : ""}`
                       : "—"}
                   </TableCell>
                   <TableCell>
                     <button
                       type="button"
                       className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition ${
-                        a.active
+                        a.is_active
                           ? "border-slate-200 bg-white shadow-sm hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900/40"
                           : "border-slate-100 bg-slate-50 text-slate-500 dark:border-zinc-700 dark:bg-zinc-800/50"
                       }`}
-                      onClick={() => void toggleActive(a, !a.active)}
+                      onClick={() => void toggleActive(a, !a.is_active)}
                     >
-                      {a.active ? "פעיל" : "כבוי"}
+                      {a.is_active ? "פעיל" : "כבוי"}
                     </button>
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
@@ -332,6 +333,7 @@ export function AssignmentsClient() {
           label="שיבוצי מורות"
           count={rows.length}
           apiPath="/api/teacher-assignments/clear-all"
+          scopePreviewPath="/api/scope/delete-preview"
           onCleared={() => void mutate()}
         />
       </ListDataCard>

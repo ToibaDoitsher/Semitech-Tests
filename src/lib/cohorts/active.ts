@@ -1,56 +1,89 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { CohortRow, CurrentCohorts, GradeLevel, YearCohortConfig } from "@/lib/cohorts/types";
+import {
+  buildCohortPairView,
+  cohortDisplayNumber,
+  cohortWithGradeLabel,
+} from "@/lib/cohorts/grades";
+import { getSelectedCohortNumbers, setSelectedCohortNumbers } from "@/lib/cohorts/settings";
+import type { CohortPairView, CohortRow, GradeLevel } from "@/lib/cohorts/types";
 
-export type { CohortRow, CurrentCohorts, GradeLevel, YearCohortConfig } from "@/lib/cohorts/types";
-export { ARCHIVED_COHORTS_COOKIE } from "@/lib/cohorts/types";
+export type { CohortRow, CohortPairView, GradeLevel } from "@/lib/cohorts/types";
+export {
+  cohortDisplayNumber as cohortLabel,
+  cohortWithGradeLabel,
+  buildCohortPairView,
+  gradeInPair,
+  gradeForCohort,
+} from "@/lib/cohorts/grades";
+export { buildPairOptions } from "@/lib/cohorts/grades";
 
-export function cohortLabel(c: Pick<CohortRow, "name" | "number">): string {
-  if (c.name?.trim()) return c.name.trim();
-  if (c.number != null) return String(c.number);
-  return "";
-}
+const COHORT_SELECT = "id, name, number, display_order";
 
-export async function activeCohortIds(supabase: SupabaseClient): Promise<string[]> {
-  const { cohortA, cohortB } = await loadCurrentCohorts(supabase);
-  return [cohortA?.id, cohortB?.id].filter(Boolean) as string[];
-}
-
-export async function loadCurrentCohorts(supabase: SupabaseClient): Promise<CurrentCohorts> {
+export async function listAllCohorts(supabase: SupabaseClient): Promise<CohortRow[]> {
   const { data, error } = await supabase
     .from("cohorts")
-    .select("id, name, number, grade_level, is_current, is_archived")
-    .eq("is_current", true)
-    .order("grade_level", { ascending: true });
+    .select(COHORT_SELECT)
+    .order("number", { ascending: false });
   if (error) throw new Error(error.message);
-
-  const rows = (data ?? []) as CohortRow[];
-  const cohortA = rows.find((r) => r.grade_level === "א") ?? null;
-  const cohortB = rows.find((r) => r.grade_level === "ב") ?? null;
-  return { cohortA, cohortB };
+  return (data ?? []).map(normalizeCohort);
 }
 
-export async function listCohortsForFilter(
-  supabase: SupabaseClient,
-  includeArchived: boolean,
-): Promise<CohortRow[]> {
-  let q = supabase
+export async function loadDefaultCohortPair(supabase: SupabaseClient): Promise<CohortPairView | null> {
+  const { data, error } = await supabase
     .from("cohorts")
-    .select("id, name, number, grade_level, is_current, is_archived")
-    .order("number", { ascending: false });
-  if (!includeArchived) q = q.eq("is_current", true);
-  const { data, error } = await q;
+    .select(COHORT_SELECT)
+    .in("display_order", [1, 2]);
   if (error) throw new Error(error.message);
-  return (data ?? []) as CohortRow[];
+  const rows = (data ?? []).map(normalizeCohort);
+  if (rows.length < 2) return null;
+  return buildCohortPairView(rows[0], rows[1]);
+}
+
+/** @deprecated use loadDefaultCohortPair */
+export const loadActiveCohortPair = loadDefaultCohortPair;
+
+export async function loadCohortPairByNumbers(
+  supabase: SupabaseClient,
+  numA: number,
+  numB: number,
+): Promise<CohortPairView | null> {
+  const { data, error } = await supabase
+    .from("cohorts")
+    .select(COHORT_SELECT)
+    .in("number", [numA, numB]);
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []).map(normalizeCohort);
+  if (rows.length !== 2) return null;
+  return buildCohortPairView(rows[0], rows[1]);
+}
+
+export async function loadCohortPairByIds(
+  supabase: SupabaseClient,
+  idA: string,
+  idB: string,
+): Promise<CohortPairView | null> {
+  const { data, error } = await supabase
+    .from("cohorts")
+    .select(COHORT_SELECT)
+    .in("id", [idA, idB]);
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []).map(normalizeCohort);
+  if (rows.length !== 2) return null;
+  return buildCohortPairView(rows[0], rows[1]);
+}
+
+export async function selectedCohortIds(pair: CohortPairView): Promise<[string, string]> {
+  return [pair.cohortA.id, pair.cohortB.id];
 }
 
 export async function findCohortByNumber(supabase: SupabaseClient, num: number) {
   const { data, error } = await supabase
     .from("cohorts")
-    .select("id, name, number, grade_level, is_current, is_archived")
+    .select(COHORT_SELECT)
     .eq("number", num)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return data as CohortRow | null;
+  return data ? normalizeCohort(data) : null;
 }
 
 export async function createCohortByNumber(supabase: SupabaseClient, num: number, name?: string) {
@@ -59,16 +92,14 @@ export async function createCohortByNumber(supabase: SupabaseClient, num: number
     .insert({
       number: num,
       name: name ?? String(num),
-      is_current: false,
-      is_archived: false,
     })
-    .select("id, name, number, grade_level, is_current, is_archived")
+    .select(COHORT_SELECT)
     .single();
   if (error) throw new Error(error.message);
-  return data as CohortRow;
+  return normalizeCohort(data);
 }
 
-export async function openNewCohort(
+export async function createNewCohort(
   supabase: SupabaseClient,
   newCohortNumber: number,
 ): Promise<{
@@ -76,71 +107,66 @@ export async function openNewCohort(
   error?: string;
 }> {
   if (!Number.isFinite(newCohortNumber) || newCohortNumber < 1) {
-    return { error: "מספר שנתון לא תקין" };
+    return { error: "מספר מחזור לא תקין" };
   }
 
-  const current = await loadCurrentCohorts(supabase);
-  const prevA = current.cohortA;
-  const prevB = current.cohortB;
+  const { data: layers, error: layersErr } = await supabase
+    .from("cohorts")
+    .select(COHORT_SELECT)
+    .in("display_order", [1, 2]);
+  if (layersErr) return { error: layersErr.message };
+
+  const layerRows = (layers ?? []).map(normalizeCohort);
+  const prevLayerA = layerRows.find((c) => c.display_order === 1) ?? null;
+  const prevLayerB = layerRows.find((c) => c.display_order === 2) ?? null;
 
   let newCohort = await findCohortByNumber(supabase, newCohortNumber);
   if (!newCohort) newCohort = await createCohortByNumber(supabase, newCohortNumber);
 
-  if (prevB?.id) {
+  if (prevLayerB?.id) {
     const { error } = await supabase
       .from("cohorts")
-      .update({ is_current: false, is_archived: true, grade_level: null })
-      .eq("id", prevB.id);
+      .update({ display_order: null })
+      .eq("id", prevLayerB.id);
     if (error) return { error: error.message };
   }
 
-  if (prevA?.id) {
+  if (prevLayerA?.id) {
     const { error } = await supabase
       .from("cohorts")
-      .update({ grade_level: "ב" as GradeLevel, is_current: true, is_archived: false })
-      .eq("id", prevA.id);
+      .update({ display_order: 2 })
+      .eq("id", prevLayerA.id);
     if (error) return { error: error.message };
   }
 
   const { error: newErr } = await supabase
     .from("cohorts")
-    .update({ grade_level: "א" as GradeLevel, is_current: true, is_archived: false })
+    .update({ display_order: 1 })
     .eq("id", newCohort.id);
   if (newErr) return { error: newErr.message };
 
+  if (prevLayerA) {
+    await setSelectedCohortNumbers(supabase, [newCohortNumber, prevLayerA.number]);
+  }
+
   return {
     result: {
-      cohortAName: cohortLabel(newCohort),
-      cohortBName: prevA ? cohortLabel(prevA) : "—",
-      archivedName: prevB ? cohortLabel(prevB) : null,
+      cohortAName: cohortWithGradeLabel({ ...newCohort, display_order: 1 }),
+      cohortBName: prevLayerA ? cohortWithGradeLabel({ ...prevLayerA, display_order: 2 }) : "—",
+      archivedName: prevLayerB ? cohortDisplayNumber(prevLayerB) : null,
     },
   };
 }
 
-export function gradeForStudent(cohortId: string, current: CurrentCohorts): GradeLevel | null {
-  if (current.cohortA?.id === cohortId) return "א";
-  if (current.cohortB?.id === cohortId) return "ב";
-  return null;
-}
+/** @deprecated use createNewCohort */
+export const openNewCohort = createNewCohort;
 
-export async function loadCohortConfig(supabase: SupabaseClient): Promise<YearCohortConfig | null> {
-  const { cohortA, cohortB } = await loadCurrentCohorts(supabase);
-  if (!cohortA && !cohortB) return null;
-  const cohortToGrade = new Map<string, GradeLevel>();
-  if (cohortA?.id) cohortToGrade.set(cohortA.id, "א");
-  if (cohortB?.id) cohortToGrade.set(cohortB.id, "ב");
+function normalizeCohort(row: Record<string, unknown>): CohortRow {
+  const order = row.display_order;
   return {
-    cohortAId: cohortA?.id ?? null,
-    cohortBId: cohortB?.id ?? null,
-    cohortAName: cohortA ? cohortLabel(cohortA) : "",
-    cohortBName: cohortB ? cohortLabel(cohortB) : "",
-    cohortToGrade,
+    id: row.id as string,
+    name: (row.name as string | null) ?? null,
+    number: Number(row.number),
+    display_order: order == null ? null : Number(order),
   };
-}
-
-export function gradeForCohortInYear(
-  cohortId: string,
-  cfg: Pick<YearCohortConfig, "cohortToGrade">,
-): GradeLevel | null {
-  return cfg.cohortToGrade.get(cohortId) ?? null;
 }
