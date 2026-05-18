@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Settings2, Trash2 } from "lucide-react";
+import { Settings2, Trash2, Upload } from "lucide-react";
 import { useMemo, useState } from "react";
 import useSWR from "swr";
 import {
@@ -151,6 +151,15 @@ export function AssignmentsClient() {
               sheetName="שיבוצים"
               exportUrl={withYearQuery("/api/export/assignments", viewingYear?.id)}
             />
+            {!readOnly ? (
+              <Link
+                href="/assignments/import"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900/40 dark:text-zinc-200"
+              >
+                <Upload className="size-4 shrink-0 opacity-80" strokeWidth={2} />
+                ייבוא מאקסל
+              </Link>
+            ) : null}
             <Link href="/settings/classes" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900/40 dark:text-zinc-200">
               <Settings2 className="size-4 shrink-0 opacity-80" strokeWidth={2} />
               ניהול לוקאפים

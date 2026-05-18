@@ -32,7 +32,7 @@ type Exam = {
   target_id: string;
   target_label?: string;
   makeup_locked_at?: string | null;
-  teachers: { name: string } | null;
+  teachers: Teacher | null;
 };
 
 function countStatuses(lines: Line[]) {

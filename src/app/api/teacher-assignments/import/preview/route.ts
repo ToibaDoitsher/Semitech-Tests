@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import {
   applyAssignmentColumnMap,
   assertAssignmentRequiredHeaders,
+  ASSIGNMENT_FIELD_ALIASES,
   assignmentImportKey,
   buildTeacherLookupMaps,
   sheetRowsToAssignmentObjects,
@@ -10,7 +11,6 @@ import {
   type AssignmentColumnMap,
   type ValidatedAssignmentRow,
 } from "@/lib/assignments/excelImport";
-import { ASSIGNMENT_FIELD_ALIASES } from "@/lib/assignments/excelImport";
 import { TEACHER_COLUMNS } from "@/lib/teachers/db";
 import { filterDataRows } from "@/lib/students/excelImport";
 import {

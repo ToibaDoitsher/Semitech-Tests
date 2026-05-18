@@ -100,7 +100,10 @@ export async function GET(request: Request) {
     teacher_id: string;
     year_group: number;
     grade_level: GradeLevel;
-    teachers: { name: string } | { name: string }[] | null;
+    teachers:
+      | { id: string; first_name: string; last_name: string; full_name_generated: string | null }
+      | { id: string; first_name: string; last_name: string; full_name_generated: string | null }[]
+      | null;
   }[];
 
   const examIds = exams.map((e) => e.id);
