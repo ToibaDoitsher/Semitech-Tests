@@ -4,7 +4,7 @@ import { resolveAcademicYearScope, scopeFromSearchParams } from "@/lib/academicY
 import { notDeleted } from "@/lib/db/softDelete";
 import type { GradeLevel } from "@/lib/academicYears/types";
 import { resolveExamTargetLabels } from "@/lib/exams/resolveTargetNames";
-import type { ExamTargetType } from "@/lib/types/db";
+import { assignmentTargetTypeLabel } from "@/lib/assignments/target";
 import { teacherEmbedDisplayName } from "@/lib/teachers/display";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -81,7 +81,7 @@ export async function GET(request: Request) {
   const examsQuery = notDeleted(
     supabase
       .from("exams")
-      .select("id, subject, exam_date, target_type, target_id, teacher_id, year_group, grade_level, teachers ( id, first_name, last_name, full_name_generated )"),
+      .select("id, subject, exam_date, class_id, specialization_id, track_id, psychology_enabled, teacher_id, year_group, grade_level, teachers ( id, first_name, last_name, full_name_generated )"),
   )
     .eq("academic_year_id", scope.year.id)
     .gte("exam_date", start)
@@ -95,8 +95,10 @@ export async function GET(request: Request) {
     id: string;
     subject: string;
     exam_date: string;
-    target_type: ExamTargetType;
-    target_id: string;
+    class_id: string | null;
+    specialization_id: string | null;
+    track_id: string | null;
+    psychology_enabled: boolean;
     teacher_id: string;
     year_group: number;
     grade_level: GradeLevel;
@@ -111,7 +113,13 @@ export async function GET(request: Request) {
 
   const labels = await resolveExamTargetLabels(
     supabase,
-    exams.map((e) => ({ id: e.id, target_type: e.target_type, target_id: e.target_id })),
+    exams.map((e) => ({
+      id: e.id,
+      class_id: e.class_id,
+      specialization_id: e.specialization_id,
+      track_id: e.track_id,
+      psychology_enabled: e.psychology_enabled,
+    })),
   );
 
   let countsByExam: Record<string, Counts> = {};
@@ -161,8 +169,8 @@ export async function GET(request: Request) {
   const classDayKey = (date: string, classId: string) => `${date}|${classId}`;
   const classDayCount = new Map<string, number>();
   for (const e of exams) {
-    if (e.target_type === "class") {
-      const k = classDayKey(e.exam_date, e.target_id);
+    if (e.class_id) {
+      const k = classDayKey(e.exam_date, e.class_id);
       classDayCount.set(k, (classDayCount.get(k) ?? 0) + 1);
     }
   }
@@ -182,15 +190,15 @@ export async function GET(request: Request) {
     const teacherName = teacherEmbedDisplayName(e.teachers);
     const gradeLevelName = formatYearGradeLabel(e.year_group, e.grade_level);
     const classConflict =
-      e.target_type === "class" && (classDayCount.get(classDayKey(e.exam_date, e.target_id)) ?? 0) > 1;
+      Boolean(e.class_id) && (classDayCount.get(classDayKey(e.exam_date, e.class_id!)) ?? 0) > 1;
     const teacherOverlap = (teacherDayCount.get(`${e.exam_date}|${e.teacher_id}`) ?? 0) > 1;
     const dayLoad = dayExamCount.get(e.exam_date) ?? 0;
 
-    const targetTypeHe: Record<string, string> = {
-      class: "כיתה",
-      specialization: "התמחות",
-      track: "מסלול",
-      psychology: "פסיכולוגיה",
+    const targetCols = {
+      class_id: e.class_id,
+      specialization_id: e.specialization_id,
+      track_id: e.track_id,
+      psychology_enabled: e.psychology_enabled,
     };
 
     const shortCounts = c.total ? `${c.took + c.completed}/${c.total}` : "0";
@@ -209,10 +217,8 @@ export async function GET(request: Request) {
         examDate: e.exam_date,
         teacherId: e.teacher_id,
         teacherName: teacherName ?? "",
-        targetType: e.target_type,
-        targetTypeLabel: targetTypeHe[e.target_type] ?? e.target_type,
-        targetId: e.target_id,
-        targetLabel: labels[e.id] ?? e.target_id,
+        targetTypeLabel: assignmentTargetTypeLabel(targetCols),
+        targetLabel: labels[e.id] ?? "—",
         gradeLevelName,
         counts: c,
         tone: cols.tone,

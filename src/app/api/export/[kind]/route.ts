@@ -8,7 +8,7 @@ import { asStudentRows, type StudentWithLookupsRow } from "@/lib/db/studentRow";
 import { getStudentWithLookupsSelect } from "@/lib/db/studentSelect";
 import { resolveExamTargetLabels } from "@/lib/exams/resolveTargetNames";
 import { pickLookupName } from "@/lib/lookups/display";
-import type { ExamTargetType } from "@/lib/types/db";
+import { assignmentTargetTypeLabel } from "@/lib/assignments/target";
 import { TEACHER_EMBED_IN_EXAM } from "@/lib/teachers/db";
 import { teacherDisplayName, teacherEmbedDisplayName, teachingModeLabel } from "@/lib/teachers/display";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -59,8 +59,10 @@ type ExamJoin = {
   id: string;
   subject: string;
   exam_date: string;
-  target_type: ExamTargetType;
-  target_id: string;
+  class_id: string | null;
+  specialization_id: string | null;
+  track_id: string | null;
+  psychology_enabled: boolean;
   teachers: unknown;
 };
 
@@ -157,32 +159,31 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
       const data = await paginateSelect((from, to) =>
         supabase
           .from("exams")
-          .select("id, subject, exam_date, target_type, target_id, year_group, grade_level, teachers ( id, first_name, last_name, full_name_generated )")
+          .select("id, subject, exam_date, class_id, specialization_id, track_id, psychology_enabled, year_group, grade_level, teachers ( id, first_name, last_name, full_name_generated )")
           .eq("academic_year_id", scope.year.id)
           .order("exam_date", { ascending: false })
           .range(from, to),
       );
-      const exams = data as {
-        id: string;
-        subject: string;
-        exam_date: string;
-        target_type: ExamTargetType;
-        target_id: string;
-        teachers: unknown;
-      }[];
+      const exams = data as ExamJoin[];
       const labels = await resolveExamTargetLabels(
         supabase,
-        exams.map((e) => ({ id: e.id, target_type: e.target_type, target_id: e.target_id })),
+        exams.map((e) => ({
+          id: e.id,
+          class_id: e.class_id,
+          specialization_id: e.specialization_id,
+          track_id: e.track_id,
+          psychology_enabled: e.psychology_enabled,
+        })),
       );
       const rows = exams.map((e) => {
-        const row = e as typeof e & { year_group: number; grade_level: string };
+        const row = e as ExamJoin & { year_group: number; grade_level: string };
         return {
           מקצוע: e.subject,
           תאריך: e.exam_date,
           מורה: teacherNameCell(e.teachers),
           שנתון_ושכבה: formatYearGradeLabel(row.year_group, row.grade_level as "א" | "ב" | "ג"),
-          סוג_יעד: targetTypeHe[e.target_type] ?? e.target_type,
-          שם_יעד: labels[e.id] ?? e.target_id,
+          סוג_יעד: assignmentTargetTypeLabel(e),
+          שם_יעד: labels[e.id] ?? "—",
         };
       });
       return NextResponse.json({ rows });
@@ -195,30 +196,41 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
           .order("subject")
           .range(from, to),
       );
-      const raw = data as {
-        id: string;
-        subject: string;
+      const raw = data as (ExamJoin & {
         lesson_name?: string | null;
         teaching_mode?: string | null;
-        target_type: ExamTargetType;
-        target_id: string;
         year_group: number;
         grade_level: string;
-        teachers: unknown;
-      }[];
+      })[];
       const labels = await resolveExamTargetLabels(
         supabase,
-        raw.map((a) => ({ id: a.id, target_type: a.target_type, target_id: a.target_id })),
+        raw.map((a) => ({
+          id: a.id,
+          class_id: a.class_id,
+          specialization_id: a.specialization_id,
+          track_id: a.track_id,
+          psychology_enabled: a.psychology_enabled,
+        })),
       );
-      const rows = raw.map((a) => ({
-        מורה: teacherNameCell(a.teachers),
-        מקצוע: a.subject,
-        שם_שיעור: a.lesson_name ?? "",
-        שנתון_ושכבה: formatYearGradeLabel(a.year_group, a.grade_level as "א" | "ב" | "ג"),
-        סוג_שיבוץ: targetTypeHe[a.target_type] ?? a.target_type,
-        ערך_שיבוץ: labels[a.id] ?? a.target_id,
-        סוג_הוראה: teachingModeLabel(a.teaching_mode),
-      }));
+      const rows = raw.map((a) => {
+        const row = a as typeof a & { assignment_category?: "חובה" | "התמחות" };
+        const targetCols = {
+          class_id: a.class_id,
+          specialization_id: a.specialization_id,
+          track_id: a.track_id,
+          psychology_enabled: a.psychology_enabled,
+        };
+        return {
+          מורה: teacherNameCell(a.teachers),
+          מקצוע: a.subject,
+          שם_שיעור: a.lesson_name ?? "",
+          שנתון_ושכבה: formatYearGradeLabel(a.year_group, a.grade_level as "א" | "ב" | "ג"),
+          סוג_שיבוץ: row.assignment_category ?? "—",
+          סוג_יעד: assignmentTargetTypeLabel(targetCols, row.assignment_category),
+          ערך_שיבוץ: labels[a.id] ?? "—",
+          סוג_הוראה: teachingModeLabel(a.teaching_mode),
+        };
+      });
       return NextResponse.json({ rows });
     }
 
@@ -336,17 +348,14 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
           student_id,
           exam_id,
           students ( first_name, last_name, tz ),
-          exams ( id, subject, exam_date, target_type, target_id, ${TEACHER_EMBED_IN_EXAM} )
+          exams ( id, subject, exam_date, class_id, specialization_id, track_id, psychology_enabled, ${TEACHER_EMBED_IN_EXAM} )
         `,
         )
         .order("exam_id")
         .range(from, to),
     );
 
-    const examMeta = new Map<
-      string,
-      { subject: string; exam_date: string; target_type: ExamTargetType; target_id: string; teachers: unknown }
-    >();
+    const examMeta = new Map<string, ExamJoin>();
     for (const line of lines) {
       const raw = line as {
         exam_id: string;
@@ -354,19 +363,15 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
       };
       const ex = unwrapOne(raw.exams);
       if (ex && !examMeta.has(raw.exam_id)) {
-        examMeta.set(raw.exam_id, {
-          subject: ex.subject,
-          exam_date: ex.exam_date,
-          target_type: ex.target_type,
-          target_id: ex.target_id,
-          teachers: ex.teachers,
-        });
+        examMeta.set(raw.exam_id, ex);
       }
     }
     const labelInputs = [...examMeta.entries()].map(([id, m]) => ({
       id,
-      target_type: m.target_type,
-      target_id: m.target_id,
+      class_id: m.class_id,
+      specialization_id: m.specialization_id,
+      track_id: m.track_id,
+      psychology_enabled: m.psychology_enabled,
     }));
     const examTargetLabels = await resolveExamTargetLabels(supabase, labelInputs);
 
@@ -380,12 +385,12 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
       };
       const ex = unwrapOne(raw.exams);
       const st = unwrapOne(raw.students);
-      const targetLabel = ex ? examTargetLabels[raw.exam_id] ?? ex.target_id : "";
+      const targetLabel = ex ? examTargetLabels[raw.exam_id] ?? "—" : "";
       return {
         מקצוע: ex?.subject ?? "",
         תאריך_מבחן: ex?.exam_date ?? "",
         מורה: ex ? teacherNameCell(ex.teachers) : "",
-        סוג_יעד: ex ? targetTypeHe[ex.target_type] ?? ex.target_type : "",
+        סוג_יעד: ex ? assignmentTargetTypeLabel(ex) : "",
         שם_יעד: targetLabel,
         שם_פרטי: st?.first_name ?? "",
         שם_משפחה: st?.last_name ?? "",

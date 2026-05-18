@@ -1,8 +1,14 @@
 import type { GradeLevel } from "@/lib/academicYears/types";
 
 export type { GradeLevel };
-export type ExamTargetType = "class" | "specialization" | "track" | "psychology";
 export type TeachingTrackType = "full" | "short";
+
+export type AssignmentTargetFields = {
+  class_id: string | null;
+  specialization_id: string | null;
+  track_id: string | null;
+  psychology_enabled: boolean;
+};
 export type ExamStudentStatus = "pending" | "took" | "missing" | "makeup" | "completed";
 export type MakeupExamStatus = "open" | "completed";
 export type StudentStatus = "active" | "left" | "graduated";
@@ -48,16 +54,21 @@ export type Teacher = {
 
 export type TeachingMode = "full" | "short";
 
+export type AssignmentCategory = "חובה" | "התמחות";
+
 export type TeacherAssignment = {
   id: string;
   academic_year_id: string;
   teacher_id: string;
   subject: string;
   lesson_name?: string | null;
+  assignment_category: AssignmentCategory;
   year_group: number;
   grade_level: GradeLevel;
-  target_type: ExamTargetType;
-  target_id: string;
+  class_id: string | null;
+  specialization_id: string | null;
+  track_id: string | null;
+  psychology_enabled: boolean;
   teaching_mode?: TeachingMode | null;
   teachers?: Teacher | null;
 };
@@ -68,8 +79,11 @@ export type Exam = {
   teacher_id: string;
   subject: string;
   exam_date: string;
-  target_type: ExamTargetType;
-  target_id: string;
+  assignment_category: AssignmentCategory;
+  class_id: string | null;
+  specialization_id: string | null;
+  track_id: string | null;
+  psychology_enabled: boolean;
   year_group: number;
   grade_level: GradeLevel;
   created_at: string;

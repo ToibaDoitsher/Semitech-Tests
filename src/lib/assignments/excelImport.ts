@@ -1,15 +1,25 @@
 import { parseGradeLevel, parseYearGroup } from "@/lib/academicYears/labels";
 import type { GradeLevel } from "@/lib/academicYears/types";
+import {
+  assignmentImportKey,
+  normalizeTargetInput,
+  parseAssignmentCategory,
+  validateAssignmentWithCategory,
+  type AssignmentTargetColumns,
+} from "@/lib/assignments/target";
+import type { AssignmentCategory } from "@/lib/types/db";
 import { ASSIGNMENT_EXCEL_HEADERS } from "@/lib/assignments/excelTemplate";
 import {
   isTeachingTrackName,
+  parsePsychologyCell,
   parseTeachingTrackTypeCell,
 } from "@/lib/students/fields";
 import { teacherDisplayName } from "@/lib/teachers/display";
-import type { ExamTargetType, TeachingMode } from "@/lib/types/db";
+import type { TeachingMode } from "@/lib/types/db";
 import { filterDataRows } from "@/lib/students/excelImport";
 
 export { filterDataRows };
+export { assignmentImportKey };
 
 export type AssignmentColumnMap = Partial<
   Record<keyof typeof ASSIGNMENT_FIELD_ALIASES, string>
@@ -23,8 +33,11 @@ export type ParsedAssignmentRow = {
   lesson_name: string;
   year_group: string;
   grade_level: string;
-  target_type_raw: string;
-  target_value: string;
+  assignment_category_raw: string;
+  class_name: string;
+  specialization_name: string;
+  track_name: string;
+  psychology_raw: string;
   teaching_mode_raw: string;
 };
 
@@ -37,10 +50,9 @@ export type ValidatedAssignmentRow = ParsedAssignmentRow & {
     lesson_name: string | null;
     year_group: number;
     grade_level: GradeLevel;
-    target_type: ExamTargetType;
-    target_id: string;
+    assignment_category: AssignmentCategory;
     teaching_mode: TeachingMode | null;
-  };
+  } & AssignmentTargetColumns;
 };
 
 export const ASSIGNMENT_FIELD_ALIASES: Record<
@@ -53,8 +65,11 @@ export const ASSIGNMENT_FIELD_ALIASES: Record<
   lesson_name: ["שם שיעור", "שיעור", "lesson_name"],
   year_group: ["שנתון", "year_group", "year"],
   grade_level: ["שכבה", "grade_level", "grade"],
-  target_type_raw: ["סוג שיבוץ", "סוג יעד", "target_type"],
-  target_value: ["ערך שיבוץ", "יעד", "target_value", "ערך יעד"],
+  assignment_category_raw: ["סוג שיבוץ", "assignment_category", "category"],
+  class_name: ["כיתה", "class", "class_name"],
+  specialization_name: ["התמחות", "specialization", "specialization_name"],
+  track_name: ["מסלול", "track", "track_name"],
+  psychology_raw: ["פסיכולוגיה", "psychology", "psychology_enabled"],
   teaching_mode_raw: ["סוג הוראה", "הוראה מקוצר", "teaching_mode"],
 };
 
@@ -64,13 +79,16 @@ const REQUIRED_FIELDS: (keyof typeof ASSIGNMENT_FIELD_ALIASES)[] = [
   "subject",
   "year_group",
   "grade_level",
-  "target_type_raw",
+  "assignment_category_raw",
 ];
 
 const ALL_FIELDS: (keyof typeof ASSIGNMENT_FIELD_ALIASES)[] = [
   ...REQUIRED_FIELDS,
   "lesson_name",
-  "target_value",
+  "class_name",
+  "specialization_name",
+  "track_name",
+  "psychology_raw",
   "teaching_mode_raw",
 ];
 
@@ -125,29 +143,15 @@ export function sheetRowsToAssignmentObjects(raw: Record<string, unknown>[]): Pa
       lesson_name: cellFromRow(obj, "lesson_name"),
       year_group: cellFromRow(obj, "year_group"),
       grade_level: cellFromRow(obj, "grade_level"),
-      target_type_raw: cellFromRow(obj, "target_type_raw"),
-      target_value: cellFromRow(obj, "target_value"),
+      assignment_category_raw: cellFromRow(obj, "assignment_category_raw"),
+      class_name: cellFromRow(obj, "class_name"),
+      specialization_name: cellFromRow(obj, "specialization_name"),
+      track_name: cellFromRow(obj, "track_name"),
+      psychology_raw: cellFromRow(obj, "psychology_raw"),
       teaching_mode_raw: cellFromRow(obj, "teaching_mode_raw"),
     });
   }
   return out;
-}
-
-export function assignmentImportKey(
-  academicYearId: string,
-  resolved: NonNullable<ValidatedAssignmentRow["resolved"]>,
-): string {
-  return [
-    academicYearId,
-    resolved.teacher_id,
-    resolved.year_group,
-    resolved.grade_level,
-    resolved.subject,
-    resolved.lesson_name ?? "",
-    resolved.target_type,
-    resolved.target_id,
-    resolved.teaching_mode ?? "",
-  ].join("\0");
 }
 
 export function applyAssignmentColumnMap(
@@ -206,34 +210,54 @@ function resolveTeacherId(
   return { err: `מורה "${first} ${last}" לא נמצאה — הוסיפי אותה במסך מורות` };
 }
 
-function parseTargetType(raw: string): ExamTargetType | null {
-  const t = raw.trim().toLowerCase();
-  if (["class", "כיתה"].includes(t)) return "class";
-  if (["specialization", "התמחות", "spec"].includes(t)) return "specialization";
-  if (["track", "מסלול"].includes(t)) return "track";
-  if (["psychology", "פסיכולוגיה", "פסיכ"].includes(t)) return "psychology";
-  return null;
-}
-
-function lookupTarget(
-  targetType: ExamTargetType,
-  value: string,
+function targetFromRow(
+  r: ParsedAssignmentRow,
+  category: AssignmentCategory,
   classByName: Map<string, string>,
   specByName: Map<string, string>,
   trackByName: Map<string, string>,
-): { id?: string; err?: string } {
-  if (targetType === "psychology") {
-    return { id: "__psychology__" };
+): { target: AssignmentTargetColumns; errors: string[] } {
+  const errors: string[] = [];
+  const className = r.class_name.trim();
+  const specName = r.specialization_name.trim();
+  const trackName = r.track_name.trim();
+  const psych = parsePsychologyCell(r.psychology_raw);
+
+  let class_id: string | null = null;
+  let specialization_id: string | null = null;
+  let track_id: string | null = null;
+
+  if (className) {
+    class_id = classByName.get(className) ?? null;
+    if (!class_id) errors.push(`כיתה "${className}" לא קיימת בלוקאפים`);
   }
-  const name = value.trim();
-  if (!name) return { err: "ערך שיבוץ חסר" };
-  const map =
-    targetType === "class" ? classByName : targetType === "specialization" ? specByName : trackByName;
-  const label =
-    targetType === "class" ? "כיתה" : targetType === "specialization" ? "התמחות" : "מסלול";
-  const id = map.get(name);
-  if (!id) return { err: `${label} "${name}" לא קיימת בלוקאפים` };
-  return { id };
+  if (specName) {
+    specialization_id = specByName.get(specName) ?? null;
+    if (!specialization_id) errors.push(`התמחות "${specName}" לא קיימת בלוקאפים`);
+  }
+  if (trackName) {
+    track_id = trackByName.get(trackName) ?? null;
+    if (!track_id) errors.push(`מסלול "${trackName}" לא קיים בלוקאפים`);
+  }
+
+  const target = normalizeTargetInput({
+    class_id,
+    specialization_id,
+    track_id,
+    psychology_enabled: psych,
+  });
+
+  const targetErr = validateAssignmentWithCategory(category, target);
+  if (targetErr) errors.push(targetErr);
+
+  if (category === "חובה" && !className && !trackName && !psych && !errors.length) {
+    errors.push("בשיבוץ חובה — מלאי כיתה, מסלול או פסיכולוגיה");
+  }
+  if (category === "התמחות" && !specName && !errors.length) {
+    errors.push("בשיבוץ התמחות — מלאי התמחות");
+  }
+
+  return { target, errors };
 }
 
 export type AssignmentImportMaps = {
@@ -241,7 +265,6 @@ export type AssignmentImportMaps = {
   classByName: Map<string, string>;
   specByName: Map<string, string>;
   trackByName: Map<string, string>;
-  academicYearId: string;
   trackNameById: Map<string, string>;
 };
 
@@ -258,7 +281,9 @@ export function validateAssignmentImportRows(
     if (!r.subject.trim()) errors.push("מקצוע חסר");
     if (!r.year_group.trim()) errors.push("שנתון חסר");
     if (!r.grade_level.trim()) errors.push("שכבה חסרה");
-    if (!r.target_type_raw.trim()) errors.push("סוג שיבוץ חסר");
+
+    const category = parseAssignmentCategory(r.assignment_category_raw);
+    if (!category) errors.push('סוג שיבוץ חסר או לא תקין (חובה / התמחות)');
 
     const teacher = resolveTeacherId(maps.teacherMaps, r.teacher_first_name, r.teacher_last_name);
     if (teacher.err) errors.push(teacher.err);
@@ -268,29 +293,17 @@ export function validateAssignmentImportRows(
     if (!year_group) errors.push("שנתון לא תקין");
     if (!grade_level) errors.push("שכבה לא תקינה (א/ב/ג)");
 
-    const target_type = parseTargetType(r.target_type_raw);
-    if (!target_type) errors.push("סוג שיבוץ לא תקין (כיתה/התמחות/מסלול/פסיכולוגיה)");
-
-    let target_id: string | undefined;
-    if (target_type) {
-      const tgt = lookupTarget(
-        target_type,
-        r.target_value,
-        maps.classByName,
-        maps.specByName,
-        maps.trackByName,
-      );
-      if (tgt.err) errors.push(tgt.err);
-      else if (target_type === "psychology") target_id = maps.academicYearId;
-      else target_id = tgt.id;
-    }
+    const { target, errors: targetErrors } = category
+      ? targetFromRow(r, category, maps.classByName, maps.specByName, maps.trackByName)
+      : { target: normalizeTargetInput({}), errors: [] as string[] };
+    errors.push(...targetErrors);
 
     let teaching_mode: TeachingMode | null = null;
     if (r.teaching_mode_raw.trim()) {
-      if (target_type !== "track") {
-        errors.push("סוג הוראה מותר רק כשסוג השיבוץ הוא מסלול");
-      } else if (target_id && target_id !== maps.academicYearId) {
-        const trackName = maps.trackNameById.get(target_id) ?? "";
+      if (!target.track_id) {
+        errors.push("סוג הוראה מותר רק כשמולא מסלול");
+      } else {
+        const trackName = maps.trackNameById.get(target.track_id) ?? "";
         if (!isTeachingTrackName(trackName)) {
           errors.push("סוג הוראה מותר רק במסלול «הוראה»");
         } else {
@@ -301,20 +314,15 @@ export function validateAssignmentImportRows(
     }
 
     const resolved =
-      errors.length === 0 &&
-      teacher.id &&
-      target_type &&
-      target_id &&
-      year_group &&
-      grade_level
+      errors.length === 0 && teacher.id && year_group && grade_level && category
         ? {
             teacher_id: teacher.id,
             subject: r.subject.trim(),
             lesson_name: r.lesson_name.trim() || null,
             year_group,
             grade_level,
-            target_type,
-            target_id,
+            assignment_category: category,
+            ...target,
             teaching_mode,
           }
         : undefined;

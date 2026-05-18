@@ -6,7 +6,10 @@ export const ASSIGNMENT_EXCEL_HEADERS = [
   "שנתון",
   "שכבה",
   "סוג שיבוץ",
-  "ערך שיבוץ",
+  "כיתה",
+  "התמחות",
+  "מסלול",
+  "פסיכולוגיה",
   "סוג הוראה",
 ] as const;
 
@@ -17,7 +20,10 @@ export const ASSIGNMENT_EXCEL_EXAMPLE_ROW = [
   "פוטושופ 1",
   "11",
   "א",
-  "כיתה",
+  "חובה",
   "יא1",
+  "",
+  "",
+  "",
   "",
 ] as const;

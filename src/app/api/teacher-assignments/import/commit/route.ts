@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     supabase.from("tracks").select("id,name").eq("is_active", true),
     notDeleted(supabase.from("teachers").select(TEACHER_COLUMNS)),
     notDeleted(supabase.from("teacher_assignments").select(
-      "teacher_id,year_group,grade_level,subject,lesson_name,target_type,target_id,teaching_mode",
+      "teacher_id,year_group,grade_level,subject,lesson_name,assignment_category,class_id,specialization_id,track_id,psychology_enabled,teaching_mode",
     )).eq("academic_year_id", scope.year.id),
   ]);
 
@@ -67,9 +67,12 @@ export async function POST(request: Request) {
         lesson_name: (a.lesson_name as string | null) ?? null,
         year_group: a.year_group,
         grade_level: a.grade_level as GradeLevel,
-        target_type: a.target_type,
-        target_id: a.target_id,
+        class_id: a.class_id,
+        specialization_id: a.specialization_id,
+        track_id: a.track_id,
+        psychology_enabled: a.psychology_enabled,
         teaching_mode: (a.teaching_mode as "full" | "short" | null) ?? null,
+        assignment_category: a.assignment_category as "חובה" | "התמחות",
       }),
     ),
   );
@@ -79,7 +82,6 @@ export async function POST(request: Request) {
     classByName,
     specByName,
     trackByName,
-    academicYearId: scope.year.id,
     trackNameById,
   });
 
@@ -115,8 +117,11 @@ export async function POST(request: Request) {
       lesson_name: r.resolved.lesson_name,
       year_group: r.resolved.year_group,
       grade_level: r.resolved.grade_level,
-      target_type: r.resolved.target_type,
-      target_id: r.resolved.target_id,
+      assignment_category: r.resolved.assignment_category,
+      class_id: r.resolved.class_id,
+      specialization_id: r.resolved.specialization_id,
+      track_id: r.resolved.track_id,
+      psychology_enabled: r.resolved.psychology_enabled,
       teaching_mode: r.resolved.teaching_mode,
     });
   }

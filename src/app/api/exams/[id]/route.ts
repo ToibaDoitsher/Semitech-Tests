@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { resolveExamTargetLabels } from "@/lib/exams/resolveTargetNames";
-import type { ExamTargetType } from "@/lib/types/db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -18,9 +17,15 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
 
   if (eErr || !exam) return NextResponse.json({ error: "מבחן לא נמצא" }, { status: 404 });
 
-  const row = exam as { id: string; target_type: ExamTargetType; target_id: string };
+  const row = exam as {
+    id: string;
+    class_id: string | null;
+    specialization_id: string | null;
+    track_id: string | null;
+    psychology_enabled: boolean;
+  };
   const labels = await resolveExamTargetLabels(supabase, [row]);
-  const examEnriched = { ...exam, target_label: labels[row.id] ?? row.target_id };
+  const examEnriched = { ...exam, target_label: labels[row.id] ?? "—" };
 
   const { data: lines, error: lErr } = await supabase
     .from("exam_students")

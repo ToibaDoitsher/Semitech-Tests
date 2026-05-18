@@ -28,8 +28,6 @@ type Exam = {
   id: string;
   subject: string;
   exam_date: string;
-  target_type: string;
-  target_id: string;
   target_label?: string;
   makeup_locked_at?: string | null;
   teachers: Teacher | null;
@@ -109,7 +107,7 @@ export function ExamEditClient({ id }: { id: string }) {
           <h1 className="text-2xl font-semibold">עדכון מבחן</h1>
           <p className="mt-1 text-sm text-zinc-600">
             {e.subject} · {e.exam_date} · {teacherEmbedDisplayName(e.teachers)} · יעד:{" "}
-            {e.target_label ?? e.target_id}
+            {e.target_label ?? "—"}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

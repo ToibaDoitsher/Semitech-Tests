@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
-import { resolveExamTargetLabels } from "@/lib/exams/resolveTargetNames";
+import {
+  assignmentTargetTypeLabel,
+  normalizeTargetInput,
+  parseAssignmentCategory,
+  resolveAssignmentTargetLabels,
+  validateAssignmentWithCategory,
+} from "@/lib/assignments/target";
+import type { AssignmentCategory } from "@/lib/types/db";
 import { formatYearGradeLabel, parseGradeLevel } from "@/lib/academicYears/labels";
 import { listYearGradeOptions } from "@/lib/academicYears/options";
 import {
@@ -9,24 +16,20 @@ import {
 } from "@/lib/academicYears/scope";
 import { ASSIGNMENT_WITH_LOOKUPS } from "@/lib/db/assignmentSelect";
 import { resolveAssignmentTeachingMode } from "@/lib/teachers/assignments";
-import type { ExamTargetType, GradeLevel } from "@/lib/types/db";
+import type { GradeLevel } from "@/lib/types/db";
 import { notDeleted } from "@/lib/db/softDelete";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
-const targetTypeLabel: Record<string, string> = {
-  class: "כיתה",
-  specialization: "התמחות",
-  track: "מסלול",
-  psychology: "פסיכולוגיה",
-};
-
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const teacherId = searchParams.get("teacher_id");
-  const targetType = searchParams.get("target_type") as ExamTargetType | null;
-  const targetId = searchParams.get("target_id");
+  const classId = searchParams.get("class_id");
+  const specializationId = searchParams.get("specialization_id");
+  const trackId = searchParams.get("track_id");
+  const psychology = searchParams.get("psychology_enabled");
+  const categoryParam = searchParams.get("assignment_category");
   const gradeLevel = parseGradeLevel(searchParams.get("grade_level") ?? "");
   const yearGroupRaw = searchParams.get("year_group");
   const yearGroup = yearGroupRaw ? Number.parseInt(yearGroupRaw, 10) : NaN;
@@ -39,33 +42,64 @@ export async function GET(request: Request) {
     .eq("academic_year_id", scope.year.id)
     .order("subject");
   if (teacherId) q = q.eq("teacher_id", teacherId);
-  if (targetType && ["class", "specialization", "track", "psychology"].includes(targetType)) {
-    q = q.eq("target_type", targetType);
+  if (classId) q = q.eq("class_id", classId);
+  if (specializationId) q = q.eq("specialization_id", specializationId);
+  if (trackId) q = q.eq("track_id", trackId);
+  if (psychology === "true") q = q.eq("psychology_enabled", true);
+  if (categoryParam === "חובה" || categoryParam === "התמחות") {
+    q = q.eq("assignment_category", categoryParam);
   }
-  if (targetId) q = q.eq("target_id", targetId);
   if (gradeLevel) q = q.eq("grade_level", gradeLevel);
   if (Number.isFinite(yearGroup)) q = q.eq("year_group", yearGroup);
 
   const { data, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const rows = data ?? [];
-  const labels = await resolveExamTargetLabels(
+  const labels = await resolveAssignmentTargetLabels(
     supabase,
-    rows.map((a) => ({
-      id: (a as { id: string }).id,
-      target_type: (a as { target_type: ExamTargetType }).target_type,
-      target_id: (a as { target_id: string }).target_id,
-    })),
+    rows.map((a) => {
+      const row = a as {
+        id: string;
+        class_id: string | null;
+        specialization_id: string | null;
+        track_id: string | null;
+        psychology_enabled: boolean;
+        assignment_category: AssignmentCategory;
+      };
+      return {
+        id: row.id,
+        class_id: row.class_id,
+        specialization_id: row.specialization_id,
+        track_id: row.track_id,
+        psychology_enabled: row.psychology_enabled,
+        assignment_category: row.assignment_category,
+      };
+    }),
   );
 
   return NextResponse.json({
     assignments: rows.map((a) => {
-      const row = a as { id: string; target_type: string; year_group: number; grade_level: GradeLevel };
+      const row = a as {
+        id: string;
+        year_group: number;
+        grade_level: GradeLevel;
+        class_id: string | null;
+        specialization_id: string | null;
+        track_id: string | null;
+        psychology_enabled: boolean;
+        assignment_category: AssignmentCategory;
+      };
+      const targetCols = {
+        class_id: row.class_id,
+        specialization_id: row.specialization_id,
+        track_id: row.track_id,
+        psychology_enabled: row.psychology_enabled,
+      };
       return {
         ...a,
         year_label: formatYearGradeLabel(row.year_group, row.grade_level),
-        target_label: labels[row.id] ?? row.id,
-        target_type_label: targetTypeLabel[row.target_type] ?? row.target_type,
+        target_label: labels[row.id] ?? "—",
+        target_type_label: assignmentTargetTypeLabel(targetCols, row.assignment_category),
       };
     }),
     layers,
@@ -89,8 +123,11 @@ export async function POST(request: Request) {
       lesson_name?: string;
       year_group?: number;
       grade_level?: string;
-      target_type?: ExamTargetType;
-      target_id?: string;
+      class_id?: string | null;
+      specialization_id?: string | null;
+      track_id?: string | null;
+      psychology_enabled?: boolean;
+      assignment_category?: string;
       teaching_mode?: string;
     };
     const teacher_id = body.teacher_id?.trim();
@@ -98,23 +135,28 @@ export async function POST(request: Request) {
     const lesson_name = (body.lesson_name ?? "").trim() || null;
     const year_group = Number(body.year_group);
     const grade_level = parseGradeLevel(String(body.grade_level ?? ""));
-    const target_type = body.target_type;
-    let target_id = (body.target_id ?? "").trim();
 
-    if (!teacher_id || !subject || !Number.isFinite(year_group) || !grade_level || !target_type) {
+    if (!teacher_id || !subject || !Number.isFinite(year_group) || !grade_level) {
       return NextResponse.json({ error: "כל השדות חובה כולל שנתון ושכבה" }, { status: 400 });
     }
 
-    if (target_type === "psychology") {
-      target_id = scope.year.id;
-    } else if (!target_id) {
-      return NextResponse.json({ error: "חובה לבחור יעד שיבוץ" }, { status: 400 });
+    const category = parseAssignmentCategory(body.assignment_category ?? "");
+    if (!category) {
+      return NextResponse.json({ error: "בחרי סוג שיבוץ: חובה או התמחות" }, { status: 400 });
     }
+
+    const target = normalizeTargetInput({
+      class_id: body.class_id,
+      specialization_id: body.specialization_id,
+      track_id: body.track_id,
+      psychology_enabled: body.psychology_enabled,
+    });
+    const targetErr = validateAssignmentWithCategory(category, target);
+    if (targetErr) return NextResponse.json({ error: targetErr }, { status: 400 });
 
     const teaching = await resolveAssignmentTeachingMode(
       supabase,
-      target_type,
-      target_id,
+      category === "חובה" ? target.track_id : null,
       body.teaching_mode,
     );
     if (teaching.error) {
@@ -128,10 +170,13 @@ export async function POST(request: Request) {
         teacher_id,
         subject,
         lesson_name,
+        assignment_category: category,
         year_group,
         grade_level,
-        target_type,
-        target_id,
+        class_id: target.class_id,
+        specialization_id: target.specialization_id,
+        track_id: target.track_id,
+        psychology_enabled: target.psychology_enabled,
         teaching_mode: teaching.teaching_mode,
       })
       .select(ASSIGNMENT_WITH_LOOKUPS)

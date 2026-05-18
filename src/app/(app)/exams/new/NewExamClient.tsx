@@ -9,7 +9,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { TeacherSearchCombobox } from "@/components/teachers/TeacherSearchCombobox";
 import { TEACHING_TRACK_NAME } from "@/lib/students/fields";
 import { teachingModeLabel } from "@/lib/teachers/display";
-import type { ExamTargetType, TeachingMode, TeachingTrackType } from "@/lib/types/db";
+import type { TeachingMode, TeachingTrackType } from "@/lib/types/db";
 
 const fetcher = (url: string) => fetch(url).then((r) => {
   if (!r.ok) throw new Error("שגיאת טעינה");
@@ -24,8 +24,7 @@ type AssignmentRow = {
   year_group: number;
   grade_level: string;
   year_label?: string;
-  target_type: ExamTargetType;
-  target_id: string;
+  track_id: string | null;
   target_label?: string;
   target_type_label?: string;
 };
@@ -56,8 +55,9 @@ export function NewExamClient() {
   );
 
   const isTeachingTarget =
-    selected?.target_type === "track" &&
-    (selected.target_label === TEACHING_TRACK_NAME || selected.target_label?.includes(TEACHING_TRACK_NAME));
+    Boolean(selected?.track_id) &&
+    (selected?.target_label === TEACHING_TRACK_NAME ||
+      selected?.target_label?.includes(TEACHING_TRACK_NAME));
 
   useEffect(() => {
     if (selected?.teaching_mode) {
@@ -87,8 +87,6 @@ export function NewExamClient() {
           teacher_id: teacherId,
           subject: selected.subject,
           exam_date: examDate,
-          target_type: selected.target_type,
-          target_id: selected.target_id,
           year_group: selected.year_group,
           grade_level: selected.grade_level,
           teacher_assignment_id: selected.id,
@@ -163,7 +161,8 @@ export function NewExamClient() {
                 {a.lesson_name ? ` · ${a.lesson_name}` : ""}
                 {a.teaching_mode ? ` · ${teachingModeLabel(a.teaching_mode)}` : ""}
                 {" · "}
-                {a.target_type_label ?? a.target_type}: {a.target_label ?? a.target_id}
+                {a.target_type_label ? `${a.target_type_label}: ` : ""}
+                {a.target_label ?? "—"}
               </option>
             ))}
           </select>

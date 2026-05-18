@@ -26,8 +26,6 @@ type ExamRow = {
   id: string;
   subject: string;
   exam_date: string;
-  target_type: string;
-  target_id: string;
   target_label?: string;
   teachers: Teacher | null;
 };
@@ -100,7 +98,7 @@ export function ExamsListClient() {
                   <TableCell className="font-medium text-slate-900 dark:text-zinc-100">{e.subject}</TableCell>
                   <TableCell>{e.exam_date}</TableCell>
                   <TableCell className="text-slate-600 dark:text-zinc-300">
-                    {targetLabel[e.target_type] ?? e.target_type}: {e.target_label ?? e.target_id}
+                    {e.target_label ?? "—"}
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
                     <Link href={`/exams/${e.id}`} className={LIST_ROW_LINK_CLASS}>

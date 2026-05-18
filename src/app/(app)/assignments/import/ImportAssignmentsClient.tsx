@@ -31,10 +31,25 @@ const MAP_FIELDS: { key: keyof AssignmentColumnMap; label: string }[] = [
   { key: "lesson_name", label: "שם שיעור" },
   { key: "year_group", label: "שנתון" },
   { key: "grade_level", label: "שכבה" },
-  { key: "target_type_raw", label: "סוג שיבוץ" },
-  { key: "target_value", label: "ערך שיבוץ" },
+  { key: "assignment_category_raw", label: "סוג שיבוץ" },
+  { key: "class_name", label: "כיתה" },
+  { key: "specialization_name", label: "התמחות" },
+  { key: "track_name", label: "מסלול" },
+  { key: "psychology_raw", label: "פסיכולוגיה" },
   { key: "teaching_mode_raw", label: "סוג הוראה" },
 ];
+
+function targetPreview(r: PreviewRow): string {
+  const cat = r.assignment_category_raw?.trim();
+  const parts = [
+    cat && `סוג: ${cat}`,
+    r.class_name && `כיתה: ${r.class_name}`,
+    r.specialization_name && `התמחות: ${r.specialization_name}`,
+    r.track_name && `מסלול: ${r.track_name}`,
+    r.psychology_raw && "פסיכולוגיה",
+  ].filter(Boolean);
+  return parts.join(" · ") || "—";
+}
 
 export function ImportAssignmentsClient() {
   const router = useRouter();
@@ -119,8 +134,10 @@ export function ImportAssignmentsClient() {
           lesson_name: r.lesson_name,
           year_group: r.year_group,
           grade_level: r.grade_level,
-          target_type_raw: r.target_type_raw,
-          target_value: r.target_value,
+          class_name: r.class_name,
+          specialization_name: r.specialization_name,
+          track_name: r.track_name,
+          psychology_raw: r.psychology_raw,
           teaching_mode_raw: r.teaching_mode_raw,
         }));
       const r = await fetch(
@@ -168,7 +185,7 @@ export function ImportAssignmentsClient() {
     <div className="space-y-8">
       <ListPageHeader
         title="ייבוא שיבוצים מאקסל"
-        subtitle="המורה חייבת להיות כבר במסך מורות. הורידי את התבנית לעמודות הנכונות."
+        subtitle="עמודות: כיתה / התמחות / מסלול / פסיכולוגיה — רק יעד אחד בכל שורה."
         actions={
           <>
             <a href="/api/teacher-assignments/import/template" className={LIST_SECONDARY_LINK_CLASS}>
@@ -214,7 +231,7 @@ export function ImportAssignmentsClient() {
 
       {showMapping && excelHeaders.length ? (
         <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/50 p-4">
-          <p className="text-sm font-medium text-amber-900">מיפוי עמודות — התאימי עמודות הקובץ לשדות המערכת</p>
+          <p className="text-sm font-medium text-amber-900">מיפוי עמודות</p>
           <div className="grid gap-3 sm:grid-cols-2">
             {MAP_FIELDS.map(({ key, label }) => (
               <label key={key} className="block text-sm">
@@ -294,10 +311,8 @@ export function ImportAssignmentsClient() {
                 <TableHead>#</TableHead>
                 <TableHead>מורה</TableHead>
                 <TableHead>מקצוע</TableHead>
-                <TableHead>שיעור</TableHead>
-                <TableHead>שנתון</TableHead>
-                <TableHead>שכבה</TableHead>
                 <TableHead>יעד</TableHead>
+                <TableHead>שנתון</TableHead>
                 <TableHead>הערות</TableHead>
               </TableRow>
             </TableHeader>
@@ -309,11 +324,9 @@ export function ImportAssignmentsClient() {
                     {r.teacher_first_name} {r.teacher_last_name}
                   </TableCell>
                   <TableCell>{r.subject}</TableCell>
-                  <TableCell>{r.lesson_name || "—"}</TableCell>
-                  <TableCell>{r.year_group}</TableCell>
-                  <TableCell>{r.grade_level}</TableCell>
+                  <TableCell>{targetPreview(r)}</TableCell>
                   <TableCell>
-                    {r.target_type_raw} {r.target_value ? `· ${r.target_value}` : ""}
+                    {r.year_group} / {r.grade_level}
                   </TableCell>
                   <TableCell className="text-red-800">
                     {[...r.errors, ...(r.warnings ?? [])].join("; ")}
@@ -337,7 +350,7 @@ export function ImportAssignmentsClient() {
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
         title="אישור ייבוא שיבוצים"
-        description="שיבוצים כפולים (אותה מורה, מקצוע, יעד ושנתון) יידלגו אוטומטית."
+        description="רק יעד אחד בכל שורה. כפולים יידלגו."
         hint={confirmHint}
         confirmLabel="ייבוא"
         busy={busy}
