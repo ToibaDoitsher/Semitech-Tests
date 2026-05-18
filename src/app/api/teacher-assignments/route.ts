@@ -76,7 +76,6 @@ export async function POST(request: Request) {
     cohort_id?: string;
     target_type?: ExamTargetType;
     target_id?: string;
-    is_active?: boolean;
   };
   const teacher_id = body.teacher_id?.trim();
   const subject = (body.subject ?? "").trim();
@@ -95,7 +94,7 @@ export async function POST(request: Request) {
 
   const { data, error } = await supabase
     .from("teacher_assignments")
-    .insert({ teacher_id, subject, cohort_id, target_type, target_id, is_active: body.is_active ?? true })
+    .insert({ teacher_id, subject, cohort_id, target_type, target_id })
     .select(ASSIGNMENT_WITH_LOOKUPS)
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });

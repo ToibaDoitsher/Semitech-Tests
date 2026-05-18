@@ -52,7 +52,6 @@ type XProps = {
   targetType: string;
   targetTypeLabel: string;
   targetLabel: string;
-  gradeLevelId: string | null;
   gradeLevelName: string | null;
   counts: { total: number; took: number; missing: number; makeup: number; completed: number; pending: number };
   tone: string;
@@ -131,7 +130,7 @@ export function CalendarClient() {
       if (!xp) continue;
       if (xp.teacherId) teachers.set(xp.teacherId, xp.teacherName || xp.teacherId);
       if (xp.subject) subjects.add(xp.subject);
-      if (xp.gradeLevelId) grades.set(xp.gradeLevelId, xp.gradeLevelName ?? xp.gradeLevelId);
+      if (xp.gradeLevelName) grades.set(xp.gradeLevelName, xp.gradeLevelName);
       if (xp.targetType === "class") classes.set(xp.targetLabel, xp.targetLabel);
       if (xp.targetType === "specialization") specs.set(xp.targetLabel, xp.targetLabel);
       if (xp.targetType === "track") tracks.set(xp.targetLabel, xp.targetLabel);
@@ -154,7 +153,7 @@ export function CalendarClient() {
       if (!xp) return true;
       if (fTeacher && xp.teacherId !== fTeacher) return false;
       if (fSubject && xp.subject !== fSubject) return false;
-      if (fGrade && xp.gradeLevelId !== fGrade) return false;
+      if (fGrade && xp.gradeLevelName !== fGrade) return false;
       if (fClass && !(xp.targetType === "class" && xp.targetLabel === fClass)) return false;
       if (fSpec && !(xp.targetType === "specialization" && xp.targetLabel === fSpec)) return false;
       if (fTrack && !(xp.targetType === "track" && xp.targetLabel === fTrack)) return false;

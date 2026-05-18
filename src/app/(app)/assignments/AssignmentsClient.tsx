@@ -32,7 +32,6 @@ type AssignmentRow = {
   grade_level?: string | null;
   target_type: ExamTargetType;
   target_id: string;
-  is_active: boolean;
   target_label?: string;
   target_type_label?: string;
   teachers: { name: string } | null;
@@ -99,20 +98,6 @@ export function AssignmentsClient() {
     } finally {
       setSaving(false);
     }
-  }
-
-  async function toggleActive(row: AssignmentRow, active: boolean) {
-    const r = await fetch(`/api/teacher-assignments/${row.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ is_active: active }),
-    });
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      alert((j as { error?: string }).error ?? "עדכון נכשל");
-      return;
-    }
-    await mutate();
   }
 
   async function removeRow(id: string) {
@@ -282,7 +267,6 @@ export function AssignmentsClient() {
               <TableHead>סוג שיבוץ</TableHead>
               <TableHead>ערך שיבוץ</TableHead>
               <TableHead>שנתון</TableHead>
-              <TableHead>פעיל</TableHead>
               <TableHead className="w-[1%] whitespace-nowrap" />
             </TableRow>
           </TableHeader>
@@ -299,19 +283,6 @@ export function AssignmentsClient() {
                       ? `מחזור ${a.cohorts.name ?? a.cohorts.number ?? ""}${a.grade_level ? ` · שכבה ${a.grade_level}` : ""}`
                       : "—"}
                   </TableCell>
-                  <TableCell>
-                    <button
-                      type="button"
-                      className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition ${
-                        a.is_active
-                          ? "border-slate-200 bg-white shadow-sm hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900/40"
-                          : "border-slate-100 bg-slate-50 text-slate-500 dark:border-zinc-700 dark:bg-zinc-800/50"
-                      }`}
-                      onClick={() => void toggleActive(a, !a.is_active)}
-                    >
-                      {a.is_active ? "פעיל" : "כבוי"}
-                    </button>
-                  </TableCell>
                   <TableCell className="whitespace-nowrap">
                     <button type="button" className={LIST_ROW_DELETE_CLASS} onClick={() => void removeRow(a.id)}>
                       <Trash2 className="size-3.5 shrink-0 opacity-70" strokeWidth={2} />
@@ -322,7 +293,7 @@ export function AssignmentsClient() {
               ))
             ) : (
               <TableRow>
-                <TableCell className="py-14 text-center text-slate-500 dark:text-zinc-400" colSpan={7}>
+                <TableCell className="py-14 text-center text-slate-500 dark:text-zinc-400" colSpan={6}>
                   {aLoad ? "טוען…" : "אין שיבוצים"}
                 </TableCell>
               </TableRow>

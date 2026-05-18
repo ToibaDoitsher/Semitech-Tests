@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { gradeForCohort } from "@/lib/cohorts/grades";
 import { selectedCohortIdList } from "@/lib/cohorts/server";
+import { notDeleted } from "@/lib/db/softDelete";
 import { resolveExamTargetLabels } from "@/lib/exams/resolveTargetNames";
 import type { ExamTargetType } from "@/lib/types/db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -74,9 +76,11 @@ export async function GET(request: Request) {
   const supabase = createSupabaseAdminClient();
   const cohortIds = await selectedCohortIdList(supabase);
 
-  let examsQuery = supabase
-    .from("exams")
-    .select("id, subject, exam_date, target_type, target_id, teacher_id, teachers(name)")
+  let examsQuery = notDeleted(
+    supabase
+      .from("exams")
+      .select("id, subject, exam_date, target_type, target_id, teacher_id, cohort_id, teachers(name), cohorts(number, display_order)"),
+  )
     .gte("exam_date", start)
     .lte("exam_date", end);
   if (cohortIds.length) examsQuery = examsQuery.in("cohort_id", cohortIds);
@@ -92,7 +96,9 @@ export async function GET(request: Request) {
     target_type: ExamTargetType;
     target_id: string;
     teacher_id: string;
+    cohort_id: string;
     teachers: { name: string } | { name: string }[] | null;
+    cohorts: { number: number; display_order: number | null } | { number: number; display_order: number | null }[] | null;
   }[];
 
   const examIds = exams.map((e) => e.id);
@@ -147,43 +153,6 @@ export async function GET(request: Request) {
     }
   }
 
-  const assignKey = (teacher_id: string, subject: string, target_type: ExamTargetType, target_id: string) =>
-    `${teacher_id}|${subject.trim().toLowerCase()}|${target_type}|${target_id}`;
-
-  const gradeByAssignKey = new Map<string, string>();
-  if (teacherIds.length) {
-    const { data: assigns, error: aErr } = await supabase
-      .from("teacher_assignments")
-      .select("teacher_id, subject, target_type, target_id, grade_level_id")
-      .in("teacher_id", teacherIds)
-      .eq("is_active", true);
-    if (aErr) return NextResponse.json({ error: aErr.message }, { status: 500 });
-    for (const a of assigns ?? []) {
-      const row = a as {
-        teacher_id: string;
-        subject: string;
-        target_type: ExamTargetType;
-        target_id: string;
-        grade_level_id: string;
-      };
-      gradeByAssignKey.set(assignKey(row.teacher_id, row.subject, row.target_type, row.target_id), row.grade_level_id);
-    }
-  }
-
-  const usedGradeIds = [...new Set([...gradeByAssignKey.values()])].filter(Boolean);
-  const gradeNameById: Record<string, string> = {};
-  if (usedGradeIds.length) {
-    const { data: glv, error: glErr } = await supabase
-      .from("grade_levels")
-      .select("id,name")
-      .in("id", usedGradeIds);
-    if (glErr) return NextResponse.json({ error: glErr.message }, { status: 500 });
-    for (const r of glv ?? []) {
-      const row = r as { id: string; name: string };
-      gradeNameById[row.id] = row.name;
-    }
-  }
-
   const classDayKey = (date: string, classId: string) => `${date}|${classId}`;
   const classDayCount = new Map<string, number>();
   for (const e of exams) {
@@ -204,9 +173,9 @@ export async function GET(request: Request) {
     const cols = colorsForExam(e.exam_date, c, tr);
     const tn = e.teachers;
     const teacherName = Array.isArray(tn) ? tn[0]?.name : tn && typeof tn === "object" && "name" in tn ? tn.name : "";
-    const gk = assignKey(e.teacher_id, e.subject, e.target_type, e.target_id);
-    const gradeLevelId = gradeByAssignKey.get(gk) ?? null;
-    const gradeLevelName = gradeLevelId ? gradeNameById[gradeLevelId] ?? null : null;
+    const cohortRaw = e.cohorts;
+    const cohort = Array.isArray(cohortRaw) ? cohortRaw[0] : cohortRaw;
+    const gradeLevelName = cohort ? gradeForCohort(cohort) : null;
     const classConflict =
       e.target_type === "class" && (classDayCount.get(classDayKey(e.exam_date, e.target_id)) ?? 0) > 1;
     const dayLoad = dayExamCount.get(e.exam_date) ?? 0;
@@ -237,7 +206,6 @@ export async function GET(request: Request) {
         targetTypeLabel: targetTypeHe[e.target_type] ?? e.target_type,
         targetId: e.target_id,
         targetLabel: labels[e.id] ?? e.target_id,
-        gradeLevelId,
         gradeLevelName,
         counts: c,
         tone: cols.tone,

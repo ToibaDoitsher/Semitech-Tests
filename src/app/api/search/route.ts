@@ -17,8 +17,8 @@ export async function GET(request: Request) {
   let studentsQ = notDeleted(
     supabase
       .from("students")
-      .select("id, first_name, last_name, tz")
-      .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},tz.ilike.${pattern}`)
+      .select("id, first_name, last_name, tz, full_name_generated")
+      .or(`full_name_generated.ilike.${pattern},first_name.ilike.${pattern},last_name.ilike.${pattern},tz.ilike.${pattern}`)
       .limit(8),
   );
   if (cohortIds.length) studentsQ = studentsQ.in("cohort_id", cohortIds);

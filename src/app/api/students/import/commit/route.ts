@@ -60,6 +60,7 @@ export async function POST(request: Request) {
   if (exErr) return NextResponse.json({ error: exErr.message }, { status: 500 });
   const tzToId = new Map((existingRows ?? []).map((r) => [r.tz.trim(), r.id] as const));
 
+  const importBatchId = crypto.randomUUID();
   const toInsert: Record<string, unknown>[] = [];
   const toUpdate: { id: string; patch: Record<string, unknown> }[] = [];
   const rowErrors: { rowNumber: number; errors: string[] }[] = [...failed];
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
         rowErrors.push({ rowNumber: r.rowNumber, errors: [tzOk.error ?? "ת״ז כפולה"] });
         continue;
       }
-      toInsert.push(patch);
+      toInsert.push({ ...patch, import_batch_id: importBatchId });
     }
   }
 

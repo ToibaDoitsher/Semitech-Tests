@@ -40,7 +40,6 @@ export async function assertTeacherAssignmentMatchesExam(
     .eq("target_type", targetType)
     .eq("target_id", targetId)
     .eq("cohort_id", cohortId)
-    .eq("is_active", true)
     .limit(1);
 
   if (error) return { ok: false, error: error.message };

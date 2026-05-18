@@ -12,7 +12,6 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     cohort_id?: string;
     target_type?: ExamTargetType;
     target_id?: string;
-    is_active?: boolean;
   };
 
   const patch: Record<string, unknown> = {};
@@ -20,7 +19,6 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   if (body.cohort_id !== undefined) patch.cohort_id = body.cohort_id.trim();
   if (body.target_type !== undefined) patch.target_type = body.target_type;
   if (body.target_id !== undefined) patch.target_id = body.target_id.trim();
-  if (body.is_active !== undefined) patch.is_active = body.is_active;
 
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase

@@ -4,7 +4,7 @@ import {
   cohortDisplayNumber,
   cohortWithGradeLabel,
 } from "@/lib/cohorts/grades";
-import { getSelectedCohortNumbers, setSelectedCohortNumbers } from "@/lib/cohorts/settings";
+import { setSelectedCohortIds } from "@/lib/cohorts/settings";
 import type { CohortPairView, CohortRow, GradeLevel } from "@/lib/cohorts/types";
 
 export type { CohortRow, CohortPairView, GradeLevel } from "@/lib/cohorts/types";
@@ -23,6 +23,7 @@ export async function listAllCohorts(supabase: SupabaseClient): Promise<CohortRo
   const { data, error } = await supabase
     .from("cohorts")
     .select(COHORT_SELECT)
+    .is("deleted_at", null)
     .order("number", { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []).map(normalizeCohort);
@@ -30,32 +31,15 @@ export async function listAllCohorts(supabase: SupabaseClient): Promise<CohortRo
 
 export async function loadDefaultCohortPair(supabase: SupabaseClient): Promise<CohortPairView | null> {
   const { data, error } = await supabase
-    .from("cohorts")
-    .select(COHORT_SELECT)
-    .in("display_order", [1, 2]);
+    .from("active_cohorts_view")
+    .select(COHORT_SELECT);
   if (error) throw new Error(error.message);
   const rows = (data ?? []).map(normalizeCohort);
   if (rows.length < 2) return null;
   return buildCohortPairView(rows[0], rows[1]);
 }
 
-/** @deprecated use loadDefaultCohortPair */
 export const loadActiveCohortPair = loadDefaultCohortPair;
-
-export async function loadCohortPairByNumbers(
-  supabase: SupabaseClient,
-  numA: number,
-  numB: number,
-): Promise<CohortPairView | null> {
-  const { data, error } = await supabase
-    .from("cohorts")
-    .select(COHORT_SELECT)
-    .in("number", [numA, numB]);
-  if (error) throw new Error(error.message);
-  const rows = (data ?? []).map(normalizeCohort);
-  if (rows.length !== 2) return null;
-  return buildCohortPairView(rows[0], rows[1]);
-}
 
 export async function loadCohortPairByIds(
   supabase: SupabaseClient,
@@ -65,6 +49,7 @@ export async function loadCohortPairByIds(
   const { data, error } = await supabase
     .from("cohorts")
     .select(COHORT_SELECT)
+    .is("deleted_at", null)
     .in("id", [idA, idB]);
   if (error) throw new Error(error.message);
   const rows = (data ?? []).map(normalizeCohort);
@@ -81,6 +66,7 @@ export async function findCohortByNumber(supabase: SupabaseClient, num: number) 
     .from("cohorts")
     .select(COHORT_SELECT)
     .eq("number", num)
+    .is("deleted_at", null)
     .maybeSingle();
   if (error) throw new Error(error.message);
   return data ? normalizeCohort(data) : null;
@@ -111,9 +97,8 @@ export async function createNewCohort(
   }
 
   const { data: layers, error: layersErr } = await supabase
-    .from("cohorts")
-    .select(COHORT_SELECT)
-    .in("display_order", [1, 2]);
+    .from("active_cohorts_view")
+    .select(COHORT_SELECT);
   if (layersErr) return { error: layersErr.message };
 
   const layerRows = (layers ?? []).map(normalizeCohort);
@@ -146,7 +131,7 @@ export async function createNewCohort(
   if (newErr) return { error: newErr.message };
 
   if (prevLayerA) {
-    await setSelectedCohortNumbers(supabase, [newCohortNumber, prevLayerA.number]);
+    await setSelectedCohortIds(supabase, [newCohort.id, prevLayerA.id]);
   }
 
   return {
@@ -158,7 +143,6 @@ export async function createNewCohort(
   };
 }
 
-/** @deprecated use createNewCohort */
 export const openNewCohort = createNewCohort;
 
 function normalizeCohort(row: Record<string, unknown>): CohortRow {

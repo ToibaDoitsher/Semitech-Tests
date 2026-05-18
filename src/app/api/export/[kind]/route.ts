@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { enrichStudentsWithGrade, formatCohortGradeLabel } from "@/lib/academic/studentGrade";
 import { resolveSelectedCohortPair, selectedCohortIdList } from "@/lib/cohorts/server";
 import { ASSIGNMENT_WITH_LOOKUPS } from "@/lib/db/assignmentSelect";
+import { notDeleted } from "@/lib/db/softDelete";
 import { asStudentRows, type StudentWithLookupsRow } from "@/lib/db/studentRow";
 import { getStudentWithLookupsSelect } from "@/lib/db/studentSelect";
 import { resolveExamTargetLabels } from "@/lib/exams/resolveTargetNames";
@@ -170,12 +171,13 @@ export async function GET(_request: Request, ctx: { params: Promise<{ kind: stri
 
     if (kind === "assignments") {
       const data = await paginateSelect((from, to) =>
-        supabase.from("teacher_assignments").select(ASSIGNMENT_WITH_LOOKUPS).order("subject").range(from, to),
+        notDeleted(supabase.from("teacher_assignments").select(ASSIGNMENT_WITH_LOOKUPS))
+          .order("subject")
+          .range(from, to),
       );
       const raw = data as {
         id: string;
         subject: string;
-        is_active: boolean;
         target_type: ExamTargetType;
         target_id: string;
         teachers: unknown;
@@ -196,7 +198,6 @@ export async function GET(_request: Request, ctx: { params: Promise<{ kind: stri
         שכבה: grade,
         סוג_שיבוץ: targetTypeHe[a.target_type] ?? a.target_type,
         ערך_שיבוץ: labels[a.id] ?? a.target_id,
-        פעיל: a.is_active ? "כן" : "לא",
       };
       });
       return NextResponse.json({ rows });

@@ -16,7 +16,6 @@ type AssignmentRow = {
   id: string;
   subject: string;
   cohort_id: string;
-  is_active: boolean;
   target_type: ExamTargetType;
   target_id: string;
   target_label?: string;
@@ -51,10 +50,7 @@ export function NewExamClient() {
 
   const { data: aData, isLoading: aLoad } = useSWR<{ assignments: AssignmentRow[] }>(assignUrl, fetcher);
 
-  const activeAssignments = useMemo(
-    () => (aData?.assignments ?? []).filter((a) => a.is_active),
-    [aData],
-  );
+  const activeAssignments = useMemo(() => aData?.assignments ?? [], [aData]);
 
   const [assignmentId, setAssignmentId] = useState("");
   const [examDate, setExamDate] = useState("");

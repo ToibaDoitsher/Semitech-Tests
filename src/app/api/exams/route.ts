@@ -98,7 +98,6 @@ export async function POST(request: Request) {
       .eq("subject", subject)
       .eq("target_type", target_type)
       .eq("target_id", target_id)
-      .eq("is_active", true)
       .limit(1)
       .maybeSingle();
     cohort_id = (assignment?.cohort_id as string) ?? "";

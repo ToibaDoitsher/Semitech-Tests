@@ -44,7 +44,6 @@ export type TeacherAssignment = {
   cohort_id: string;
   target_type: ExamTargetType;
   target_id: string;
-  is_active: boolean;
   teachers?: { name: string } | null;
   cohorts?: { id: string; name?: string; number?: number; grade_level?: GradeLevel | null } | null;
 };
