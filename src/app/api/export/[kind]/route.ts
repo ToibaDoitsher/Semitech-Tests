@@ -9,6 +9,7 @@ import { getStudentWithLookupsSelect } from "@/lib/db/studentSelect";
 import { resolveExamTargetLabels } from "@/lib/exams/resolveTargetNames";
 import { pickLookupName } from "@/lib/lookups/display";
 import type { ExamTargetType } from "@/lib/types/db";
+import { TEACHER_EMBED_IN_EXAM } from "@/lib/teachers/db";
 import { teacherDisplayName, teacherEmbedDisplayName, teachingModeLabel } from "@/lib/teachers/display";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -335,7 +336,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
           student_id,
           exam_id,
           students ( first_name, last_name, tz ),
-          exams ( id, subject, exam_date, target_type, target_id, teachers ( name ) )
+          exams ( id, subject, exam_date, target_type, target_id, ${TEACHER_EMBED_IN_EXAM} )
         `,
         )
         .order("exam_id")

@@ -12,6 +12,8 @@ import { asStudentRow } from "@/lib/db/studentRow";
 import { getStudentWithLookupsSelect } from "@/lib/db/studentSelect";
 import { recordStudentHistoryIfChanged } from "@/lib/students/history";
 import { normalizeStudentFields } from "@/lib/students/patch";
+import { TEACHER_EMBED_IN_EXAM } from "@/lib/teachers/db";
+import { teacherEmbedDisplayName } from "@/lib/teachers/display";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -44,18 +46,18 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
   if (examIds.length) {
     const { data: exams } = await supabase
       .from("exams")
-      .select("id, subject, exam_date, teachers ( id, first_name, last_name, full_name_generated )")
+      .select(`id, subject, exam_date, ${TEACHER_EMBED_IN_EXAM}`)
       .in("id", examIds);
 
     for (const e of exams ?? []) {
       const raw = e as { id: string; subject: string; exam_date: string; teachers: unknown };
-      const tn = raw.teachers as { name?: string } | { name?: string }[] | null | undefined;
-      const name =
-        Array.isArray(tn) ? tn[0]?.name : typeof tn === "object" && tn && "name" in tn ? tn.name : undefined;
       examsMeta[raw.id] = {
         subject: raw.subject,
         exam_date: raw.exam_date,
-        teacher_name: name ?? null,
+        teacher_name:
+          teacherEmbedDisplayName(
+            raw.teachers as Parameters<typeof teacherEmbedDisplayName>[0],
+          ) || null,
       };
     }
   }

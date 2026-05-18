@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Settings2, Trash2, Upload } from "lucide-react";
+import { Pencil, Settings2, Trash2, Upload } from "lucide-react";
 import { useMemo, useState } from "react";
 import useSWR from "swr";
 import {
@@ -16,7 +16,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { TableClearFooter } from "@/components/ui/TableClearFooter";
 import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
 import { TeacherSearchCombobox } from "@/components/teachers/TeacherSearchCombobox";
-import { pickLookupName } from "@/lib/lookups/display";
 import { TEACHING_TRACK_NAME } from "@/lib/students/fields";
 import { teacherEmbedDisplayName, teachingModeLabel } from "@/lib/teachers/display";
 import type { ExamTargetType, Teacher, TeachingMode } from "@/lib/types/db";
@@ -73,6 +72,17 @@ export function AssignmentsClient() {
   const [targetId, setTargetId] = useState("");
   const [teachingMode, setTeachingMode] = useState<TeachingMode | "">("");
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<{
+    subject: string;
+    lesson_name: string;
+    year_group: number;
+    grade_level: string;
+    target_type: ExamTargetType;
+    target_id: string;
+    teaching_mode: TeachingMode | "";
+  } | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
 
   const targetItems = useMemo(() => {
     if (targetKind === "class") return clData?.items ?? [];
@@ -108,6 +118,7 @@ export function AssignmentsClient() {
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error((j as { error?: string }).error ?? "שגיאה");
+      setTeacherId("");
       setSubject("");
       setLessonName("");
       setYearGroup("");
@@ -119,6 +130,66 @@ export function AssignmentsClient() {
       alert((err as Error).message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  function startEdit(a: AssignmentRow) {
+    setEditingId(a.id);
+    setEditDraft({
+      subject: a.subject,
+      lesson_name: a.lesson_name ?? "",
+      year_group: a.year_group,
+      grade_level: a.grade_level,
+      target_type: a.target_type,
+      target_id: a.target_type === "psychology" ? "" : a.target_id,
+      teaching_mode: a.teaching_mode ?? "",
+    });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditDraft(null);
+  }
+
+  const editTrackName =
+    editDraft?.target_type === "track"
+      ? (trData?.items.find((t) => t.id === editDraft.target_id)?.name ?? "")
+      : "";
+  const editShowTeachingMode =
+    editDraft?.target_type === "track" && editTrackName === TEACHING_TRACK_NAME;
+
+  const editTargetItems = useMemo(() => {
+    if (!editDraft) return [];
+    if (editDraft.target_type === "class") return clData?.items ?? [];
+    if (editDraft.target_type === "specialization") return spData?.items ?? [];
+    return trData?.items ?? [];
+  }, [editDraft, clData, spData, trData]);
+
+  async function saveEdit(id: string) {
+    if (!editDraft || readOnly) return;
+    setEditSaving(true);
+    try {
+      const r = await fetch(withYearQuery(`/api/teacher-assignments/${id}`, viewingYear?.id), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subject: editDraft.subject,
+          lesson_name: editDraft.lesson_name.trim() || null,
+          year_group: editDraft.year_group,
+          grade_level: editDraft.grade_level,
+          target_type: editDraft.target_type,
+          target_id: editDraft.target_type === "psychology" ? undefined : editDraft.target_id,
+          teaching_mode: editShowTeachingMode ? editDraft.teaching_mode || null : null,
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error((j as { error?: string }).error ?? "שגיאה");
+      cancelEdit();
+      await mutate();
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setEditSaving(false);
     }
   }
 
@@ -326,27 +397,169 @@ export function AssignmentsClient() {
           </TableHeader>
           <TableBody>
             {rows.length ? (
-              rows.map((a) => (
+              rows.map((a) => {
+                const isEditing = editingId === a.id && editDraft;
+                return (
                 <TableRow key={a.id}>
                   <TableCell className="font-medium text-slate-900 dark:text-zinc-100">
                     {teacherEmbedDisplayName(a.teachers)}
                   </TableCell>
-                  <TableCell>{a.subject}</TableCell>
-                  <TableCell>{a.lesson_name ?? "—"}</TableCell>
-                  <TableCell className="text-slate-600 dark:text-zinc-300">{a.target_type_label ?? a.target_type}</TableCell>
-                  <TableCell className="text-slate-800 dark:text-zinc-200">{a.target_label ?? a.target_id}</TableCell>
                   <TableCell>
-                    {a.year_label ?? `שנתון ${a.year_group} — שכבה ${a.grade_level}`}
-                    {a.teaching_mode ? ` · ${teachingModeLabel(a.teaching_mode)}` : ""}
+                    {isEditing ? (
+                      <input
+                        value={editDraft.subject}
+                        onChange={(e) => setEditDraft({ ...editDraft, subject: e.target.value })}
+                        className="w-full min-w-[6rem] rounded border border-zinc-200 px-2 py-1 text-sm"
+                      />
+                    ) : (
+                      a.subject
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {isEditing ? (
+                      <input
+                        value={editDraft.lesson_name}
+                        onChange={(e) => setEditDraft({ ...editDraft, lesson_name: e.target.value })}
+                        className="w-full min-w-[6rem] rounded border border-zinc-200 px-2 py-1 text-sm"
+                        placeholder="שם שיעור"
+                      />
+                    ) : (
+                      a.lesson_name ?? "—"
+                    )}
+                  </TableCell>
+                  <TableCell className="text-slate-600 dark:text-zinc-300">
+                    {isEditing ? (
+                      <select
+                        value={editDraft.target_type}
+                        onChange={(e) =>
+                          setEditDraft({
+                            ...editDraft,
+                            target_type: e.target.value as ExamTargetType,
+                            target_id: "",
+                            teaching_mode: "",
+                          })
+                        }
+                        className="w-full rounded border border-zinc-200 px-2 py-1 text-sm"
+                      >
+                        {targetStepOptions.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      a.target_type_label ?? a.target_type
+                    )}
+                  </TableCell>
+                  <TableCell className="text-slate-800 dark:text-zinc-200">
+                    {isEditing ? (
+                      editDraft.target_type === "psychology" ? (
+                        <span className="text-sm text-zinc-500">כל הפסיכולוגיה</span>
+                      ) : (
+                        <select
+                          value={editDraft.target_id}
+                          onChange={(e) =>
+                            setEditDraft({ ...editDraft, target_id: e.target.value, teaching_mode: "" })
+                          }
+                          className="w-full min-w-[8rem] rounded border border-zinc-200 px-2 py-1 text-sm"
+                        >
+                          <option value="">— בחרי —</option>
+                          {editTargetItems.map((o) => (
+                            <option key={o.id} value={o.id}>
+                              {o.name}
+                            </option>
+                          ))}
+                        </select>
+                      )
+                    ) : (
+                      a.target_label ?? a.target_id
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {isEditing ? (
+                      <div className="flex flex-wrap items-center gap-1">
+                        <select
+                          value={`${editDraft.year_group}:${editDraft.grade_level}`}
+                          onChange={(e) => {
+                            const [yg, gl] = e.target.value.split(":");
+                            setEditDraft({
+                              ...editDraft,
+                              year_group: yg ? Number.parseInt(yg, 10) : editDraft.year_group,
+                              grade_level: gl ?? editDraft.grade_level,
+                            });
+                          }}
+                          className="rounded border border-zinc-200 px-2 py-1 text-sm"
+                        >
+                          {(aData?.layers ?? []).map((l) => (
+                            <option
+                              key={`${l.year_group}:${l.grade_level}`}
+                              value={`${l.year_group}:${l.grade_level}`}
+                            >
+                              {l.label}
+                            </option>
+                          ))}
+                        </select>
+                        {editShowTeachingMode ? (
+                          <select
+                            value={editDraft.teaching_mode}
+                            onChange={(e) =>
+                              setEditDraft({
+                                ...editDraft,
+                                teaching_mode: e.target.value as TeachingMode | "",
+                              })
+                            }
+                            className="rounded border border-zinc-200 px-2 py-1 text-sm"
+                          >
+                            <option value="">—</option>
+                            <option value="full">מלא</option>
+                            <option value="short">מקוצר</option>
+                          </select>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <>
+                        {a.year_label ?? `שנתון ${a.year_group} — שכבה ${a.grade_level}`}
+                        {a.teaching_mode ? ` · ${teachingModeLabel(a.teaching_mode)}` : ""}
+                      </>
+                    )}
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
-                    <button type="button" className={LIST_ROW_DELETE_CLASS} onClick={() => void removeRow(a.id)}>
-                      <Trash2 className="size-3.5 shrink-0 opacity-70" strokeWidth={2} />
-                      מחיקה
-                    </button>
+                    {!readOnly ? (
+                      isEditing ? (
+                        <span className="inline-flex gap-2">
+                          <button
+                            type="button"
+                            disabled={editSaving}
+                            className="text-sm font-medium text-emerald-800"
+                            onClick={() => void saveEdit(a.id)}
+                          >
+                            {editSaving ? "שומר…" : "שמירה"}
+                          </button>
+                          <button type="button" className="text-sm text-zinc-500" onClick={cancelEdit}>
+                            ביטול
+                          </button>
+                        </span>
+                      ) : (
+                        <span className="inline-flex gap-2">
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900"
+                            onClick={() => startEdit(a)}
+                          >
+                            <Pencil className="size-3.5" strokeWidth={2} />
+                            עריכה
+                          </button>
+                          <button type="button" className={LIST_ROW_DELETE_CLASS} onClick={() => void removeRow(a.id)}>
+                            <Trash2 className="size-3.5 shrink-0 opacity-70" strokeWidth={2} />
+                            מחיקה
+                          </button>
+                        </span>
+                      )
+                    ) : null}
                   </TableCell>
                 </TableRow>
-              ))
+              );
+              })
             ) : (
               <TableRow>
                 <TableCell className="py-14 text-center text-slate-500 dark:text-zinc-400" colSpan={7}>
@@ -368,35 +581,3 @@ export function AssignmentsClient() {
   );
 }
 
-function LookupSelect({
-  label,
-  value,
-  onChange,
-  items,
-  required,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  items: LookupItem[];
-  required?: boolean;
-}) {
-  return (
-    <label className="block">
-      <span className="text-sm font-medium text-zinc-700">{label}</span>
-      <select
-        required={required}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-400"
-      >
-        <option value="">— בחרי —</option>
-        {items.map((o) => (
-          <option key={o.id} value={o.id}>
-            {o.name}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}

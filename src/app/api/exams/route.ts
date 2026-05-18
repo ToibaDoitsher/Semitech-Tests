@@ -76,6 +76,7 @@ export async function POST(request: Request) {
     year_group?: number;
     grade_level?: string;
     teacher_assignment_id?: string;
+    lesson_name?: string | null;
     teaching_track_type?: TeachingTrackType | null;
   };
 
@@ -142,9 +143,9 @@ export async function POST(request: Request) {
     }
     assignmentTeachingMode = (ta.teaching_mode as "full" | "short" | null) ?? null;
   } else {
-    const { data: assignment } = await supabase
+    let assignmentQuery = supabase
       .from("teacher_assignments")
-      .select("id, teaching_mode")
+      .select("id, teaching_mode, lesson_name")
       .eq("teacher_id", teacher_id)
       .eq("subject", subject)
       .eq("academic_year_id", yearScope.year.id)
@@ -152,8 +153,12 @@ export async function POST(request: Request) {
       .eq("target_id", resolvedTargetId)
       .eq("year_group", year_group)
       .eq("grade_level", grade_level)
-      .limit(1)
-      .maybeSingle();
+      .is("deleted_at", null);
+    const lessonFilter = (body as { lesson_name?: string }).lesson_name?.trim();
+    if (lessonFilter) {
+      assignmentQuery = assignmentQuery.eq("lesson_name", lessonFilter);
+    }
+    const { data: assignment } = await assignmentQuery.limit(1).maybeSingle();
     assignmentId = (assignment?.id as string) ?? "";
     assignmentTeachingMode = (assignment?.teaching_mode as "full" | "short" | null) ?? null;
   }
