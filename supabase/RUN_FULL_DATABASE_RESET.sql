@@ -8,6 +8,7 @@ drop view if exists public.active_cohorts_view;
 drop table if exists public.student_history cascade;
 drop table if exists public.audit_logs cascade;
 drop table if exists public.notifications cascade;
+drop table if exists public.makeup_tracking cascade;
 drop table if exists public.exam_tracking cascade;
 drop table if exists public.makeup_exams cascade;
 drop table if exists public.exam_students cascade;
@@ -311,12 +312,32 @@ create table public.makeup_exams (
   student_id uuid not null references public.students (id) on delete restrict,
   exam_id uuid not null references public.exams (id) on delete restrict,
   status public.makeup_exam_status not null default 'open',
+  grade numeric,
   notes text,
   created_at timestamptz not null default now(),
   completed_at timestamptz,
   deleted_at timestamptz,
   unique (student_id, exam_id)
 );
+
+create table public.makeup_tracking (
+  id uuid primary key default gen_random_uuid(),
+  academic_year_id uuid not null references public.academic_years (id) on delete restrict,
+  exam_id uuid not null references public.exams (id) on delete restrict,
+  teacher_id uuid not null references public.teachers (id) on delete restrict,
+  student_id uuid not null references public.students (id) on delete restrict,
+  makeup_exam_id uuid references public.makeup_exams (id) on delete set null,
+  sent_to_teacher_at timestamptz,
+  grade_received_at timestamptz,
+  grade numeric,
+  notes text,
+  created_at timestamptz not null default now(),
+  unique (exam_id, student_id)
+);
+
+create index idx_makeup_tracking_exam_id on public.makeup_tracking (exam_id);
+create index idx_makeup_tracking_teacher_id on public.makeup_tracking (teacher_id);
+create index idx_makeup_tracking_student_id on public.makeup_tracking (student_id);
 
 create table public.exam_tracking (
   id uuid primary key default gen_random_uuid(),
@@ -637,6 +658,7 @@ alter table public.teacher_assignments enable row level security;
 alter table public.exams enable row level security;
 alter table public.exam_students enable row level security;
 alter table public.makeup_exams enable row level security;
+alter table public.makeup_tracking enable row level security;
 alter table public.exam_tracking enable row level security;
 alter table public.student_history enable row level security;
 alter table public.audit_logs enable row level security;

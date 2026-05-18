@@ -10,8 +10,9 @@ export async function GET() {
 
   const { data: rows, error } = await supabase
     .from("makeup_exams")
-    .select("id, status, created_at, completed_at, student_id, exam_id")
+    .select("id, status, created_at, completed_at, grade, student_id, exam_id")
     .eq("status", "open")
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

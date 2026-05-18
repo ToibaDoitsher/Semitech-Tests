@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ensureMakeupTrackingBatch } from "@/lib/makeupTracking/sync";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -38,12 +39,20 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
     completed_at: null as null,
   }));
 
-  const { error: insErr } = await supabase.from("makeup_exams").upsert(inserts, {
-    onConflict: "student_id,exam_id",
-    ignoreDuplicates: false,
-  });
+  const { data: insertedMakeups, error: insErr } = await supabase
+    .from("makeup_exams")
+    .upsert(inserts, { onConflict: "student_id,exam_id", ignoreDuplicates: false })
+    .select("id, student_id, exam_id");
 
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 400 });
+
+  const trackItems = (insertedMakeups ?? []).map((m) => ({
+    studentId: m.student_id as string,
+    examId: m.exam_id as string,
+    makeupExamId: m.id as string,
+  }));
+  const track = await ensureMakeupTrackingBatch(supabase, trackItems);
+  if (track.error) return NextResponse.json({ error: track.error }, { status: 400 });
 
   const { error: upErr } = await supabase
     .from("exam_students")

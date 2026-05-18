@@ -7,6 +7,7 @@ import {
   assertNoOpenMakeupDuplicate,
   assertValidExamStudentStatusTransition,
 } from "@/lib/validations/exams";
+import { ensureMakeupTracking } from "@/lib/makeupTracking/sync";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -59,16 +60,27 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     );
     if (!dupMakeup.ok) return NextResponse.json({ error: dupMakeup.error }, { status: 400 });
 
-    const { error: mErr } = await supabase.from("makeup_exams").upsert(
-      {
-        student_id: row.student_id,
-        exam_id: row.exam_id,
-        status: "open",
-        completed_at: null,
-      },
-      { onConflict: "student_id,exam_id" },
-    );
+    const { data: makeupRow, error: mErr } = await supabase
+      .from("makeup_exams")
+      .upsert(
+        {
+          student_id: row.student_id,
+          exam_id: row.exam_id,
+          status: "open",
+          completed_at: null,
+        },
+        { onConflict: "student_id,exam_id" },
+      )
+      .select("id")
+      .single();
     if (mErr) return NextResponse.json({ error: mErr.message }, { status: 400 });
+
+    const track = await ensureMakeupTracking(supabase, {
+      studentId: row.student_id as string,
+      examId: row.exam_id as string,
+      makeupExamId: makeupRow?.id ?? null,
+    });
+    if (track.error) return NextResponse.json({ error: track.error }, { status: 400 });
     nextStatus = "makeup";
   }
 

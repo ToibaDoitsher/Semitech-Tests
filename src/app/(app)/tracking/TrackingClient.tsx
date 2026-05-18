@@ -4,7 +4,12 @@ import Link from "next/link";
 import { Pencil } from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
-import { ListDataCard, ListPageHeader, ListTableToolbar, LIST_ROW_LINK_CLASS } from "@/components/ui/ListPage";
+import {
+  ListDataCard,
+  ListPageHeader,
+  ListTableToolbar,
+  LIST_ROW_LINK_CLASS,
+} from "@/components/ui/ListPage";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -14,6 +19,7 @@ import {
   EXAM_SUBMISSION_DUE_OFFSET,
   GRADES_SUBMISSION_DUE_OFFSET,
 } from "@/lib/tracking/dates";
+import { MakeupTrackingTab } from "./MakeupTrackingTab";
 
 const fetcher = (url: string) => fetch(url).then((r) => {
   if (!r.ok) throw new Error("שגיאת טעינה");
@@ -55,17 +61,14 @@ function formatSubmittedDisplay(iso: string | null) {
 
 function BoolCell({ value }: { value: boolean }) {
   return (
-    <span
-      className={
-        value ? "font-semibold text-emerald-600 dark:text-emerald-400" : "text-slate-400 dark:text-zinc-500"
-      }
-    >
+    <span className={value ? "font-semibold text-emerald-600" : "text-slate-400"}>
       {value ? "כן" : "לא"}
     </span>
   );
 }
 
 export function TrackingClient() {
+  const [tab, setTab] = useState<"exams" | "makeups">("exams");
   const { data, error, isLoading, mutate } = useSWR<{ tracking: Row[] }>("/api/tracking", fetcher);
   const [editingId, setEditingId] = useState<string | null>(null);
   const count = data?.tracking?.length ?? 0;
@@ -98,119 +101,148 @@ export function TrackingClient() {
   return (
     <div className="space-y-8">
       <ListPageHeader
-        title="מעקב מבחנים"
-        subtitle="מצב המעקב בטבלה; לשינוי — לחצי «עריכה» בשורה"
+        title="מעקב"
+        subtitle={
+          tab === "exams"
+            ? "מעקב מבחנים — לשינוי לחצי «עריכה» בשורה"
+            : "מעקב השלמות — לפי מבחן ומורה"
+        }
         actions={
-          <ExportExcelButton
-            label="ייצוא לאקסל"
-            filename="מעקב-מבחנים"
-            sheetName="מעקב"
-            exportUrl="/api/export/tracking"
-          />
+          tab === "exams" ? (
+            <ExportExcelButton
+              label="ייצוא לאקסל"
+              filename="מעקב-מבחנים"
+              sheetName="מעקב"
+              exportUrl="/api/export/tracking"
+            />
+          ) : null
         }
       />
 
-      <ListDataCard>
-        <ListTableToolbar>
-          {isLoading ? (
-            <span className="inline-flex items-center gap-2">
-              <Spinner className="size-4" />
-              טוען…
-            </span>
-          ) : error ? (
-            <span className="text-red-600">{(error as Error).message}</span>
-          ) : (
-            <span>{data?.tracking?.length ?? 0} שורות</span>
-          )}
-        </ListTableToolbar>
-        <Table className="min-w-[1320px] text-xs [&_th]:h-9 [&_th]:px-2 [&_th]:py-2 [&_td]:px-2 [&_td]:py-1.5">
-          <TableHeader>
-            <TableRow>
-              <TableHead>מורה</TableHead>
-              <TableHead>מקצוע</TableHead>
-              <TableHead className="whitespace-nowrap">הגשת המבחן</TableHead>
-              <TableHead>תאריך</TableHead>
-              <TableHead className="whitespace-nowrap">הגשת ציונים</TableHead>
-              <TableHead>מבחן</TableHead>
-              <TableHead className="whitespace-nowrap">הוגש מבחן</TableHead>
-              <TableHead className="whitespace-nowrap">אישור רכזת</TableHead>
-              <TableHead className="whitespace-nowrap">נשלח לבדיקה</TableHead>
-              <TableHead className="whitespace-nowrap">ציונים הוגשו</TableHead>
-              <TableHead className="whitespace-nowrap">ציונים אושרו</TableHead>
-              <TableHead className="whitespace-nowrap">הועבר למערכת</TableHead>
-              <TableHead>עריכה</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data?.tracking?.length ? (
-              data.tracking.map((row) => (
-                <TableRow key={row.id} className="align-top">
-                  <TableCell className="font-medium text-slate-900 dark:text-zinc-100">{row.exam?.teacher_name ?? "—"}</TableCell>
-                  <TableCell>{row.exam?.subject ?? "—"}</TableCell>
-                  <TableCell className="whitespace-nowrap tabular-nums text-zinc-600">
-                    {examTrackingDueDate(row.exam?.exam_date, EXAM_SUBMISSION_DUE_OFFSET)}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">{row.exam?.exam_date ?? "—"}</TableCell>
-                  <TableCell className="whitespace-nowrap tabular-nums text-zinc-600">
-                    {examTrackingDueDate(row.exam?.exam_date, GRADES_SUBMISSION_DUE_OFFSET)}
-                  </TableCell>
-                  <TableCell>
-                    <Link href={`/exams/${row.exam_id}`} className={LIST_ROW_LINK_CLASS}>
-                      פתיחת מבחן
-                    </Link>
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap tabular-nums">{formatSubmittedDisplay(row.submitted_exam)}</TableCell>
-                  <TableCell>
-                    <BoolCell value={row.approved_by_coordinator} />
-                  </TableCell>
-                  <TableCell>
-                    <BoolCell value={row.sent_for_review} />
-                  </TableCell>
-                  <TableCell>
-                    <BoolCell value={row.grades_submitted} />
-                  </TableCell>
-                  <TableCell>
-                    <BoolCell value={row.grades_approved} />
-                  </TableCell>
-                  <TableCell>
-                    <BoolCell value={row.transferred_to_system} />
-                  </TableCell>
-                  <TableCell>
-                    {editingId === row.id ? (
-                      <TrackingRowForm
-                        row={row}
-                        onCancel={() => setEditingId(null)}
-                        onSave={(payload) => void saveRow(row.id, payload)}
-                      />
-                    ) : (
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 shadow-sm transition hover:border-blue-200 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900/30"
-                        onClick={() => setEditingId(row.id)}
-                      >
-                        <Pencil className="size-3.5 shrink-0 opacity-80" strokeWidth={2} />
-                        עריכה
-                      </button>
-                    )}
+      <div className="flex gap-1 border-b border-zinc-200">
+        {(["exams", "makeups"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            className={`border-b-2 px-4 py-2.5 text-sm font-medium transition ${
+              tab === t
+                ? "border-zinc-900 text-zinc-900"
+                : "border-transparent text-zinc-500 hover:text-zinc-800"
+            }`}
+          >
+            {t === "exams" ? "מעקב מבחנים" : "מעקב השלמות מבחנים"}
+          </button>
+        ))}
+      </div>
+
+      {tab === "makeups" ? <MakeupTrackingTab /> : null}
+
+      {tab === "exams" ? (
+        <ListDataCard>
+          <ListTableToolbar>
+            {isLoading ? (
+              <span className="inline-flex items-center gap-2">
+                <Spinner className="size-4" />
+                טוען…
+              </span>
+            ) : error ? (
+              <span className="text-red-600">{(error as Error).message}</span>
+            ) : (
+              <span>{count} שורות</span>
+            )}
+          </ListTableToolbar>
+          <Table className="min-w-[1320px] text-xs">
+            <TableHeader>
+              <TableRow>
+                <TableHead>מורה</TableHead>
+                <TableHead>מקצוע</TableHead>
+                <TableHead className="whitespace-nowrap">הגשת המבחן</TableHead>
+                <TableHead>תאריך</TableHead>
+                <TableHead className="whitespace-nowrap">הגשת ציונים</TableHead>
+                <TableHead>מבחן</TableHead>
+                <TableHead className="whitespace-nowrap">הוגש מבחן</TableHead>
+                <TableHead className="whitespace-nowrap">אישור רכזת</TableHead>
+                <TableHead className="whitespace-nowrap">נשלח לבדיקה</TableHead>
+                <TableHead className="whitespace-nowrap">ציונים הוגשו</TableHead>
+                <TableHead className="whitespace-nowrap">ציונים אושרו</TableHead>
+                <TableHead className="whitespace-nowrap">הועבר למערכת</TableHead>
+                <TableHead>עריכה</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data?.tracking?.length ? (
+                data.tracking.map((row) => (
+                  <TableRow key={row.id} className="align-top">
+                    <TableCell className="font-medium">{row.exam?.teacher_name ?? "—"}</TableCell>
+                    <TableCell>{row.exam?.subject ?? "—"}</TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums text-zinc-600">
+                      {examTrackingDueDate(row.exam?.exam_date, EXAM_SUBMISSION_DUE_OFFSET)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">{row.exam?.exam_date ?? "—"}</TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums text-zinc-600">
+                      {examTrackingDueDate(row.exam?.exam_date, GRADES_SUBMISSION_DUE_OFFSET)}
+                    </TableCell>
+                    <TableCell>
+                      <Link href={`/exams/${row.exam_id}`} className={LIST_ROW_LINK_CLASS}>
+                        פתיחת מבחן
+                      </Link>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums">
+                      {formatSubmittedDisplay(row.submitted_exam)}
+                    </TableCell>
+                    <TableCell>
+                      <BoolCell value={row.approved_by_coordinator} />
+                    </TableCell>
+                    <TableCell>
+                      <BoolCell value={row.sent_for_review} />
+                    </TableCell>
+                    <TableCell>
+                      <BoolCell value={row.grades_submitted} />
+                    </TableCell>
+                    <TableCell>
+                      <BoolCell value={row.grades_approved} />
+                    </TableCell>
+                    <TableCell>
+                      <BoolCell value={row.transferred_to_system} />
+                    </TableCell>
+                    <TableCell>
+                      {editingId === row.id ? (
+                        <TrackingRowForm
+                          row={row}
+                          onCancel={() => setEditingId(null)}
+                          onSave={(payload) => void saveRow(row.id, payload)}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium"
+                          onClick={() => setEditingId(row.id)}
+                        >
+                          <Pencil className="size-3.5" strokeWidth={2} />
+                          עריכה
+                        </button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={13} className="py-14 text-center text-zinc-500">
+                    {isLoading ? "טוען…" : "אין נתוני מעקב"}
                   </TableCell>
                 </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell className="py-14 text-center text-slate-500 dark:text-zinc-400" colSpan={13}>
-                  {isLoading ? "טוען…" : "אין נתוני מעקב"}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-        <TableClearFooter
-          label="שורות מעקב"
-          count={count}
-          apiPath="/api/tracking/clear-all"
-          onCleared={() => void mutate()}
-        />
-      </ListDataCard>
+              )}
+            </TableBody>
+          </Table>
+          <TableClearFooter
+            label="שורות מעקב"
+            count={count}
+            apiPath="/api/tracking/clear-all"
+            onCleared={() => void mutate()}
+          />
+        </ListDataCard>
+      ) : null}
     </div>
   );
 }
@@ -287,7 +319,7 @@ function TrackingRowForm({
         >
           שמירה
         </button>
-        <button type="button" className="rounded-md border border-zinc-300 px-2 py-1 text-[11px]" onClick={onCancel}>
+        <button type="button" className="rounded-md border px-2 py-1 text-[11px]" onClick={onCancel}>
           ביטול
         </button>
       </div>

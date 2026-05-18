@@ -69,17 +69,42 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
 
   const { data: makeups } = await supabase
     .from("makeup_exams")
-    .select("id, status, created_at, completed_at, exam_id")
+    .select("id, status, created_at, completed_at, grade, notes, exam_id")
     .eq("student_id", id)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
-  const makeupExamIds = [...new Set((makeups ?? []).map((m) => m.exam_id))];
-  let makeupExamsMeta: Record<string, { subject: string; exam_date: string }> = {};
+  const makeupExamIds = (makeups ?? []).map((m) => m.exam_id as string);
+  const trackingByExam: Record<
+    string,
+    {
+      sent_to_teacher_at: string | null;
+      grade_received_at: string | null;
+      grade: number | null;
+    }
+  > = {};
   if (makeupExamIds.length) {
+    const { data: tracking } = await supabase
+      .from("makeup_tracking")
+      .select("exam_id, sent_to_teacher_at, grade_received_at, grade")
+      .eq("student_id", id)
+      .in("exam_id", makeupExamIds);
+    for (const t of tracking ?? []) {
+      trackingByExam[t.exam_id as string] = {
+        sent_to_teacher_at: (t.sent_to_teacher_at as string | null) ?? null,
+        grade_received_at: (t.grade_received_at as string | null) ?? null,
+        grade: (t.grade as number | null) ?? null,
+      };
+    }
+  }
+
+  const uniqueMakeupExamIds = [...new Set((makeups ?? []).map((m) => m.exam_id))];
+  let makeupExamsMeta: Record<string, { subject: string; exam_date: string }> = {};
+  if (uniqueMakeupExamIds.length) {
     const { data: mex } = await supabase
       .from("exams")
       .select("id, subject, exam_date")
-      .in("id", makeupExamIds);
+      .in("id", uniqueMakeupExamIds);
     for (const e of mex ?? []) {
       const row = e as { id: string; subject: string; exam_date: string };
       makeupExamsMeta[row.id] = { subject: row.subject, exam_date: row.exam_date };
@@ -89,6 +114,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
   const makeupsEnriched = (makeups ?? []).map((m) => ({
     ...m,
     exam: makeupExamsMeta[m.exam_id] ?? null,
+    tracking: trackingByExam[m.exam_id as string] ?? null,
   }));
 
   return NextResponse.json({ student: enriched, exam_students, makeups: makeupsEnriched });

@@ -3,8 +3,13 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(_request: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  const body = (await request.json().catch(() => ({}))) as {
+    completed_at?: string;
+    notes?: string;
+  };
+
   const supabase = createSupabaseAdminClient();
 
   const { data: m, error: gErr } = await supabase
@@ -18,12 +23,25 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ error: "ההשלמה כבר סומנה כהושלמה" }, { status: 400 });
   }
 
-  const now = new Date().toISOString();
+  let completedAt: string;
+  if (body.completed_at?.trim()) {
+    const d = new Date(body.completed_at);
+    if (Number.isNaN(d.getTime())) {
+      return NextResponse.json({ error: "תאריך השלמה לא תקין" }, { status: 400 });
+    }
+    completedAt = d.toISOString();
+  } else {
+    completedAt = new Date().toISOString();
+  }
 
-  const { error: mErr } = await supabase
-    .from("makeup_exams")
-    .update({ status: "completed", completed_at: now })
-    .eq("id", id);
+  const notes = body.notes !== undefined ? body.notes.trim() || null : undefined;
+  const makeupPatch: Record<string, unknown> = {
+    status: "completed",
+    completed_at: completedAt,
+  };
+  if (notes !== undefined) makeupPatch.notes = notes;
+
+  const { error: mErr } = await supabase.from("makeup_exams").update(makeupPatch).eq("id", id);
 
   if (mErr) return NextResponse.json({ error: mErr.message }, { status: 400 });
 
@@ -35,5 +53,5 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
 
   if (esErr) return NextResponse.json({ error: esErr.message }, { status: 400 });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, completed_at: completedAt });
 }
