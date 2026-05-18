@@ -1,7 +1,7 @@
 export const STUDENT_WITH_LOOKUPS = `
   *,
   classes ( id, name ),
-  specializations ( id, name ),
+  specializations:specializations!students_specialization_id_fkey ( id, name ),
   secondary_specializations:specializations!students_secondary_specialization_id_fkey ( id, name ),
   tracks ( id, name )
 `;

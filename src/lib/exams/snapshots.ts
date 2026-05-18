@@ -36,7 +36,7 @@ export async function buildExamStudentRows(
   const { data, error } = await supabase
     .from("students")
     .select(
-      "id, is_psychology, teaching_track_type, classes(name), tracks(name), specializations(name), secondary_specializations:specializations!students_secondary_specialization_id_fkey(name)",
+      "id, is_psychology, teaching_track_type, classes(name), tracks(name), specializations:specializations!students_specialization_id_fkey(name), secondary_specializations:specializations!students_secondary_specialization_id_fkey(name)",
     )
     .in("id", params.studentIds);
 
