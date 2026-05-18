@@ -2,9 +2,16 @@ import { NextResponse } from "next/server";
 import { writeAudit } from "@/lib/audit/log";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { enrichStudentsWithGradeForYear } from "@/lib/academic/studentGrade.server";
+import { parseGradeLevel } from "@/lib/academicYears/labels";
+import {
+  readOnlyResponse,
+  resolveAcademicYearScope,
+  scopeFromSearchParams,
+} from "@/lib/academicYears/scope";
 import { asStudentRow } from "@/lib/db/studentRow";
 import { getStudentWithLookupsSelect } from "@/lib/db/studentSelect";
 import { recordStudentHistoryIfChanged } from "@/lib/students/history";
+import { normalizeStudentFields } from "@/lib/students/patch";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -87,25 +94,45 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  const body = (await request.json()) as Record<string, unknown>;
+  const { searchParams } = new URL(request.url);
   const supabase = createSupabaseAdminClient();
+  const scope = await resolveAcademicYearScope(supabase, scopeFromSearchParams(searchParams));
+  if (scope.readOnly) {
+    return NextResponse.json(readOnlyResponse(), { status: 403 });
+  }
+
+  const body = (await request.json()) as Record<string, unknown>;
   const user = await getCurrentUser(supabase);
 
   const { data: before } = await supabase
     .from("students")
-    .select("class_id, specialization_id, track_id, cohort_id")
+    .select("class_id, specialization_id, track_id, year_group, grade_level")
     .eq("id", id)
     .single();
+
+  const extra = await normalizeStudentFields(supabase, {
+    specialization_id: body.specialization_id as string | null,
+    secondary_specialization_id: body.secondary_specialization_id as string | null,
+    track_id: body.track_id as string | null,
+    is_psychology: Boolean(body.is_psychology),
+    teaching_track_type: body.teaching_track_type as "full" | "short" | null | "",
+  });
+  if (extra.error) return NextResponse.json({ error: extra.error }, { status: 400 });
 
   const patch: Record<string, unknown> = {
     first_name: body.first_name,
     last_name: body.last_name,
     tz: body.tz,
-    cohort_id: body.cohort_id,
     class_id: body.class_id,
-    specialization_id: body.specialization_id === "" ? null : body.specialization_id,
-    track_id: body.track_id === "" ? null : body.track_id,
+    ...extra.patch,
   };
+
+  if (body.year_group !== undefined) patch.year_group = Number(body.year_group);
+  if (body.grade_level !== undefined) {
+    const gl = parseGradeLevel(String(body.grade_level));
+    if (!gl) return NextResponse.json({ error: "שכבה לא תקינה" }, { status: 400 });
+    patch.grade_level = gl;
+  }
 
   const { data, error } = await supabase
     .from("students")
@@ -120,7 +147,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     await recordStudentHistoryIfChanged(
       supabase,
       id,
-      before as Pick<typeof after, "class_id" | "specialization_id" | "track_id" | "cohort_id">,
+      before as Pick<typeof after, "class_id" | "specialization_id" | "track_id" | "year_group" | "grade_level">,
       after,
       user?.id ?? null,
     );
@@ -141,9 +168,15 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   return NextResponse.json({ student: data });
 }
 
-export async function DELETE(_request: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  const { searchParams } = new URL(request.url);
   const supabase = createSupabaseAdminClient();
+  const scope = await resolveAcademicYearScope(supabase, scopeFromSearchParams(searchParams));
+  if (scope.readOnly) {
+    return NextResponse.json(readOnlyResponse(), { status: 403 });
+  }
+
   const user = await getCurrentUser(supabase);
 
   const { data: before } = await supabase.from("students").select("*").eq("id", id).single();

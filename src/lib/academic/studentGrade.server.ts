@@ -1,12 +1,8 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { enrichStudentsWithGrade, type StudentCohortRef } from "@/lib/academic/studentGrade";
-import type { GradeLevel } from "@/lib/cohorts/types";
-import { resolveSelectedCohortPair } from "@/lib/cohorts/server";
+import { enrichStudentsWithGrade, type StudentYearRef } from "@/lib/academic/studentGrade";
 
-export async function enrichStudentsWithGradeForYear<T extends StudentCohortRef>(
-  supabase: SupabaseClient,
+export async function enrichStudentsWithGradeForYear<T extends StudentYearRef>(
+  _supabase: unknown,
   students: T[],
-): Promise<(T & { grade_level: GradeLevel | null; cohort_name: string | null })[]> {
-  const pair = await resolveSelectedCohortPair(supabase);
-  return enrichStudentsWithGrade(students, pair);
+): Promise<(T & { grade_level: T["grade_level"]; year_label: string })[]> {
+  return enrichStudentsWithGrade(students);
 }

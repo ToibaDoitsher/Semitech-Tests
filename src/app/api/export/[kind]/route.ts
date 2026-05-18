@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { enrichStudentsWithGrade, formatCohortGradeLabel } from "@/lib/academic/studentGrade";
-import { resolveSelectedCohortPair, selectedCohortIdList } from "@/lib/cohorts/server";
+import { formatYearGradeLabel } from "@/lib/academicYears/labels";
+import { resolveAcademicYearScope, scopeFromSearchParams } from "@/lib/academicYears/scope";
 import { ASSIGNMENT_WITH_LOOKUPS } from "@/lib/db/assignmentSelect";
 import { notDeleted } from "@/lib/db/softDelete";
 import { asStudentRows, type StudentWithLookupsRow } from "@/lib/db/studentRow";
@@ -31,6 +32,7 @@ const examStudentStatusHe: Record<string, string> = {
 };
 
 const targetTypeHe: Record<string, string> = {
+  psychology: "פסיכולוגיה",
   class: "כיתה",
   specialization: "התמחות",
   track: "מסלול",
@@ -83,40 +85,41 @@ async function paginateSelect<T>(
   return out;
 }
 
-export async function GET(_request: Request, ctx: { params: Promise<{ kind: string }> }) {
+export async function GET(request: Request, ctx: { params: Promise<{ kind: string }> }) {
   const { kind } = await ctx.params;
   if (!KINDS.has(kind)) {
     return NextResponse.json({ error: "סוג ייצוא לא תקין" }, { status: 400 });
   }
 
   const supabase = createSupabaseAdminClient();
+  const scope = await resolveAcademicYearScope(
+    supabase,
+    scopeFromSearchParams(new URL(request.url).searchParams),
+  );
 
   try {
     if (kind === "students") {
-      const pair = await resolveSelectedCohortPair(supabase);
-      const cohortIds = await selectedCohortIdList(supabase);
       const studentSelect = await getStudentWithLookupsSelect();
       const data = await paginateSelect<StudentWithLookupsRow>(async (from, to) => {
-        let q = supabase
+        const res = await supabase
           .from("students")
           .select(studentSelect)
+          .eq("academic_year_id", scope.year.id)
           .order("last_name")
           .order("first_name")
           .range(from, to);
-        if (cohortIds.length) q = q.in("cohort_id", cohortIds);
-        const res = await q;
         return {
           data: asStudentRows(res.data),
           error: res.error,
         };
       });
       const rows = asStudentRows(data);
-      const enriched = enrichStudentsWithGrade(rows, pair);
+      const enriched = enrichStudentsWithGrade(rows);
       const exportRows = enriched.map((s) => ({
         תעודת_זהות: s.tz,
         שם_פרטי: s.first_name,
         שם_משפחה: s.last_name,
-        מחזור: s.cohort_name ?? "",
+        שנתון_ושכבה: s.year_label ?? formatYearGradeLabel(s.year_group, s.grade_level),
         שכבה: formatCohortGradeLabel(s.grade_level),
         כיתה: pickLookupName(s.classes),
         התמחות: pickLookupName(s.specializations),
@@ -127,7 +130,12 @@ export async function GET(_request: Request, ctx: { params: Promise<{ kind: stri
 
     if (kind === "teachers") {
       const data = await paginateSelect((from, to) =>
-        supabase.from("teachers").select("id, name, created_at").order("name").range(from, to),
+        supabase
+          .from("teachers")
+          .select("id, name, created_at")
+          .eq("academic_year_id", scope.year.id)
+          .order("name")
+          .range(from, to),
       );
       const rows = data.map((t) => {
         const r = t as { name: string; created_at: string };
@@ -143,7 +151,8 @@ export async function GET(_request: Request, ctx: { params: Promise<{ kind: stri
       const data = await paginateSelect((from, to) =>
         supabase
           .from("exams")
-          .select("id, subject, exam_date, target_type, target_id, teachers(name)")
+          .select("id, subject, exam_date, target_type, target_id, year_group, grade_level, teachers(name)")
+          .eq("academic_year_id", scope.year.id)
           .order("exam_date", { ascending: false })
           .range(from, to),
       );
@@ -159,19 +168,24 @@ export async function GET(_request: Request, ctx: { params: Promise<{ kind: stri
         supabase,
         exams.map((e) => ({ id: e.id, target_type: e.target_type, target_id: e.target_id })),
       );
-      const rows = exams.map((e) => ({
-        מקצוע: e.subject,
-        תאריך: e.exam_date,
-        מורה: teacherNameCell(e.teachers),
-        סוג_יעד: targetTypeHe[e.target_type] ?? e.target_type,
-        שם_יעד: labels[e.id] ?? e.target_id,
-      }));
+      const rows = exams.map((e) => {
+        const row = e as typeof e & { year_group: number; grade_level: string };
+        return {
+          מקצוע: e.subject,
+          תאריך: e.exam_date,
+          מורה: teacherNameCell(e.teachers),
+          שנתון_ושכבה: formatYearGradeLabel(row.year_group, row.grade_level as "א" | "ב" | "ג"),
+          סוג_יעד: targetTypeHe[e.target_type] ?? e.target_type,
+          שם_יעד: labels[e.id] ?? e.target_id,
+        };
+      });
       return NextResponse.json({ rows });
     }
 
     if (kind === "assignments") {
       const data = await paginateSelect((from, to) =>
         notDeleted(supabase.from("teacher_assignments").select(ASSIGNMENT_WITH_LOOKUPS))
+          .eq("academic_year_id", scope.year.id)
           .order("subject")
           .range(from, to),
       );
@@ -180,26 +194,21 @@ export async function GET(_request: Request, ctx: { params: Promise<{ kind: stri
         subject: string;
         target_type: ExamTargetType;
         target_id: string;
+        year_group: number;
+        grade_level: string;
         teachers: unknown;
-        cohorts: { name?: string; number?: number; grade_level?: string | null } | null;
       }[];
       const labels = await resolveExamTargetLabels(
         supabase,
         raw.map((a) => ({ id: a.id, target_type: a.target_type, target_id: a.target_id })),
       );
-      const rows = raw.map((a) => {
-        const c = a.cohorts;
-        const cohortLabel = c?.name ?? (c?.number != null ? String(c.number) : "");
-        const grade = c?.grade_level ?? "";
-        return {
+      const rows = raw.map((a) => ({
         מורה: teacherNameCell(a.teachers),
         מקצוע: a.subject,
-        שנתון: cohortLabel,
-        שכבה: grade,
+        שנתון_ושכבה: formatYearGradeLabel(a.year_group, a.grade_level as "א" | "ב" | "ג"),
         סוג_שיבוץ: targetTypeHe[a.target_type] ?? a.target_type,
         ערך_שיבוץ: labels[a.id] ?? a.target_id,
-      };
-      });
+      }));
       return NextResponse.json({ rows });
     }
 

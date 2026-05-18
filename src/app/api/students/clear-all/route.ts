@@ -1,19 +1,25 @@
 import { NextResponse } from "next/server";
-import { selectedCohortIdList } from "@/lib/cohorts/server";
-import { softDeleteStudentsInCohorts } from "@/lib/scope/bulkDelete";
+import {
+  readOnlyResponse,
+  resolveAcademicYearScope,
+  scopeFromSearchParams,
+} from "@/lib/academicYears/scope";
+import { softDeleteStudentsInYear } from "@/lib/scope/bulkDelete";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
-/** מחיקה רכה של תלמידות בזוג המחזורים הנבחר */
-export async function POST() {
+export async function POST(request: Request) {
   const supabase = createSupabaseAdminClient();
-  const cohortIds = await selectedCohortIdList(supabase);
-  if (!cohortIds.length) {
-    return NextResponse.json({ error: "לא נבחר זוג מחזורים" }, { status: 400 });
+  const scope = await resolveAcademicYearScope(
+    supabase,
+    scopeFromSearchParams(new URL(request.url).searchParams),
+  );
+  if (scope.readOnly) {
+    return NextResponse.json(readOnlyResponse(), { status: 403 });
   }
   try {
-    const deleted = await softDeleteStudentsInCohorts(supabase, cohortIds);
+    const deleted = await softDeleteStudentsInYear(supabase, scope.year.id);
     return NextResponse.json({ deleted });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });

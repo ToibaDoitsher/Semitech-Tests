@@ -10,6 +10,11 @@ import {
   validateImportRows,
   type ValidatedImportRow,
 } from "@/lib/students/excelImport";
+import { STUDENT_EXCEL_HEADERS } from "@/lib/students/excelTemplate";
+import {
+  resolveAcademicYearScope,
+  scopeFromSearchParams,
+} from "@/lib/academicYears/scope";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -60,23 +65,20 @@ export async function POST(request: Request) {
       error: headerErr,
       headers,
       needMapping: true,
-      fieldLabels: {
-        first_name: "שם פרטי",
-        last_name: "שם משפחה",
-        tz: "תעודת זהות",
-        class_name: "כיתה",
-        specialization: "התמחות",
-        track: "מסלול",
-      },
+      requiredHeaders: [...STUDENT_EXCEL_HEADERS],
     }, { status: 400 });
   }
 
   const supabase = createSupabaseAdminClient();
+  const scope = await resolveAcademicYearScope(
+    supabase,
+    scopeFromSearchParams(new URL(request.url).searchParams),
+  );
   const [cl, sp, tr, tzRes] = await Promise.all([
     supabase.from("classes").select("id,name"),
     supabase.from("specializations").select("id,name"),
     supabase.from("tracks").select("id,name"),
-    supabase.from("students").select("tz"),
+    supabase.from("students").select("tz").eq("academic_year_id", scope.year.id),
   ]);
 
   for (const res of [cl, sp, tr, tzRes]) {
@@ -89,7 +91,12 @@ export async function POST(request: Request) {
   const existingTz = new Set((tzRes.data ?? []).map((r) => r.tz.trim()));
 
   const parsed = sheetRowsToObjects(raw);
-  const validated = validateImportRows(parsed, { classByName, specByName, trackByName });
+  const validated = validateImportRows(parsed, {
+    classByName,
+    specByName,
+    trackByName,
+    academicYearId: scope.year.id,
+  });
 
   const rows: (ValidatedImportRow & { warnings?: string[] })[] = validated.map((row) => {
     const warnings: string[] = [];

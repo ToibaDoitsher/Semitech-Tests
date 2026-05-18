@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { enrichStudentsWithGrade } from "@/lib/academic/studentGrade";
-import { gradeInPair } from "@/lib/cohorts/grades";
-import { listAllCohorts } from "@/lib/cohorts/active";
-import { resolveSelectedCohortPair, selectedCohortIdList } from "@/lib/cohorts/server";
+import { listYearGradeOptions } from "@/lib/academicYears/options";
+import { parseGradeLevel } from "@/lib/academicYears/labels";
+import {
+  readOnlyResponse,
+  resolveAcademicYearScope,
+  scopeFromSearchParams,
+} from "@/lib/academicYears/scope";
+import type { GradeLevel } from "@/lib/academicYears/types";
 import { asStudentRows } from "@/lib/db/studentRow";
 import { getStudentWithLookupsSelect } from "@/lib/db/studentSelect";
 import { notDeleted } from "@/lib/db/softDelete";
@@ -14,33 +19,38 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const q = (searchParams.get("q") ?? "").trim();
-    const gradeLevel = (searchParams.get("grade_level") ?? searchParams.get("cohort_grade") ?? "").trim();
-    const cohortId = (searchParams.get("cohort_id") ?? "").trim();
+    const gradeLevelRaw = (searchParams.get("grade_level") ?? "").trim();
+    const yearGroupRaw = (searchParams.get("year_group") ?? "").trim();
     const classId = (searchParams.get("class_id") ?? "").trim();
     const specializationId = (searchParams.get("specialization_id") ?? "").trim();
     const trackId = (searchParams.get("track_id") ?? "").trim();
+    const psychology = (searchParams.get("is_psychology") ?? "").trim();
+    const teachingType = (searchParams.get("teaching_track_type") ?? "").trim();
 
     const supabase = createSupabaseAdminClient();
-    const pair = await resolveSelectedCohortPair(supabase);
-    const cohortIds = await selectedCohortIdList(supabase);
+    const scope = await resolveAcademicYearScope(supabase, scopeFromSearchParams(searchParams));
+    const layers = await listYearGradeOptions(supabase, scope.year.id);
 
     const studentSelect = await getStudentWithLookupsSelect();
-    let query = notDeleted(
-      supabase.from("students").select(studentSelect),
-    )
+    let query = notDeleted(supabase.from("students").select(studentSelect))
+      .eq("academic_year_id", scope.year.id)
       .order("last_name", { ascending: true })
       .order("first_name", { ascending: true })
       .limit(500);
 
-    if (cohortIds.length) query = query.in("cohort_id", cohortIds);
+    const gl = parseGradeLevel(gradeLevelRaw);
+    if (gl) query = query.eq("grade_level", gl);
+    const yg = yearGroupRaw ? Number.parseInt(yearGroupRaw, 10) : NaN;
+    if (Number.isFinite(yg)) query = query.eq("year_group", yg);
 
-    const gl = gradeLevel === "A" ? "א" : gradeLevel === "B" ? "ב" : gradeLevel;
-    if (pair && gl === "א") query = query.eq("cohort_id", pair.cohortA.id);
-    if (pair && gl === "ב") query = query.eq("cohort_id", pair.cohortB.id);
-    if (cohortId) query = query.eq("cohort_id", cohortId);
     if (classId) query = query.eq("class_id", classId);
     if (specializationId) query = query.eq("specialization_id", specializationId);
     if (trackId) query = query.eq("track_id", trackId);
+    if (psychology === "1" || psychology === "true") query = query.eq("is_psychology", true);
+    if (psychology === "0" || psychology === "false") query = query.eq("is_psychology", false);
+    if (teachingType === "full" || teachingType === "short") {
+      query = query.eq("teaching_track_type", teachingType);
+    }
 
     if (q) {
       const escapeIlike = (s: string) => s.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
@@ -64,21 +74,64 @@ export async function GET(request: Request) {
     const { data, error } = await query;
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    const students = enrichStudentsWithGrade(asStudentRows(data), pair);
-    const cohorts = await listAllCohorts(supabase);
+    const students = enrichStudentsWithGrade(asStudentRows(data));
 
     return NextResponse.json({
       students,
-      pair: pair
-        ? {
-            label: `${pair.cohortA.number} + ${pair.cohortB.number}`,
-            cohortA: { id: pair.cohortA.id, number: pair.cohortA.number, grade: gradeInPair(pair.cohortA.id, pair) },
-            cohortB: { id: pair.cohortB.id, number: pair.cohortB.number, grade: gradeInPair(pair.cohortB.id, pair) },
-          }
-        : null,
-      cohorts,
+      readOnly: scope.readOnly,
+      academicYear: scope.year,
+      layers,
     });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message, students: [] }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const supabase = createSupabaseAdminClient();
+    const scope = await resolveAcademicYearScope(supabase, scopeFromSearchParams(searchParams));
+    if (scope.readOnly) {
+      return NextResponse.json(readOnlyResponse(), { status: 403 });
+    }
+
+    const body = (await request.json()) as Record<string, unknown>;
+    const year_group = Number(body.year_group);
+    const grade_level = parseGradeLevel(String(body.grade_level ?? ""));
+    if (!Number.isFinite(year_group) || !grade_level) {
+      return NextResponse.json({ error: "שנתון ושכבה חובה" }, { status: 400 });
+    }
+
+    const extra = await import("@/lib/students/patch").then((m) =>
+      m.normalizeStudentFields(supabase, {
+        specialization_id: body.specialization_id as string | null,
+        secondary_specialization_id: body.secondary_specialization_id as string | null,
+        track_id: body.track_id as string | null,
+        is_psychology: Boolean(body.is_psychology),
+        teaching_track_type: body.teaching_track_type as "full" | "short" | null | "",
+      }),
+    );
+    if (extra.error) return NextResponse.json({ error: extra.error }, { status: 400 });
+
+    const { data, error } = await supabase
+      .from("students")
+      .insert({
+        academic_year_id: scope.year.id,
+        first_name: String(body.first_name ?? "").trim(),
+        last_name: String(body.last_name ?? "").trim(),
+        tz: String(body.tz ?? "").trim(),
+        year_group,
+        grade_level: grade_level as GradeLevel,
+        class_id: String(body.class_id ?? "").trim(),
+        ...extra.patch,
+      })
+      .select(await getStudentWithLookupsSelect())
+      .single();
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ student: data });
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
 }

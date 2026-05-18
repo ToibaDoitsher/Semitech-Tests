@@ -3,30 +3,15 @@
 import Link from "next/link";
 import { FileDown, List } from "lucide-react";
 import { useCallback, useState } from "react";
-import { useCohortPair } from "@/components/cohorts/CohortPairProvider";
-import { GradeBadge } from "@/components/cohorts/GradeBadge";
+import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
 import { ConfirmDangerDialog } from "@/components/ui/ConfirmDangerDialog";
 import { ListPageHeader, LIST_SECONDARY_LINK_CLASS } from "@/components/ui/ListPage";
 import { Spinner } from "@/components/ui/Spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { ColumnMap } from "@/lib/students/excelImport";
+import type { ColumnMap, ParsedImportRow } from "@/lib/students/excelImport";
 
-type ImportPlan = {
-  cohortNumber: number;
-  targetGrade: string | null;
-  cohortAName?: string | null;
-  cohortBName?: string | null;
-  willImportCount: number;
-};
-
-type PreviewRow = {
+type PreviewRow = ParsedImportRow & {
   rowNumber: number;
-  first_name: string;
-  last_name: string;
-  tz: string;
-  class_name: string;
-  specialization: string;
-  track: string;
   errors: string[];
   warnings?: string[];
 };
@@ -46,11 +31,15 @@ const MAP_FIELDS: { key: keyof ColumnMap; label: string }[] = [
   { key: "class_name", label: "כיתה" },
   { key: "specialization", label: "התמחות" },
   { key: "track", label: "מסלול" },
+  { key: "secondary_specialization", label: "התמחות נוספת" },
+  { key: "psychology", label: "פסיכולוגיה" },
+  { key: "teaching_track_type", label: "הוראה מקוצר" },
+  { key: "year_group", label: "שנתון" },
+  { key: "grade_level", label: "שכבה" },
 ];
 
 export function ImportStudentsClient() {
-  const { data: pairData } = useCohortPair();
-  const selected = pairData?.selected;
+  const { viewingYear, readOnly } = useAcademicYear();
 
   const [busy, setBusy] = useState(false);
   const [rows, setRows] = useState<PreviewRow[] | null>(null);
@@ -58,24 +47,15 @@ export function ImportStudentsClient() {
   const [validCount, setValidCount] = useState(0);
   const [errorCount, setErrorCount] = useState(0);
   const [updateExisting, setUpdateExisting] = useState(false);
-  const [cohortName, setCohortName] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [importErrors, setImportErrors] = useState<{ rowNumber: number; errors: string[] }[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [plan, setPlan] = useState<ImportPlan | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [excelHeaders, setExcelHeaders] = useState<string[]>([]);
   const [columnMap, setColumnMap] = useState<ColumnMap>({});
   const [showMapping, setShowMapping] = useState(false);
 
-  const activeHint = selected
-    ? [
-        selected.cohortA ? `מחזור ${selected.cohortA.name}` : null,
-        selected.cohortB ? `מחזור ${selected.cohortB.name}` : null,
-      ]
-        .filter(Boolean)
-        .join(" · ")
-    : "";
+  const activeHint = viewingYear ? `שנה: ${viewingYear.year_name}${readOnly ? " (ארכיון)" : ""}` : "";
 
   const processFile = useCallback(
     async (file: File, map: ColumnMap = {}) => {
@@ -87,7 +67,10 @@ export function ImportStudentsClient() {
         const fd = new FormData();
         fd.set("file", file);
         if (Object.keys(map).length) fd.set("column_map", JSON.stringify(map));
-        const r = await fetch("/api/students/import/preview", { method: "POST", body: fd });
+        const r = await fetch(withYearQuery("/api/students/import/preview", viewingYear?.id), {
+          method: "POST",
+          body: fd,
+        });
         const j = await r.json().catch(() => ({}));
         if (!r.ok) {
           const headers = (j as { headers?: string[] }).headers ?? [];
@@ -109,7 +92,7 @@ export function ImportStudentsClient() {
         setBusy(false);
       }
     },
-    [],
+    [viewingYear?.id],
   );
 
   const onFile = useCallback(
@@ -122,58 +105,32 @@ export function ImportStudentsClient() {
     [processFile],
   );
 
-  const cohortReady = Boolean(cohortName.trim());
-
-  async function openConfirm() {
-    if (!rows?.length || validCount === 0) return;
-    if (!cohortReady) {
-      setMessage("לפני ייבוא: בחרי מחזור יעד");
-      return;
-    }
-    setBusy(true);
-    try {
-      const r = await fetch("/api/students/import/plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cohort_number: cohortName.trim(),
-          valid_count: validCount,
-        }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error((j as { error?: string }).error ?? "שגיאה");
-      setPlan((j as { plan: ImportPlan }).plan);
-      setConfirmOpen(true);
-    } catch (e) {
-      setMessage((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function commit() {
     if (!rows?.length) return;
     setBusy(true);
     setMessage(null);
     setImportErrors([]);
     try {
-      const payload = rows.map((r) => ({
-        rowNumber: r.rowNumber,
-        first_name: r.first_name,
-        last_name: r.last_name,
-        tz: r.tz,
-        class_name: r.class_name,
-        specialization: r.specialization,
-        track: r.track,
-      }));
-      const r = await fetch("/api/students/import/commit", {
+      const payload = rows
+        .filter((r) => r.errors.length === 0)
+        .map((r) => ({
+          rowNumber: r.rowNumber,
+          first_name: r.first_name,
+          last_name: r.last_name,
+          tz: r.tz,
+          class_name: r.class_name,
+          specialization: r.specialization,
+          track: r.track,
+          secondary_specialization: r.secondary_specialization,
+          psychology: r.psychology,
+          teaching_track_type: r.teaching_track_type,
+          year_group: r.year_group,
+          grade_level: r.grade_level,
+        }));
+      const r = await fetch(withYearQuery("/api/students/import/commit", viewingYear?.id), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          rows: payload,
-          updateExisting,
-          cohort_number: cohortName.trim(),
-        }),
+        body: JSON.stringify({ rows: payload, updateExisting }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) {
@@ -188,7 +145,6 @@ export function ImportStudentsClient() {
       setValidCount(0);
       setErrorCount(0);
       setConfirmOpen(false);
-      setPlan(null);
     } catch (e) {
       setMessage((e as Error).message);
     } finally {
@@ -196,26 +152,25 @@ export function ImportStudentsClient() {
     }
   }
 
-  const planHint = plan
-    ? [
-        `מחזור ${plan.cohortNumber} → שכבה ${plan.targetGrade ?? "—"}`,
-        `ייובאו ${plan.willImportCount} תלמידות`,
-      ].join("\n")
-    : "";
+  const confirmHint = summary
+    ? `חדשות: ${summary.newCount} · עדכון לפי ת״ז: ${summary.updateCount} · סה״כ תקינות: ${summary.validCount}`
+    : validCount > 0
+      ? `${validCount} שורות ייובאו לשנה הנוכחית`
+      : "";
 
   return (
     <div className="space-y-8">
       <ListPageHeader
         title="ייבוא תלמידות מאקסל"
-        subtitle="העלי קובץ Excel. מחזור יעד נדרש לאישור הסופי בלבד."
+        subtitle="הורידי את התבנית — עמודות קבועות כולל שנתון ושכבה לכל שורה."
         actions={
           <>
             <a href="/api/students/import/template" className={LIST_SECONDARY_LINK_CLASS}>
               <FileDown className="size-4 shrink-0" strokeWidth={2} />
               תבנית
             </a>
-            <Link href="/settings/open-year" className={LIST_SECONDARY_LINK_CLASS}>
-              פתיחת שנתון
+            <Link href="/settings/academic-years" className={LIST_SECONDARY_LINK_CLASS}>
+              שנות לימוד
             </Link>
             <Link href="/students" className={LIST_SECONDARY_LINK_CLASS}>
               <List className="size-4 shrink-0" strokeWidth={2} />
@@ -225,15 +180,6 @@ export function ImportStudentsClient() {
         }
       />
 
-      {selected ? (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-zinc-600">זוג פעיל:</span>
-          <GradeBadge kind={selected.cohortA.badge} />
-          <span>מחזור {selected.cohortA.name}</span>
-          <GradeBadge kind={selected.cohortB.badge} />
-          <span>מחזור {selected.cohortB.name}</span>
-        </div>
-      ) : null}
 
       <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/80 px-6 py-14 text-center text-sm">
         <input
@@ -288,23 +234,20 @@ export function ImportStudentsClient() {
         </div>
       ) : null}
 
-      <div className="grid max-w-lg gap-3 rounded-xl border border-zinc-200 bg-white p-4">
-        <p className="text-xs text-zinc-600">
-          {activeHint ? `זוג מחזורים: ${activeHint}` : "בחרי מחזור יעד (לפני אישור ייבוא)"}
-        </p>
-        <label className="block text-sm">
-          <span className="font-medium">מחזור יעד</span>
-          <input
-            value={cohortName}
-            onChange={(e) => setCohortName(e.target.value)}
-            placeholder={selected?.cohortA?.name ?? "10"}
-            className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2"
-          />
-        </label>
-      </div>
+      {activeHint ? <p className="text-xs text-zinc-600">{activeHint}</p> : null}
 
       {message ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm">{message}</p>
+      ) : null}
+
+      {importErrors.length ? (
+        <ul className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-900">
+          {importErrors.slice(0, 12).map((e) => (
+            <li key={e.rowNumber}>
+              שורה {e.rowNumber}: {e.errors.join("; ")}
+            </li>
+          ))}
+        </ul>
       ) : null}
 
       {rows ? (
@@ -338,13 +281,16 @@ export function ImportStudentsClient() {
             <input type="checkbox" checked={updateExisting} onChange={(e) => setUpdateExisting(e.target.checked)} />
             עדכן לפי ת״ז
           </label>
-          <Table className="min-w-[800px] text-xs">
+          <Table className="min-w-[960px] text-xs">
             <TableHeader>
               <TableRow>
                 <TableHead>#</TableHead>
                 <TableHead>שם</TableHead>
                 <TableHead>ת״ז</TableHead>
                 <TableHead>כיתה</TableHead>
+                <TableHead>מסלול</TableHead>
+                <TableHead>שנתון</TableHead>
+                <TableHead>שכבה</TableHead>
                 <TableHead>הערות</TableHead>
               </TableRow>
             </TableHeader>
@@ -357,6 +303,9 @@ export function ImportStudentsClient() {
                   </TableCell>
                   <TableCell dir="ltr">{r.tz}</TableCell>
                   <TableCell>{r.class_name}</TableCell>
+                  <TableCell>{r.track}</TableCell>
+                  <TableCell>{r.year_group}</TableCell>
+                  <TableCell>{r.grade_level}</TableCell>
                   <TableCell className="text-red-800">
                     {[...r.errors, ...(r.warnings ?? [])].join("; ")}
                   </TableCell>
@@ -366,8 +315,8 @@ export function ImportStudentsClient() {
           </Table>
           <button
             type="button"
-            disabled={busy || validCount === 0 || !cohortReady}
-            onClick={() => void openConfirm()}
+            disabled={busy || validCount === 0}
+            onClick={() => setConfirmOpen(true)}
             className="rounded-lg bg-zinc-900 px-4 py-2 text-sm text-white disabled:opacity-40"
           >
             אישור ייבוא
@@ -379,8 +328,8 @@ export function ImportStudentsClient() {
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
         title="אישור ייבוא"
-        description="שיוך תלמידות למחזור שנבחר."
-        hint={planHint}
+        description="השנתון והשכבה לכל תלמידה נלקחים מעמודות «שנתון» ו«שכבה» בקובץ."
+        hint={confirmHint}
         confirmLabel="ייבוא"
         busy={busy}
         onConfirm={commit}

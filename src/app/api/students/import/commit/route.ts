@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { resolveImportTarget } from "@/lib/cohorts/import";
 import { assertUniqueStudentTz } from "@/lib/validations/students";
 import { notDeleted } from "@/lib/db/softDelete";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -8,27 +7,34 @@ import {
   type ParsedImportRow,
   type ValidatedImportRow,
 } from "@/lib/students/excelImport";
+import {
+  readOnlyResponse,
+  resolveAcademicYearScope,
+  scopeFromSearchParams,
+} from "@/lib/academicYears/scope";
 
 export const dynamic = "force-dynamic";
 
 type CommitBody = {
   rows?: ParsedImportRow[];
   updateExisting?: boolean;
-  cohort_number?: string | number;
 };
 
 export async function POST(request: Request) {
   const body = (await request.json()) as CommitBody;
   const rowsIn = body.rows ?? [];
   const updateExisting = Boolean(body.updateExisting);
-  const cohortInput = String(body.cohort_number ?? "").trim();
 
   if (!rowsIn.length) return NextResponse.json({ error: "אין שורות לייבוא" }, { status: 400 });
-  if (!cohortInput) return NextResponse.json({ error: "חובה לבחור מחזור" }, { status: 400 });
 
   const supabase = createSupabaseAdminClient();
-  const target = await resolveImportTarget(supabase, cohortInput);
-  if (target.error) return NextResponse.json({ error: target.error }, { status: 400 });
+  const scope = await resolveAcademicYearScope(
+    supabase,
+    scopeFromSearchParams(new URL(request.url).searchParams),
+  );
+  if (scope.readOnly) {
+    return NextResponse.json(readOnlyResponse(), { status: 403 });
+  }
 
   const [cl, sp, tr] = await Promise.all([
     supabase.from("classes").select("id,name").eq("is_active", true),
@@ -43,7 +49,12 @@ export async function POST(request: Request) {
   const classByName = new Map((cl.data ?? []).map((r) => [r.name.trim(), r.id] as const));
   const specByName = new Map((sp.data ?? []).map((r) => [r.name.trim(), r.id] as const));
   const trackByName = new Map((tr.data ?? []).map((r) => [r.name.trim(), r.id] as const));
-  const validated = validateImportRows(rowsIn, { classByName, specByName, trackByName });
+  const validated = validateImportRows(rowsIn, {
+    classByName,
+    specByName,
+    trackByName,
+    academicYearId: scope.year.id,
+  });
 
   const failed: { rowNumber: number; errors: string[] }[] = [];
   const good = validated.filter((r) => {
@@ -56,7 +67,7 @@ export async function POST(request: Request) {
 
   const { data: existingRows, error: exErr } = await notDeleted(
     supabase.from("students").select("id,tz"),
-  );
+  ).eq("academic_year_id", scope.year.id);
   if (exErr) return NextResponse.json({ error: exErr.message }, { status: 500 });
   const tzToId = new Map((existingRows ?? []).map((r) => [r.tz.trim(), r.id] as const));
 
@@ -73,15 +84,19 @@ export async function POST(request: Request) {
       tz: r.tz,
       class_id: r.resolved.class_id,
       specialization_id: r.resolved.specialization_id,
+      secondary_specialization_id: r.resolved.secondary_specialization_id,
       track_id: r.resolved.track_id,
-      cohort_id: target.cohortId,
+      is_psychology: r.resolved.is_psychology,
+      teaching_track_type: r.resolved.teaching_track_type,
+      year_group: r.resolved.year_group,
+      grade_level: r.resolved.grade_level,
       status: "active",
     };
     const id = tzToId.get(r.tz.trim());
     if (id) {
       if (updateExisting) toUpdate.push({ id, patch });
     } else {
-      const tzOk = await assertUniqueStudentTz(supabase, r.tz);
+      const tzOk = await assertUniqueStudentTz(supabase, r.tz, scope.year.id);
       if (!tzOk.ok) {
         rowErrors.push({ rowNumber: r.rowNumber, errors: [tzOk.error ?? "ת״ז כפולה"] });
         continue;
@@ -126,7 +141,5 @@ export async function POST(request: Request) {
     failed: rowErrors.length,
     skipped: rowsIn.length - good.length - inserted - updated,
     errors: rowErrors,
-    cohort_id: target.cohortId,
-    grade: target.grade,
   });
 }

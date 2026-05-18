@@ -20,7 +20,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { CohortPairSelector } from "@/components/CohortPairSelector";
+import { AcademicYearBanner } from "@/components/academicYears/AcademicYearBanner";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { NotificationsBell } from "@/components/NotificationsBell";
 
@@ -37,8 +37,8 @@ const nav: NavItem[] = [
   { href: "/makeups", label: "השלמות", icon: AlarmClock, iconClass: "text-orange-600 dark:text-orange-400" },
   { href: "/tracking", label: "מעקב", icon: Eye, iconClass: "text-teal-600 dark:text-teal-400" },
   { href: "/settings", label: "לוקאפים", icon: Settings2, iconClass: "text-fuchsia-600 dark:text-fuchsia-400" },
-  { href: "/settings/open-year", label: "פתיחת שנתון", icon: Settings2, iconClass: "text-blue-600 dark:text-blue-400" },
-  { href: "/settings/archived-cohorts", label: "מחזורים קודמים", icon: Settings2, iconClass: "text-zinc-500 dark:text-zinc-400" },
+  { href: "/settings/academic-years", label: "שנות לימוד", icon: Settings2, iconClass: "text-blue-600 dark:text-blue-400" },
+  { href: "/archive", label: "ארכיון", icon: Settings2, iconClass: "text-slate-500 dark:text-slate-400" },
   { href: "/settings/users", label: "משתמשים", icon: Settings2, iconClass: "text-slate-600 dark:text-slate-400" },
 ];
 
@@ -187,7 +187,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-lg font-bold tracking-tight text-[var(--color-primary)] dark:text-blue-200">{pageTitle}</h1>
           </div>
-          <CohortPairSelector />
+          <AcademicYearBanner />
           <div className="hidden w-full max-w-sm md:block md:w-72">
             <GlobalSearch />
           </div>

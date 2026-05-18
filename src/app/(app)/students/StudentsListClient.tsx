@@ -16,7 +16,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TableClearFooter } from "@/components/ui/TableClearFooter";
-import { formatCohortGradeLabel } from "@/lib/academic/studentGrade";
+import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
 import { pickLookupName } from "@/lib/lookups/display";
 import type { Student } from "@/lib/types/db";
 
@@ -31,22 +31,27 @@ const fetcher = async (url: string) => {
 };
 
 export function StudentsListClient() {
+  const { viewingYear, readOnly } = useAcademicYear();
   const [q, setQ] = useState("");
-  const [cohortGrade, setCohortGrade] = useState("");
+  const [gradeLevel, setGradeLevel] = useState("");
   const [classId, setClassId] = useState("");
   const [specializationId, setSpecializationId] = useState("");
   const [trackId, setTrackId] = useState("");
+  const [psychology, setPsychology] = useState("");
+  const [teachingType, setTeachingType] = useState("");
   const deferred = useDeferredValue(q);
   const url = useMemo(() => {
     const p = new URLSearchParams();
     if (deferred.trim()) p.set("q", deferred.trim());
-    if (cohortGrade) p.set("grade_level", cohortGrade === "A" ? "א" : cohortGrade === "B" ? "ב" : cohortGrade);
+    if (gradeLevel) p.set("grade_level", gradeLevel);
     if (classId) p.set("class_id", classId);
     if (specializationId) p.set("specialization_id", specializationId);
     if (trackId) p.set("track_id", trackId);
+    if (psychology) p.set("is_psychology", psychology);
+    if (teachingType) p.set("teaching_track_type", teachingType);
     const qs = p.toString();
-    return `/api/students${qs ? `?${qs}` : ""}`;
-  }, [deferred, cohortGrade, classId, specializationId, trackId]);
+    return withYearQuery(`/api/students${qs ? `?${qs}` : ""}`, viewingYear?.id);
+  }, [deferred, gradeLevel, classId, specializationId, trackId, psychology, teachingType, viewingYear?.id]);
 
   const { data, error, isLoading, mutate } = useSWR<{ students: Student[] }>(url, fetcher);
   const count = data?.students?.length ?? 0;
@@ -66,16 +71,20 @@ export function StudentsListClient() {
               label="ייצוא לאקסל"
               filename="תלמידות"
               sheetName="תלמידות"
-              exportUrl="/api/export/students"
+              exportUrl={withYearQuery("/api/export/students", viewingYear?.id)}
             />
-            <Link href="/students/import" className={LIST_SECONDARY_LINK_CLASS}>
-              <Upload className="size-4 shrink-0" strokeWidth={2} />
-              ייבוא מאקסל
-            </Link>
-            <Link href="/students/new" className={LIST_PRIMARY_LINK_CLASS}>
-              <Plus className="size-4 shrink-0" strokeWidth={2} />
-              הוספת תלמידה
-            </Link>
+            {!readOnly ? (
+              <>
+                <Link href="/students/import" className={LIST_SECONDARY_LINK_CLASS}>
+                  <Upload className="size-4 shrink-0" strokeWidth={2} />
+                  ייבוא מאקסל
+                </Link>
+                <Link href="/students/new" className={LIST_PRIMARY_LINK_CLASS}>
+                  <Plus className="size-4 shrink-0" strokeWidth={2} />
+                  הוספת תלמידה
+                </Link>
+              </>
+            ) : null}
           </>
         }
       />
@@ -84,23 +93,25 @@ export function StudentsListClient() {
         <div className="bg-gradient-to-bl from-slate-50/95 via-white to-sky-50/35 p-5 sm:p-6 dark:from-slate-900/50 dark:via-zinc-900/35 dark:to-slate-900/25">
           <div className="mb-4 flex flex-col gap-2 border-b border-slate-200/60 pb-4 dark:border-slate-700/50 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm font-semibold text-slate-800 dark:text-zinc-100">סינון תוצאות</p>
-            {(cohortGrade || classId || trackId || specializationId) ? (
+            {(gradeLevel || classId || trackId || specializationId || psychology || teachingType) ? (
               <button
                 type="button"
                 className="self-start text-sm font-medium text-[var(--color-primary)] underline-offset-2 hover:underline dark:text-blue-300"
                 onClick={() => {
-                  setCohortGrade("");
+                  setGradeLevel("");
                   setClassId("");
                   setSpecializationId("");
                   setTrackId("");
+                  setPsychology("");
+                  setTeachingType("");
                 }}
               >
                 ניקוי סינון
               </button>
             ) : null}
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <label className="block sm:col-span-2 lg:col-span-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+            <label className="block sm:col-span-2 xl:col-span-2">
               <span className="block text-xs font-semibold text-slate-600 dark:text-zinc-400">חיפוש</span>
               <input
                 value={q}
@@ -114,13 +125,14 @@ export function StudentsListClient() {
             <label className="block">
               <span className="block text-xs font-semibold text-slate-600 dark:text-zinc-400">שכבה</span>
               <select
-                value={cohortGrade}
-                onChange={(e) => setCohortGrade(e.target.value)}
+                value={gradeLevel}
+                onChange={(e) => setGradeLevel(e.target.value)}
                 className={filterControlClass}
               >
                 <option value="">הכל</option>
                 <option value="א">א</option>
                 <option value="ב">ב</option>
+                <option value="ג">ג</option>
               </select>
             </label>
 
@@ -171,6 +183,24 @@ export function StudentsListClient() {
                 ))}
               </select>
             </label>
+
+            <label className="block">
+              <span className="block text-xs font-semibold text-slate-600 dark:text-zinc-400">פסיכולוגיה</span>
+              <select value={psychology} onChange={(e) => setPsychology(e.target.value)} className={filterControlClass}>
+                <option value="">הכל</option>
+                <option value="1">כן</option>
+                <option value="0">לא</option>
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="block text-xs font-semibold text-slate-600 dark:text-zinc-400">סוג הוראה</span>
+              <select value={teachingType} onChange={(e) => setTeachingType(e.target.value)} className={filterControlClass}>
+                <option value="">הכל</option>
+                <option value="full">מלא</option>
+                <option value="short">מקוצר</option>
+              </select>
+            </label>
           </div>
         </div>
       </ListDataCard>
@@ -216,7 +246,8 @@ export function StudentsListClient() {
                     {s.tz}
                   </TableCell>
                   <TableCell>
-                    {formatCohortGradeLabel(s.grade_level)} · מחזור {s.cohort_name ?? "—"}
+                    {(s as { year_label?: string }).year_label ??
+                      `שנתון ${s.year_group} — שכבה ${s.grade_level}`}
                   </TableCell>
                   <TableCell>{pickLookupName(s.classes)}</TableCell>
                   <TableCell>{pickLookupName(s.tracks)}</TableCell>

@@ -1,25 +1,28 @@
-import type { GradeLevel } from "@/lib/cohorts/active";
+import type { GradeLevel } from "@/lib/academicYears/types";
 import type { LookupRow, StudentStatus } from "@/lib/types/db";
-import type { CohortRow } from "@/lib/cohorts/db";
 
 export type StudentWithLookupsRow = {
   id: string;
+  academic_year_id: string;
   first_name: string;
   last_name: string;
   tz: string;
-  cohort_id: string;
+  year_group: number;
+  grade_level: GradeLevel;
   class_id: string;
   specialization_id: string | null;
+  secondary_specialization_id?: string | null;
   track_id: string | null;
+  is_psychology?: boolean;
+  teaching_track_type?: "full" | "short" | null;
   notes?: string | null;
   status?: StudentStatus;
   created_at?: string;
-  cohorts?: CohortRow | null;
   classes?: LookupRow | null;
   specializations?: LookupRow | null;
+  secondary_specializations?: LookupRow | null;
   tracks?: LookupRow | null;
-  grade_level?: GradeLevel | null;
-  cohort_name?: string | null;
+  year_label?: string | null;
 };
 
 export function asStudentRows(data: unknown): StudentWithLookupsRow[] {

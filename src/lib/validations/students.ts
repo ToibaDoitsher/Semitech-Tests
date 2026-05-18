@@ -4,9 +4,13 @@ import { notDeleted } from "@/lib/db/softDelete";
 export async function assertUniqueStudentTz(
   supabase: SupabaseClient,
   tz: string,
+  academicYearId: string,
   excludeStudentId?: string,
 ): Promise<{ ok: boolean; error: string | null }> {
-  let q = notDeleted(supabase.from("students").select("id")).eq("tz", tz.trim()).limit(1);
+  let q = notDeleted(supabase.from("students").select("id"))
+    .eq("tz", tz.trim())
+    .eq("academic_year_id", academicYearId)
+    .limit(1);
   if (excludeStudentId) q = q.neq("id", excludeStudentId);
   const { data, error } = await q;
   if (error) return { ok: false, error: error.message };

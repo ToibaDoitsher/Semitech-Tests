@@ -1,7 +1,8 @@
-import type { GradeLevel } from "@/lib/cohorts/active";
+import type { GradeLevel } from "@/lib/academicYears/types";
 
 export type { GradeLevel };
-export type ExamTargetType = "class" | "specialization" | "track";
+export type ExamTargetType = "class" | "specialization" | "track" | "psychology";
+export type TeachingTrackType = "full" | "short";
 export type ExamStudentStatus = "pending" | "took" | "missing" | "makeup" | "completed";
 export type MakeupExamStatus = "open" | "completed";
 export type StudentStatus = "active" | "left" | "graduated";
@@ -13,22 +14,25 @@ export type LookupRow = {
 
 export type Student = {
   id: string;
+  academic_year_id: string;
   first_name: string;
   last_name: string;
   tz: string;
-  cohort_id: string;
+  year_group: number;
+  grade_level: GradeLevel;
   class_id: string;
   specialization_id: string | null;
+  secondary_specialization_id?: string | null;
   track_id: string | null;
+  is_psychology?: boolean;
+  teaching_track_type?: TeachingTrackType | null;
   notes?: string | null;
   status?: StudentStatus;
   created_at: string;
-  cohorts?: { id: string; number?: number; name?: string; display_order?: number | null } | null;
   classes?: LookupRow | null;
   specializations?: LookupRow | null;
+  secondary_specializations?: LookupRow | null;
   tracks?: LookupRow | null;
-  grade_level?: GradeLevel | null;
-  cohort_name?: string | null;
 };
 
 export type Teacher = {
@@ -39,23 +43,26 @@ export type Teacher = {
 
 export type TeacherAssignment = {
   id: string;
+  academic_year_id: string;
   teacher_id: string;
   subject: string;
-  cohort_id: string;
+  year_group: number;
+  grade_level: GradeLevel;
   target_type: ExamTargetType;
   target_id: string;
   teachers?: { name: string } | null;
-  cohorts?: { id: string; name?: string; number?: number; grade_level?: GradeLevel | null } | null;
 };
 
 export type Exam = {
   id: string;
+  academic_year_id: string;
   teacher_id: string;
   subject: string;
   exam_date: string;
   target_type: ExamTargetType;
   target_id: string;
-  cohort_id?: string;
+  year_group: number;
+  grade_level: GradeLevel;
   created_at: string;
 };
 

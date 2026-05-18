@@ -1,19 +1,19 @@
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
+import { STUDENT_EXCEL_EXAMPLE_ROW, STUDENT_EXCEL_HEADERS } from "@/lib/students/excelTemplate";
 
 export const dynamic = "force-dynamic";
 
-/** כותרות בעברית — שורת הדוגמה חייבת להתאים לשמות קיימים בלוקאפים (הגדרות) */
 export async function GET() {
-  const headers = ["שם פרטי", "שם משפחה", "תעודת זהות", "כיתה", "התמחות", "מסלול"];
-  const example = ["לאה", "כהן", "000000000", "יג1", "גרפיקה", "הוראה"];
-  const ws = XLSX.utils.aoa_to_sheet([headers, example]);
+  const ws = XLSX.utils.aoa_to_sheet([
+    [...STUDENT_EXCEL_HEADERS],
+    [...STUDENT_EXCEL_EXAMPLE_ROW],
+  ]);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "תלמידות");
   const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
-  const body = new Uint8Array(buf);
 
-  return new NextResponse(body, {
+  return new NextResponse(new Uint8Array(buf), {
     status: 200,
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

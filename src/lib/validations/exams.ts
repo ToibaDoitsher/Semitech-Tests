@@ -1,11 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { notDeleted } from "@/lib/db/softDelete";
-import type { ExamTargetType } from "@/lib/types/db";
+import type { ExamTargetType, GradeLevel } from "@/lib/types/db";
 
 export async function assertNoDuplicateExam(
   supabase: SupabaseClient,
   params: {
-    cohortId: string;
+    yearGroup: number;
+    gradeLevel: GradeLevel;
     teacherId: string;
     subject: string;
     targetType: ExamTargetType;
@@ -18,7 +19,8 @@ export async function assertNoDuplicateExam(
     supabase
       .from("exams")
       .select("id")
-      .eq("cohort_id", params.cohortId)
+      .eq("year_group", params.yearGroup)
+      .eq("grade_level", params.gradeLevel)
       .eq("teacher_id", params.teacherId)
       .eq("subject", params.subject.trim())
       .eq("target_type", params.targetType)

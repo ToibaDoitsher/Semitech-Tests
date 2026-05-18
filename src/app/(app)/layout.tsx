@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
-import { CohortPairProvider } from "@/components/cohorts/CohortPairProvider";
+import { AcademicYearProvider } from "@/components/academicYears/AcademicYearProvider";
 import { SwrProvider } from "@/components/providers/SwrProvider";
 import { hasAppSession } from "@/lib/auth/passwordSession";
 
@@ -11,10 +11,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!ok) redirect("/login");
   return (
     <SwrProvider>
-      <CohortPairProvider>
+      <AcademicYearProvider>
         <AppShell>{children}</AppShell>
-      </CohortPairProvider>
+      </AcademicYearProvider>
     </SwrProvider>
   );
 }
-

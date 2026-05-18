@@ -9,6 +9,7 @@ import { PrintButton } from "@/components/PrintButton";
 import { Spinner } from "@/components/ui/Spinner";
 import { formatCohortGradeLabel } from "@/lib/academic/studentGrade";
 import { pickLookupName } from "@/lib/lookups/display";
+import { teachingTrackTypeLabel } from "@/lib/students/fields";
 import type { ExamStudentStatus, MakeupExamStatus, Student } from "@/lib/types/db";
 
 const fetcher = (url: string) => fetch(url).then((r) => {
@@ -87,10 +88,16 @@ export function StudentDetailClient({ id }: { id: string }) {
           <p className="mt-1 text-sm text-zinc-600">
             ת״ז <span dir="ltr" className="font-mono">{s.tz}</span>
             {" · "}
-            שכבה {formatCohortGradeLabel(s.grade_level)} · מחזור {s.cohort_name ?? "—"}
+            {(s as { year_label?: string }).year_label ??
+              `שנתון ${s.year_group} — שכבה ${formatCohortGradeLabel(s.grade_level)}`}
             · כיתה {pickLookupName(s.classes)}
             {pickLookupName(s.tracks) !== "—" ? ` · מסלול ${pickLookupName(s.tracks)}` : ""}
             {pickLookupName(s.specializations) !== "—" ? ` · התמחות ${pickLookupName(s.specializations)}` : ""}
+            {pickLookupName(s.secondary_specializations) !== "—"
+              ? ` · התמחות נוספת ${pickLookupName(s.secondary_specializations)}`
+              : ""}
+            {s.is_psychology ? " · פסיכולוגיה" : ""}
+            {s.teaching_track_type ? ` · הוראה ${teachingTrackTypeLabel(s.teaching_track_type)}` : ""}
           </p>
         </div>
         <div className="flex flex-wrap gap-2 print:hidden">

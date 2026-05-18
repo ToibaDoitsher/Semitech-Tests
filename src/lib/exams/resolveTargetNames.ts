@@ -12,7 +12,7 @@ export async function resolveExamTargetLabels(
   for (const r of rows) {
     if (r.target_type === "class") byClass.add(r.target_id);
     else if (r.target_type === "specialization") bySpec.add(r.target_id);
-    else byTrack.add(r.target_id);
+    else if (r.target_type === "track") byTrack.add(r.target_id);
   }
 
   const out: Record<string, string> = {};
@@ -34,6 +34,10 @@ export async function resolveExamTargetLabels(
 
   const labels: Record<string, string> = {};
   for (const r of rows) {
+    if (r.target_type === "psychology") {
+      labels[r.id] = "פסיכולוגיה";
+      continue;
+    }
     const key = `${r.target_type}:${r.target_id}`;
     labels[r.id] = out[key] ?? r.target_id;
   }

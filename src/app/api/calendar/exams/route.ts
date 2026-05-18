@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { gradeForCohort } from "@/lib/cohorts/grades";
-import { selectedCohortIdList } from "@/lib/cohorts/server";
+import { formatYearGradeLabel } from "@/lib/academicYears/labels";
+import { resolveAcademicYearScope, scopeFromSearchParams } from "@/lib/academicYears/scope";
 import { notDeleted } from "@/lib/db/softDelete";
+import type { GradeLevel } from "@/lib/academicYears/types";
 import { resolveExamTargetLabels } from "@/lib/exams/resolveTargetNames";
 import type { ExamTargetType } from "@/lib/types/db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -74,16 +75,16 @@ export async function GET(request: Request) {
   }
 
   const supabase = createSupabaseAdminClient();
-  const cohortIds = await selectedCohortIdList(supabase);
+  const scope = await resolveAcademicYearScope(supabase, scopeFromSearchParams(searchParams));
 
-  let examsQuery = notDeleted(
+  const examsQuery = notDeleted(
     supabase
       .from("exams")
-      .select("id, subject, exam_date, target_type, target_id, teacher_id, cohort_id, teachers(name), cohorts(number, display_order)"),
+      .select("id, subject, exam_date, target_type, target_id, teacher_id, year_group, grade_level, teachers(name)"),
   )
+    .eq("academic_year_id", scope.year.id)
     .gte("exam_date", start)
     .lte("exam_date", end);
-  if (cohortIds.length) examsQuery = examsQuery.in("cohort_id", cohortIds);
 
   const { data: examsRaw, error: eErr } = await examsQuery;
 
@@ -96,9 +97,9 @@ export async function GET(request: Request) {
     target_type: ExamTargetType;
     target_id: string;
     teacher_id: string;
-    cohort_id: string;
+    year_group: number;
+    grade_level: GradeLevel;
     teachers: { name: string } | { name: string }[] | null;
-    cohorts: { number: number; display_order: number | null } | { number: number; display_order: number | null }[] | null;
   }[];
 
   const examIds = exams.map((e) => e.id);
@@ -176,9 +177,7 @@ export async function GET(request: Request) {
     const cols = colorsForExam(e.exam_date, c, tr);
     const tn = e.teachers;
     const teacherName = Array.isArray(tn) ? tn[0]?.name : tn && typeof tn === "object" && "name" in tn ? tn.name : "";
-    const cohortRaw = e.cohorts;
-    const cohort = Array.isArray(cohortRaw) ? cohortRaw[0] : cohortRaw;
-    const gradeLevelName = cohort ? gradeForCohort(cohort) : null;
+    const gradeLevelName = formatYearGradeLabel(e.year_group, e.grade_level);
     const classConflict =
       e.target_type === "class" && (classDayCount.get(classDayKey(e.exam_date, e.target_id)) ?? 0) > 1;
     const teacherOverlap = (teacherDayCount.get(`${e.exam_date}|${e.teacher_id}`) ?? 0) > 1;
@@ -188,6 +187,7 @@ export async function GET(request: Request) {
       class: "כיתה",
       specialization: "התמחות",
       track: "מסלול",
+      psychology: "פסיכולוגיה",
     };
 
     const shortCounts = c.total ? `${c.took + c.completed}/${c.total}` : "0";

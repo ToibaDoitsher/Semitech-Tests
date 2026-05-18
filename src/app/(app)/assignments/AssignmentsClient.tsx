@@ -14,6 +14,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TableClearFooter } from "@/components/ui/TableClearFooter";
+import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
 import { pickLookupName } from "@/lib/lookups/display";
 import type { ExamTargetType, Teacher } from "@/lib/types/db";
 
@@ -22,20 +23,20 @@ const fetcher = (url: string) => fetch(url).then((r) => {
   return r.json();
 });
 
-type CohortOption = { id: string; name: string; number?: number; grade_level?: string | null };
+type LayerOption = { grade_level: string; year_group: number; label: string };
 
 type AssignmentRow = {
   id: string;
   teacher_id: string;
   subject: string;
-  cohort_id: string;
-  grade_level?: string | null;
+  year_group: number;
+  grade_level: string;
+  year_label?: string;
   target_type: ExamTargetType;
   target_id: string;
   target_label?: string;
   target_type_label?: string;
   teachers: { name: string } | null;
-  cohorts?: CohortOption | null;
 };
 
 type LookupItem = { id: string; name: string };
@@ -44,21 +45,25 @@ const targetStepOptions: { value: ExamTargetType; label: string }[] = [
   { value: "class", label: "כיתה" },
   { value: "specialization", label: "התמחות" },
   { value: "track", label: "מסלול" },
+  { value: "psychology", label: "פסיכולוגיה" },
 ];
 
 export function AssignmentsClient() {
+  const { viewingYear, readOnly } = useAcademicYear();
+  const assignmentsUrl = withYearQuery("/api/teacher-assignments", viewingYear?.id);
   const { data: tData, error: tErr, isLoading: tLoad } = useSWR<{ teachers: Teacher[] }>("/api/teachers", fetcher);
   const { data: aData, error: aErr, isLoading: aLoad, mutate } = useSWR<{
     assignments: AssignmentRow[];
-    cohorts?: CohortOption[];
-  }>("/api/teacher-assignments", fetcher);
+    layers?: LayerOption[];
+  }>(assignmentsUrl, fetcher);
   const { data: clData } = useSWR<{ items: LookupItem[] }>("/api/lookups/classes", fetcher);
   const { data: spData } = useSWR<{ items: LookupItem[] }>("/api/lookups/specializations", fetcher);
   const { data: trData } = useSWR<{ items: LookupItem[] }>("/api/lookups/tracks", fetcher);
 
   const [teacherId, setTeacherId] = useState("");
   const [subject, setSubject] = useState("");
-  const [cohortId, setCohortId] = useState("");
+  const [yearGroup, setYearGroup] = useState<number | "">("");
+  const [gradeLevel, setGradeLevel] = useState("");
   const [targetKind, setTargetKind] = useState<ExamTargetType>("class");
   const [targetId, setTargetId] = useState("");
   const [saving, setSaving] = useState(false);
@@ -71,18 +76,20 @@ export function AssignmentsClient() {
 
   async function addAssignment(e: React.FormEvent) {
     e.preventDefault();
+    if (readOnly) return alert("שנה בארכיון — צפייה בלבד");
     if (!teacherId) return alert("בחרי מורה");
-    if (!cohortId) return alert("בחרי שנתון");
-    if (!targetId) return alert("בחרי יעד לשיבוץ");
+    if (!yearGroup || !gradeLevel) return alert("בחרי שנתון ושכבה");
+    if (targetKind !== "psychology" && !targetId) return alert("בחרי יעד לשיבוץ");
     setSaving(true);
     try {
-      const r = await fetch("/api/teacher-assignments", {
+      const r = await fetch(assignmentsUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           teacher_id: teacherId,
           subject,
-          cohort_id: cohortId,
+          year_group: yearGroup,
+          grade_level: gradeLevel,
           target_type: targetKind,
           target_id: targetId,
         }),
@@ -90,7 +97,8 @@ export function AssignmentsClient() {
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error((j as { error?: string }).error ?? "שגיאה");
       setSubject("");
-      setCohortId("");
+      setYearGroup("");
+      setGradeLevel("");
       setTargetId("");
       await mutate();
     } catch (err) {
@@ -101,8 +109,11 @@ export function AssignmentsClient() {
   }
 
   async function removeRow(id: string) {
+    if (readOnly) return alert("שנה בארכיון — צפייה בלבד");
     if (!confirm("למחוק שיבוץ?")) return;
-    const r = await fetch(`/api/teacher-assignments/${id}`, { method: "DELETE" });
+    const r = await fetch(withYearQuery(`/api/teacher-assignments/${id}`, viewingYear?.id), {
+      method: "DELETE",
+    });
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
       alert((j as { error?: string }).error ?? "מחיקה נכשלה");
@@ -124,7 +135,7 @@ export function AssignmentsClient() {
               label="ייצוא לאקסל"
               filename="שיבוצי-מורות"
               sheetName="שיבוצים"
-              exportUrl="/api/export/assignments"
+              exportUrl={withYearQuery("/api/export/assignments", viewingYear?.id)}
             />
             <Link href="/settings/classes" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900/40 dark:text-zinc-200">
               <Settings2 className="size-4 shrink-0 opacity-80" strokeWidth={2} />
@@ -134,6 +145,8 @@ export function AssignmentsClient() {
         }
       />
 
+      {!readOnly ? (
+      <>
       <div>
         <h2 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-zinc-50">הוספת שיבוץ</h2>
         <p className="mt-1 text-base font-light text-slate-500 dark:text-zinc-400">שלב 1: סוג יעד · שלב 2: בחירת ערך מהרשימה</p>
@@ -180,18 +193,21 @@ export function AssignmentsClient() {
         </label>
 
         <label className="block">
-          <span className="text-sm font-medium text-zinc-700">שנתון *</span>
+          <span className="text-sm font-medium text-zinc-700">שנתון / שכבה *</span>
           <select
             required
             className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm"
-            value={cohortId}
-            onChange={(e) => setCohortId(e.target.value)}
+            value={gradeLevel && yearGroup ? `${yearGroup}:${gradeLevel}` : ""}
+            onChange={(e) => {
+              const [yg, gl] = e.target.value.split(":");
+              setYearGroup(yg ? Number.parseInt(yg, 10) : "");
+              setGradeLevel(gl ?? "");
+            }}
           >
             <option value="">— בחרי —</option>
-            {(aData?.cohorts ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                מחזור {c.name ?? c.number}
-                {c.grade_level ? ` — שכבה ${c.grade_level}` : ""}
+            {(aData?.layers ?? []).map((l) => (
+              <option key={l.grade_level} value={`${l.year_group}:${l.grade_level}`}>
+                {l.label}
               </option>
             ))}
           </select>
@@ -218,22 +234,28 @@ export function AssignmentsClient() {
           </div>
         </fieldset>
 
-        <label className="block md:col-span-2 lg:col-span-3">
-          <span className="text-sm font-medium text-zinc-700">שלב 2 — ערך יעד *</span>
-          <select
-            required
-            value={targetId}
-            onChange={(e) => setTargetId(e.target.value)}
-            className="mt-1 w-full max-w-md rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-400"
-          >
-            <option value="">— בחרי —</option>
-            {targetItems.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {targetKind === "psychology" ? (
+          <p className="text-sm text-zinc-600 md:col-span-2 lg:col-span-3">
+            שיבוץ פסיכולוגיה — כל תלמידות עם סימון פסיכולוגיה בשנתון/שכבה שנבחרו
+          </p>
+        ) : (
+          <label className="block md:col-span-2 lg:col-span-3">
+            <span className="text-sm font-medium text-zinc-700">שלב 2 — ערך יעד *</span>
+            <select
+              required
+              value={targetId}
+              onChange={(e) => setTargetId(e.target.value)}
+              className="mt-1 w-full max-w-md rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-400"
+            >
+              <option value="">— בחרי —</option>
+              {targetItems.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <div className="flex items-end md:col-span-2 lg:col-span-3">
           <button
@@ -245,6 +267,8 @@ export function AssignmentsClient() {
           </button>
         </div>
       </form>
+      </>
+      ) : null}
 
       <ListDataCard>
         <ListTableToolbar>
@@ -278,11 +302,7 @@ export function AssignmentsClient() {
                   <TableCell>{a.subject}</TableCell>
                   <TableCell className="text-slate-600 dark:text-zinc-300">{a.target_type_label ?? a.target_type}</TableCell>
                   <TableCell className="text-slate-800 dark:text-zinc-200">{a.target_label ?? a.target_id}</TableCell>
-                  <TableCell>
-                    {a.cohorts
-                      ? `מחזור ${a.cohorts.name ?? a.cohorts.number ?? ""}${a.grade_level ? ` · שכבה ${a.grade_level}` : ""}`
-                      : "—"}
-                  </TableCell>
+                  <TableCell>{a.year_label ?? `שנתון ${a.year_group} — שכבה ${a.grade_level}`}</TableCell>
                   <TableCell className="whitespace-nowrap">
                     <button type="button" className={LIST_ROW_DELETE_CLASS} onClick={() => void removeRow(a.id)}>
                       <Trash2 className="size-3.5 shrink-0 opacity-70" strokeWidth={2} />

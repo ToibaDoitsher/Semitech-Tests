@@ -1,1 +1,1 @@
-export { getStudentWithLookupsSelect, STUDENT_WITH_LOOKUPS } from "@/lib/cohorts/db";
+export { getStudentWithLookupsSelect, STUDENT_WITH_LOOKUPS } from "@/lib/academicYears/db";
