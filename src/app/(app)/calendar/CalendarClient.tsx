@@ -12,6 +12,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ListDataCard, ListPageHeader } from "@/components/ui/ListPage";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
+import { ExamSchedulePrintSheet } from "@/components/calendar/ExamSchedulePrintSheet";
+import { PrintButton } from "@/components/PrintButton";
+import { useAcademicYear } from "@/components/academicYears/AcademicYearProvider";
+import type { CalendarExamProps } from "@/lib/calendar/types";
+import { formatGregorianDateLong } from "@/lib/calendar/schedulePrint";
 import { formatHebrewDateTraditional } from "@/lib/hebrewDate";
 
 function fmtLocalDate(d: Date): string {
@@ -43,25 +48,10 @@ function eventStartYmd(ev: EventInput): string {
   return "";
 }
 
-type XProps = {
-  examId: string;
-  subject: string;
-  examDate: string;
-  teacherId: string;
-  teacherName: string;
-  targetType: string;
-  targetTypeLabel: string;
-  targetLabel: string;
-  gradeLevelName: string | null;
-  counts: { total: number; took: number; missing: number; makeup: number; completed: number; pending: number };
-  tone: string;
-  classConflict: boolean;
-  teacherOverlap: boolean;
-  dayExamCount: number;
-  heavyDay: boolean;
-};
+type XProps = CalendarExamProps;
 
 export function CalendarClient() {
+  const { viewingYear } = useAcademicYear();
   const [rawEvents, setRawEvents] = useState<EventInput[]>([]);
   const [dayExamCount, setDayExamCount] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
@@ -77,6 +67,7 @@ export function CalendarClient() {
   const [fSpec, setFSpec] = useState("");
   const [fTrack, setFTrack] = useState("");
   const [fTone, setFTone] = useState("");
+  const [printPreview, setPrintPreview] = useState(false);
 
   const loadRange = useCallback(async (start: Date, endInclusive: Date) => {
     const s = fmtLocalDate(start);
@@ -163,6 +154,26 @@ export function CalendarClient() {
     });
   }, [rawEvents, fTeacher, fSubject, fGrade, fClass, fSpec, fTrack, fTone]);
 
+  const printFilters = useMemo(() => {
+    const teacherName = fTeacher
+      ? filterOptions.teachers.find(([id]) => id === fTeacher)?.[1]
+      : undefined;
+    return {
+      subject: fSubject || undefined,
+      grade: fGrade || undefined,
+      classTarget: fClass || undefined,
+      spec: fSpec || undefined,
+      track: fTrack || undefined,
+      teacher: teacherName,
+    };
+  }, [fSubject, fGrade, fClass, fSpec, fTrack, fTeacher, filterOptions.teachers]);
+
+  const printRangeLabel = useMemo(() => {
+    const g = rangeRef.current;
+    if (!g) return undefined;
+    return `תקופה: ${formatGregorianDateLong(g.start)} — ${formatGregorianDateLong(g.end)}`;
+  }, [visibleEvents, printPreview]);
+
   const onDatesSet = useCallback(
     (info: DatesSetArg) => {
       const endEx = new Date(info.end);
@@ -174,11 +185,20 @@ export function CalendarClient() {
 
   return (
     <div className="space-y-8" dir="rtl">
+      <div className="calendar-screen-only space-y-8">
       <ListPageHeader
         title="יומן מבחנים"
         subtitle="חודש / שבוע / יום · תאריך עברי בכל יום · צבעים לפי סטטוס · ריענון כל 30 שניות. מוצגים רק מבחנים עם תאריך מבחן — שיבוץ מורה לכיתה/מסלול בלי יצירת מבחן לא מופיע כאן."
         actions={
           <>
+            <button
+              type="button"
+              onClick={() => setPrintPreview((v) => !v)}
+              className="no-print inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-sm font-medium text-sky-900 hover:bg-sky-100"
+            >
+              {printPreview ? "הסתר תצוגת הדפסה" : "לוח להדפסה"}
+            </button>
+            {printPreview ? <PrintButton label="הדפס לוח" /> : null}
             <ExportExcelButton
               label="יומן (מסננים) לאקסל"
               filename="יומן-מבחנים"
@@ -330,6 +350,18 @@ export function CalendarClient() {
           }}
         />
       </div>
+      </div>
+
+      {printPreview ? (
+        <div className="exam-schedule-print-root rounded-2xl border border-slate-200 bg-white p-6 shadow-sm print:border-0 print:p-0 print:shadow-none">
+          <ExamSchedulePrintSheet
+            events={visibleEvents}
+            filters={printFilters}
+            academicYearName={viewingYear?.year_name}
+            rangeLabel={printRangeLabel}
+          />
+        </div>
+      ) : null}
 
       {dayOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setDayOpen(null)}>
