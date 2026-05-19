@@ -34,7 +34,7 @@ export default function NewTeacherPage() {
       notes: parsed.notes,
     });
     if (error) throw new Error(error.message);
-    redirect("/teachers");
+    redirect("/teachers?flash=teacher_added");
   }
 
   return (

@@ -13,8 +13,12 @@
 --
 -- מודל: כל שנת לימודים עצמאית (academic_year_id). אין מחזורים / קידום / העתקה.
 -- grade_level: א / ב / ג בלבד.
+--
+-- אחרי איפוס מלא: אין להריץ PATCH_*.sql בנפרד.
+-- לעדכון מסד קיים בלי מחיקה: PATCH_ALL_FOR_EXISTING_DB.sql
 -- =============================================================================
 
+drop view if exists public.school_years;
 drop view if exists public.active_cohorts_view;
 
 drop table if exists public.student_history cascade;
@@ -69,6 +73,7 @@ create type public.exam_student_status as enum ('pending', 'took', 'missing', 'm
 create type public.makeup_exam_status as enum ('open', 'completed');
 create type public.student_status as enum ('active', 'left', 'graduated');
 
+-- ─── PATCH_SCHOOL_YEARS_ISOLATED: שנות לימוד + לוקאפים לפי שנה ───────────────
 create table public.academic_years (
   id uuid primary key default gen_random_uuid(),
   year_name text not null unique,
@@ -126,6 +131,7 @@ create unique index uq_tracks_name_per_year
   on public.tracks (academic_year_id, name)
   where deleted_at is null;
 
+-- ─── PATCH_GRADE_LEVEL_OPTIONS: שכבות למבחנים (א / ב / ג / א+ב) ───────────────
 create table public.grade_level_options (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
@@ -139,6 +145,7 @@ create table public.grade_level_options (
 
 create index idx_grade_level_options_active on public.grade_level_options (is_active) where is_active = true;
 
+-- ─── PATCH_AUTH_USERS: משתמשים ─────────────────────────────────────────────
 create table public.users (
   id uuid primary key default gen_random_uuid(),
   username text not null,
@@ -183,6 +190,7 @@ create index idx_classes_year on public.classes (academic_year_id);
 create index idx_specializations_year on public.specializations (academic_year_id);
 create index idx_tracks_year on public.tracks (academic_year_id);
 
+-- ─── PATCH_STUDENT_EXTENSIONS: תלמידות (התמחות שנייה, פסיכולוגיה, הוראה) ───
 create table public.students (
   id uuid primary key default gen_random_uuid(),
   academic_year_id uuid not null references public.academic_years (id) on delete restrict,
@@ -337,6 +345,7 @@ create unique index uq_exams_unique on public.exams (
   academic_year_id, grade_level, teacher_assignment_id, exam_date
 ) where deleted_at is null;
 
+-- ─── PATCH_REMAINING_FEATURES: snapshots, makeup_locked ─────────────────────
 create table public.exam_students (
   id uuid primary key default gen_random_uuid(),
   exam_id uuid not null references public.exams (id) on delete restrict,
@@ -358,6 +367,7 @@ create table public.exam_students (
   unique (exam_id, student_id)
 );
 
+-- ─── PATCH_MAKEUP_TRACKING: השלמות + מעקב ───────────────────────────────────
 create table public.makeup_exams (
   id uuid primary key default gen_random_uuid(),
   academic_year_id uuid not null references public.academic_years (id) on delete restrict,
@@ -426,6 +436,7 @@ create table public.student_history (
   changed_by uuid references public.users (id) on delete set null
 );
 
+-- ─── PATCH_REMAINING_FEATURES: audit, התראות ──────────────────────────────
 create table public.audit_logs (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references public.users (id) on delete set null,
@@ -762,10 +773,11 @@ alter table public.exam_tracking enable row level security;
 alter table public.student_history enable row level security;
 alter table public.audit_logs enable row level security;
 
+-- ─── נתוני התחלה (שנה פעילה + לוקאפים) ─────────────────────────────────────
 insert into public.classes (academic_year_id, name)
 select y.id, v.name
 from public.academic_years y
-cross join (values ('יא1'), ('יא2'), ('יב1'), ('יב2')) as v(name)
+cross join (values ('יד2'), ('יד1'), ('יג2'), ('1יג')) as v(name)
 where y.is_active = true
   and not exists (
     select 1 from public.classes c
@@ -820,4 +832,5 @@ create or replace view public.school_years as
     created_at
   from public.academic_years;
 
+-- סיום: סכמה מלאה מוכנה לאפליקציה (מעקב מבחנים, השלמות, שנים עצמאיות, משתמשים)
 notify pgrst, 'reload schema';

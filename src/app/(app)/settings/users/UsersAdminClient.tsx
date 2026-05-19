@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import useSWR from "swr";
+import { InlineNotice } from "@/components/ui/InlineNotice";
 import { ListPageHeader } from "@/components/ui/ListPage";
 
 const fetcher = (url: string) => fetch(url).then((r) => {
@@ -17,10 +19,13 @@ type UserRow = {
 
 export function UsersAdminClient() {
   const { data, error, mutate } = useSWR<{ users: UserRow[] }>("/api/users", fetcher);
+  const [feedback, setFeedback] = useState<{ tone: "success" | "error"; text: string } | null>(null);
 
   async function createUser(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setFeedback(null);
     const fd = new FormData(e.currentTarget);
+    const username = String(fd.get("username") ?? "").trim();
     const r = await fetch("/api/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -30,9 +35,13 @@ export function UsersAdminClient() {
       }),
     });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) return alert((j as { error?: string }).error ?? "שגיאה");
+    if (!r.ok) {
+      setFeedback({ tone: "error", text: (j as { error?: string }).error ?? "שגיאה" });
+      return;
+    }
     e.currentTarget.reset();
     await mutate();
+    setFeedback({ tone: "success", text: `המשתמש «${username}» נוסף בהצלחה` });
   }
 
   return (
@@ -42,6 +51,7 @@ export function UsersAdminClient() {
 
       <form onSubmit={createUser} className="grid max-w-lg gap-3 rounded-xl border border-zinc-200 bg-white p-4">
         <h2 className="font-semibold text-zinc-900">משתמש חדש</h2>
+        {feedback ? <InlineNotice tone={feedback.tone}>{feedback.text}</InlineNotice> : null}
         <input name="username" required placeholder="שם משתמש" className="rounded-lg border border-zinc-200 px-3 py-2 text-sm" />
         <input name="password" type="password" required placeholder="סיסמה" className="rounded-lg border border-zinc-200 px-3 py-2 text-sm" />
         <button type="submit" className="rounded-lg bg-zinc-900 px-4 py-2 text-sm text-white">

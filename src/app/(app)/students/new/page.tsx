@@ -50,7 +50,7 @@ export default async function NewStudentPage() {
       ...extra.patch,
     });
     if (error) throw new Error(error.message);
-    redirect("/students");
+    redirect("/students?flash=student_added");
   }
 
   return (
