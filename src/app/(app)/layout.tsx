@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { AcademicYearProvider } from "@/components/academicYears/AcademicYearProvider";
@@ -11,9 +12,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!ok) redirect("/login");
   return (
     <SwrProvider>
-      <AcademicYearProvider>
-        <AppShell>{children}</AppShell>
-      </AcademicYearProvider>
+      <Suspense fallback={null}>
+        <AcademicYearProvider>
+          <AppShell>{children}</AppShell>
+        </AcademicYearProvider>
+      </Suspense>
     </SwrProvider>
   );
 }

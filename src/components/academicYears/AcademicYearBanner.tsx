@@ -5,9 +5,17 @@ import { Archive, Calendar } from "lucide-react";
 import { useAcademicYear } from "@/components/academicYears/AcademicYearProvider";
 
 export function AcademicYearBanner() {
-  const { viewingYear, activeYear, readOnly, setViewingYearId } = useAcademicYear();
+  const { viewingYear, activeYear, readOnly, setViewingYearId, error, isLoading } = useAcademicYear();
 
-  if (!viewingYear) return null;
+  if (error) {
+    return (
+      <div role="alert" className="rounded-xl border border-red-200/80 bg-red-50/90 px-3 py-2 text-sm text-red-800 dark:border-red-800/50 dark:bg-red-950/40 dark:text-red-200">
+        {error.message}
+      </div>
+    );
+  }
+
+  if (isLoading || !viewingYear) return null;
 
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-xl border border-sky-200/80 bg-sky-50/90 px-3 py-2 text-sm dark:border-sky-800/50 dark:bg-sky-950/30">

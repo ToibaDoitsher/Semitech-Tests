@@ -2,10 +2,15 @@ import { NextResponse } from "next/server";
 import { listGradeOptions } from "@/lib/academicYears/options";
 import { GRADE_LEVELS } from "@/lib/academicYears/types";
 import { resolveAcademicYearScope, scopeFromSearchParams } from "@/lib/academicYears/scope";
+import { dbSchemaHint } from "@/lib/db/schemaHint";
 import { notDeleted } from "@/lib/db/softDelete";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
+
+function isMissingTableError(message: string): boolean {
+  return /does not exist|schema cache/i.test(message);
+}
 
 function todayISODate(): string {
   const d = new Date();
@@ -14,6 +19,7 @@ function todayISODate(): string {
 }
 
 export async function GET(request: Request) {
+  try {
   const supabase = createSupabaseAdminClient();
   const scope = await resolveAcademicYearScope(
     supabase,
@@ -82,7 +88,10 @@ export async function GET(request: Request) {
     makeupsNoGrade,
     makeupsCompletedWeek,
   ]) {
-    if (r.error) return NextResponse.json({ error: r.error.message }, { status: 500 });
+    if (r.error) {
+      if (isMissingTableError(r.error.message)) continue;
+      return NextResponse.json({ error: dbSchemaHint(r.error.message) }, { status: 500 });
+    }
   }
 
   const { count: studentsInMakeup } = await supabase
@@ -112,16 +121,19 @@ export async function GET(request: Request) {
     examsTotal: examsTotal.count ?? 0,
     examsToday: examsToday.count ?? 0,
     examsUpcoming: examsUpcoming.count ?? 0,
-    makeupsOpen: makeupsOpen.count ?? 0,
+    makeupsOpen: makeupsOpen.error ? 0 : (makeupsOpen.count ?? 0),
     studentsTotal: studentsTotal.count ?? 0,
     studentsInMakeup: studentsInMakeup ?? 0,
     trackingTodo: trackingTodo.count ?? 0,
-    makeupsAwaitingTeacher: makeupsAwaitingTeacher.count ?? 0,
-    makeupsNoGrade: makeupsNoGrade.count ?? 0,
-    makeupsCompletedWeek: makeupsCompletedWeek.count ?? 0,
+    makeupsAwaitingTeacher: makeupsAwaitingTeacher.error ? 0 : (makeupsAwaitingTeacher.count ?? 0),
+    makeupsNoGrade: makeupsNoGrade.error ? 0 : (makeupsNoGrade.count ?? 0),
+    makeupsCompletedWeek: makeupsCompletedWeek.error ? 0 : (makeupsCompletedWeek.count ?? 0),
     byGrade,
     grades,
     readOnly: scope.readOnly,
     academicYear: scope.year,
   });
+  } catch (e) {
+    return NextResponse.json({ error: dbSchemaHint((e as Error).message) }, { status: 500 });
+  }
 }

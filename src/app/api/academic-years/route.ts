@@ -4,6 +4,7 @@ import {
   listAcademicYears,
   setActiveAcademicYear,
 } from "@/lib/academicYears/years";
+import { dbSchemaHint } from "@/lib/db/schemaHint";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export async function GET() {
     const years = await listAcademicYears(supabase);
     return NextResponse.json({ years });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message, years: [] }, { status: 500 });
+    return NextResponse.json({ error: dbSchemaHint((e as Error).message), years: [] }, { status: 500 });
   }
 }
 

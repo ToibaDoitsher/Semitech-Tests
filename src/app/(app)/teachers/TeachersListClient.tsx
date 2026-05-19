@@ -20,10 +20,7 @@ import { useAcademicYear, withYearQuery } from "@/components/academicYears/Acade
 import { teacherDisplayName } from "@/lib/teachers/display";
 import type { Teacher } from "@/lib/types/db";
 
-const fetcher = (url: string) => fetch(url).then((r) => {
-  if (!r.ok) throw new Error("שגיאת טעינה");
-  return r.json();
-});
+import { apiFetcher } from "@/lib/api/fetcher";
 
 export function TeachersListClient() {
   const { viewingYear } = useAcademicYear();
@@ -36,7 +33,7 @@ export function TeachersListClient() {
     return withYearQuery(`/api/teachers${qs ? `?${qs}` : ""}`, viewingYear?.id);
   }, [deferred, viewingYear?.id]);
 
-  const { data, error, isLoading, mutate } = useSWR<{ teachers: Teacher[] }>(url, fetcher);
+  const { data, error, isLoading, mutate } = useSWR<{ teachers: Teacher[] }>(url, apiFetcher);
   const count = data?.teachers?.length ?? 0;
 
   async function removeTeacher(id: string) {

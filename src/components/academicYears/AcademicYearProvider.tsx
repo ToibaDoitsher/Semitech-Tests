@@ -21,7 +21,7 @@ const AcademicYearContext = createContext<Ctx | null>(null);
 const fetcher = async (url: string) => {
   const r = await fetch(url);
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error((j as { error?: string }).error ?? "שגיאה");
+  if (!r.ok) throw new Error((j as { error?: string }).error ?? "שגיאת טעינת שנות לימוד");
   return j as { years: AcademicYearRow[] };
 };
 

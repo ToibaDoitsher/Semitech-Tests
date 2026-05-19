@@ -18,10 +18,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 import { TableClearFooter } from "@/components/ui/TableClearFooter";
 
-const fetcher = (url: string) => fetch(url).then((r) => {
-  if (!r.ok) throw new Error("שגיאת טעינה");
-  return r.json();
-});
+import { apiFetcher } from "@/lib/api/fetcher";
 
 type Item = { id: string; name: string };
 
@@ -30,7 +27,7 @@ export function LookupManagerClient({ entity }: { entity: LookupEntitySlug }) {
   const url = isYearScopedLookup(entity)
     ? withYearQuery(`/api/lookups/${entity}`, viewingYear?.id)
     : `/api/lookups/${entity}`;
-  const { data, error, isLoading, mutate } = useSWR<{ items: Item[] }>(url, fetcher);
+  const { data, error, isLoading, mutate } = useSWR<{ items: Item[] }>(url, apiFetcher);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { resolveAcademicYearScope, readOnlyResponse, scopeFromSearchParams } from "@/lib/academicYears/scope";
+import { dbSchemaHint } from "@/lib/db/schemaHint";
 import { TEACHER_COLUMNS } from "@/lib/teachers/db";
 import { parseTeacherBody } from "@/lib/teachers/validation";
 import { notDeleted } from "@/lib/db/softDelete";
@@ -8,30 +9,34 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const q = searchParams.get("q")?.trim() ?? "";
-  const limitRaw = Number.parseInt(searchParams.get("limit") ?? "200", 10);
-  const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 200) : 200;
+  try {
+    const { searchParams } = new URL(request.url);
+    const q = searchParams.get("q")?.trim() ?? "";
+    const limitRaw = Number.parseInt(searchParams.get("limit") ?? "200", 10);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 200) : 200;
 
-  const supabase = createSupabaseAdminClient();
-  const scope = await resolveAcademicYearScope(supabase, scopeFromSearchParams(searchParams));
+    const supabase = createSupabaseAdminClient();
+    const scope = await resolveAcademicYearScope(supabase, scopeFromSearchParams(searchParams));
 
-  let query = notDeleted(supabase.from("teachers").select(TEACHER_COLUMNS))
-    .eq("academic_year_id", scope.year.id)
-    .order("last_name")
-    .order("first_name")
-    .limit(limit);
+    let query = notDeleted(supabase.from("teachers").select(TEACHER_COLUMNS))
+      .eq("academic_year_id", scope.year.id)
+      .order("last_name")
+      .order("first_name")
+      .limit(limit);
 
-  if (q) {
-    const escaped = q.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
-    query = query.or(
-      `first_name.ilike.%${escaped}%,last_name.ilike.%${escaped}%,full_name_generated.ilike.%${escaped}%,tz.ilike.%${escaped}%,email.ilike.%${escaped}%`,
-    );
+    if (q) {
+      const escaped = q.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+      query = query.or(
+        `first_name.ilike.%${escaped}%,last_name.ilike.%${escaped}%,full_name_generated.ilike.%${escaped}%,tz.ilike.%${escaped}%,email.ilike.%${escaped}%`,
+      );
+    }
+
+    const { data, error } = await query;
+    if (error) return NextResponse.json({ error: dbSchemaHint(error.message) }, { status: 500 });
+    return NextResponse.json({ teachers: data ?? [] });
+  } catch (e) {
+    return NextResponse.json({ error: dbSchemaHint((e as Error).message), teachers: [] }, { status: 500 });
   }
-
-  const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ teachers: data ?? [] });
 }
 
 export async function POST(request: Request) {

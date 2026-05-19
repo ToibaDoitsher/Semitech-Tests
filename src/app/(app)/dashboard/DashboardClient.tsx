@@ -8,10 +8,7 @@ import { ListPageHeader } from "@/components/ui/ListPage";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 
-const fetcher = (url: string) => fetch(url).then((r) => {
-  if (!r.ok) throw new Error("שגיאת טעינה");
-  return r.json();
-});
+import { apiFetcher } from "@/lib/api/fetcher";
 
 type Item = {
   id: string;
@@ -90,8 +87,8 @@ function StatCard({
 
 export function DashboardClient() {
   const reduceMotion = useReducedMotion();
-  const { data, error, isLoading } = useSWR<{ items: Item[] }>("/api/exams/upcoming?limit=8", fetcher);
-  const { data: stats, error: statsErr } = useSWR<Stats>("/api/stats/dashboard", fetcher);
+  const { data, error, isLoading } = useSWR<{ items: Item[] }>("/api/exams/upcoming?limit=8", apiFetcher);
+  const { data: stats, error: statsErr } = useSWR<Stats>("/api/stats/dashboard", apiFetcher);
 
   return (
     <div className="space-y-10">
