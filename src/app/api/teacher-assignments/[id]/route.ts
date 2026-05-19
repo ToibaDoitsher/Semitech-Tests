@@ -78,6 +78,10 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   }
 
   let category = existing.assignment_category as AssignmentCategory;
+  const categoryChanged =
+    body.assignment_category !== undefined &&
+    parseAssignmentCategory(body.assignment_category) !== existing.assignment_category;
+
   if (body.assignment_category !== undefined) {
     const parsed = parseAssignmentCategory(body.assignment_category);
     if (!parsed) return NextResponse.json({ error: "סוג שיבוץ לא תקין" }, { status: 400 });
@@ -86,7 +90,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   }
 
   const targetTouched =
-    body.assignment_category !== undefined ||
+    categoryChanged ||
     body.class_id !== undefined ||
     body.specialization_id !== undefined ||
     body.track_id !== undefined ||
@@ -100,11 +104,12 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     let psychology_enabled =
       body.psychology_enabled !== undefined ? body.psychology_enabled : existing.psychology_enabled;
 
-    if (body.assignment_category !== undefined) {
-      class_id = null;
-      specialization_id = null;
-      track_id = null;
-      psychology_enabled = false;
+    if (categoryChanged) {
+      class_id = body.class_id !== undefined ? body.class_id : null;
+      specialization_id = body.specialization_id !== undefined ? body.specialization_id : null;
+      track_id = body.track_id !== undefined ? body.track_id : null;
+      psychology_enabled =
+        body.psychology_enabled !== undefined ? body.psychology_enabled : false;
     }
 
     const target = normalizeTargetInput({

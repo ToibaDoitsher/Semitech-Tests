@@ -9,6 +9,7 @@ import {
 import type { AssignmentCategory } from "@/lib/types/db";
 import { formatGradeLabel, parseGradeLevel } from "@/lib/academicYears/labels";
 import { listGradeOptions } from "@/lib/academicYears/options";
+import { resolveGradeLevelsFromOptionIds } from "@/lib/gradeLevels/options";
 import {
   readOnlyResponse,
   resolveAcademicYearScope,
@@ -119,6 +120,8 @@ export async function POST(request: Request) {
       subject?: string;
       lesson_name?: string;
       grade_level?: string;
+      grade_level_option_id?: string;
+      grade_level_option_ids?: string[];
       class_id?: string | null;
       specialization_id?: string | null;
       track_id?: string | null;
@@ -131,10 +134,23 @@ export async function POST(request: Request) {
       body.subject ?? "",
       body.lesson_name ?? "",
     );
-    const grade_level = parseGradeLevel(String(body.grade_level ?? ""));
 
-    if (!teacher_id || !grade_level) {
-      return NextResponse.json({ error: "מורה ושכבה חובה" }, { status: 400 });
+    const optionIds = [
+      ...(body.grade_level_option_ids ?? []).map((id) => id.trim()).filter(Boolean),
+      ...(body.grade_level_option_id?.trim() ? [body.grade_level_option_id.trim()] : []),
+    ];
+    const gradeResolved = await resolveGradeLevelsFromOptionIds(
+      supabase,
+      optionIds,
+      body.grade_level,
+    );
+    if ("error" in gradeResolved) {
+      return NextResponse.json({ error: gradeResolved.error }, { status: 400 });
+    }
+    const gradeLevels = gradeResolved.gradeLevels;
+
+    if (!teacher_id) {
+      return NextResponse.json({ error: "מורה חובה" }, { status: 400 });
     }
     if (subjectLesson.error) {
       return NextResponse.json({ error: subjectLesson.error }, { status: 400 });
@@ -163,25 +179,38 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: teaching.error }, { status: 400 });
     }
 
-    const { data, error } = await supabase
-      .from("teacher_assignments")
-      .insert({
-        academic_year_id: scope.year.id,
-        teacher_id,
-        subject: subjectLesson.subject,
-        lesson_name: subjectLesson.lesson_name,
-        assignment_category: category,
-        grade_level,
-        class_id: target.class_id,
-        specialization_id: target.specialization_id,
-        track_id: target.track_id,
-        psychology_enabled: target.psychology_enabled,
-        teaching_mode: teaching.teaching_mode,
-      })
-      .select(ASSIGNMENT_WITH_LOOKUPS)
-      .single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json({ assignment: data });
+    const created: unknown[] = [];
+    for (const grade_level of gradeLevels) {
+      const { data, error } = await supabase
+        .from("teacher_assignments")
+        .insert({
+          academic_year_id: scope.year.id,
+          teacher_id,
+          subject: subjectLesson.subject,
+          lesson_name: subjectLesson.lesson_name,
+          assignment_category: category,
+          grade_level,
+          class_id: target.class_id,
+          specialization_id: target.specialization_id,
+          track_id: target.track_id,
+          psychology_enabled: target.psychology_enabled,
+          teaching_mode: teaching.teaching_mode,
+        })
+        .select(ASSIGNMENT_WITH_LOOKUPS)
+        .single();
+      if (error) {
+        const msg = error.message.includes("uq_teacher_assignment")
+          ? `שיבוץ כבר קיים לשכבה ${formatGradeLabel(grade_level)}`
+          : error.message;
+        return NextResponse.json({ error: msg }, { status: 400 });
+      }
+      created.push(data);
+    }
+
+    if (created.length === 1) {
+      return NextResponse.json({ assignment: created[0], created_count: 1 });
+    }
+    return NextResponse.json({ assignments: created, created_count: created.length });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }

@@ -28,7 +28,7 @@ export function TeacherSearchCombobox({
   disabled,
   required,
   label = "בחירת מורה",
-  placeholder = "הקלידי שם פרטי, משפחה או שם מלא…",
+  placeholder = "לחצי לבחירה או הקלידי לחיפוש…",
 }: Props) {
   const { viewingYear } = useAcademicYear();
   const listId = useId();
@@ -38,9 +38,11 @@ export function TeacherSearchCombobox({
   const deferred = useDeferredValue(query.trim());
 
   const searchUrl =
-    deferred.length >= 1
+    open && !disabled
       ? withYearQuery(
-          `/api/teachers?q=${encodeURIComponent(deferred)}&limit=12`,
+          deferred
+            ? `/api/teachers?q=${encodeURIComponent(deferred)}&limit=12`
+            : "/api/teachers?limit=12",
           viewingYear?.id,
         )
       : null;
@@ -146,10 +148,10 @@ export function TeacherSearchCombobox({
                 </button>
               </li>
             ))
-          ) : deferred.length >= 1 ? (
-            <li className="px-3 py-2 text-zinc-500">לא נמצאו מורות</li>
           ) : (
-            <li className="px-3 py-2 text-zinc-500">הקלידי לפחות אות אחת</li>
+            <li className="px-3 py-2 text-zinc-500">
+              {deferred ? "לא נמצאו מורות" : "אין מורות ברשימה"}
+            </li>
           )}
         </ul>
         ) : null}

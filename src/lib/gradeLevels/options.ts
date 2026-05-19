@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { parseGradeLevel } from "@/lib/academicYears/labels";
 import { GRADE_LEVELS, type GradeLevel } from "@/lib/academicYears/types";
 
 export type GradeLevelOptionRow = {
@@ -36,6 +37,33 @@ export async function listGradeLevelOptions(
     ),
     is_active: row.is_active as boolean,
   }));
+}
+
+/** ממזהה(י) אפשרות שכבה (א, ב, ג, א+ב) → רשימת שכבות ייחודית */
+export async function resolveGradeLevelsFromOptionIds(
+  supabase: SupabaseClient,
+  optionIds: string[],
+  fallbackGradeLevel?: string | null,
+): Promise<{ gradeLevels: GradeLevel[] } | { error: string }> {
+  const uniqueOptionIds = [...new Set(optionIds.map((id) => id.trim()).filter(Boolean))];
+
+  if (uniqueOptionIds.length) {
+    const gradeLevels: GradeLevel[] = [];
+    for (const optionId of uniqueOptionIds) {
+      const opt = await getGradeLevelOptionById(supabase, optionId);
+      if (!opt?.is_active) {
+        return { error: `אפשרות שכבה לא נמצאה (${optionId})` };
+      }
+      gradeLevels.push(...opt.grade_levels);
+    }
+    const unique = [...new Set(gradeLevels)];
+    if (!unique.length) return { error: "בחרי לפחות שכבה אחת" };
+    return { gradeLevels: unique };
+  }
+
+  const gl = parseGradeLevel(String(fallbackGradeLevel ?? ""));
+  if (!gl) return { error: "בחרי לפחות שכבה אחת" };
+  return { gradeLevels: [gl] };
 }
 
 export async function getGradeLevelOptionById(

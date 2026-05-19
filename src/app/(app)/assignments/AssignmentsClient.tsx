@@ -10,7 +10,9 @@ import {
   ListTableToolbar,
   LIST_ROW_DELETE_CLASS,
 } from "@/components/ui/ListPage";
+import { InlineNotice } from "@/components/ui/InlineNotice";
 import { Spinner } from "@/components/ui/Spinner";
+import type { GradeLevel } from "@/lib/academicYears/types";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TableClearFooter } from "@/components/ui/TableClearFooter";
@@ -47,6 +49,12 @@ type AssignmentRow = {
 
 type LookupItem = { id: string; name: string };
 
+type GradeLevelOption = {
+  id: string;
+  name: string;
+  grade_levels: GradeLevel[];
+};
+
 type TargetDraft = {
   assignment_category: AssignmentCategory;
   class_id: string;
@@ -80,11 +88,17 @@ export function AssignmentsClient() {
     withYearQuery("/api/lookups/tracks", viewingYear?.id),
     fetcher,
   );
+  const { data: gradeData } = useSWR<{ items: GradeLevelOption[] }>(
+    "/api/lookups/grade-level-options",
+    fetcher,
+  );
+
+  const gradeOptions = gradeData?.items ?? [];
 
   const [teacherId, setTeacherId] = useState("");
   const [subject, setSubject] = useState("");
   const [lessonName, setLessonName] = useState("");
-  const [gradeLevel, setGradeLevel] = useState("");
+  const [gradeLevelOptionIds, setGradeLevelOptionIds] = useState<string[]>([]);
   const [classId, setClassId] = useState("");
   const [specializationId, setSpecializationId] = useState("");
   const [trackId, setTrackId] = useState("");
@@ -92,6 +106,16 @@ export function AssignmentsClient() {
   const [assignmentCategory, setAssignmentCategory] = useState<"" | AssignmentCategory>("");
   const [teachingMode, setTeachingMode] = useState<TeachingMode | "">("");
   const [saving, setSaving] = useState(false);
+  const [formNotice, setFormNotice] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+
+  const selectedGradeLevels = useMemo(() => {
+    const levels = new Set<GradeLevel>();
+    for (const id of gradeLevelOptionIds) {
+      const opt = gradeOptions.find((o) => o.id === id);
+      opt?.grade_levels.forEach((g) => levels.add(g));
+    }
+    return levels;
+  }, [gradeLevelOptionIds, gradeOptions]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<{
     subject: string;
@@ -125,7 +149,7 @@ export function AssignmentsClient() {
     if (!subject.trim() && !lessonName.trim()) {
       return alert("מלאי מקצוע או שם שיעור (לפחות אחד)");
     }
-    if (!gradeLevel) return alert("בחרי שכבה");
+    if (!gradeLevelOptionIds.length) return alert("בחרי לפחות שכבה אחת");
     if (!assignmentCategory) return alert("בחרי סוג שיבוץ: חובה או התמחות");
     if (assignmentCategory === "התמחות") {
       if (!specializationId) return alert("בחרי התמחות");
@@ -133,6 +157,7 @@ export function AssignmentsClient() {
       return alert("בחרי יעד אחד: כיתה, מסלול או פסיכולוגיה");
     }
     setSaving(true);
+    setFormNotice(null);
     try {
       const r = await fetch(assignmentsUrl, {
         method: "POST",
@@ -141,7 +166,7 @@ export function AssignmentsClient() {
           teacher_id: teacherId,
           subject,
           lesson_name: lessonName.trim() || null,
-          grade_level: gradeLevel,
+          grade_level_option_ids: gradeLevelOptionIds,
           assignment_category: assignmentCategory,
           class_id: assignmentCategory === "חובה" ? classId || null : null,
           specialization_id: assignmentCategory === "התמחות" ? specializationId || null : null,
@@ -150,21 +175,33 @@ export function AssignmentsClient() {
           teaching_mode: showTeachingMode ? teachingMode || null : null,
         }),
       });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error((j as { error?: string }).error ?? "שגיאה");
+      const j = (await r.json().catch(() => ({}))) as {
+        error?: string;
+        created_count?: number;
+      };
+      if (!r.ok) throw new Error(j.error ?? "שגיאה");
+      const count = j.created_count ?? 1;
+      const levelsLabel = [...selectedGradeLevels].join(", ");
       setTeacherId("");
       setSubject("");
       setLessonName("");
-      setGradeLevel("");
+      setGradeLevelOptionIds([]);
       setClassId("");
       setSpecializationId("");
       setTrackId("");
       setPsychologyEnabled(false);
       setAssignmentCategory("");
       setTeachingMode("");
+      setFormNotice({
+        tone: "success",
+        text:
+          count === 1
+            ? "השיבוץ נוסף בהצלחה"
+            : `נוספו ${count} שיבוצים (שכבות: ${levelsLabel})`,
+      });
       await mutate();
     } catch (err) {
-      alert((err as Error).message);
+      setFormNotice({ tone: "error", text: (err as Error).message });
     } finally {
       setSaving(false);
     }
@@ -201,6 +238,15 @@ export function AssignmentsClient() {
     if (!editDraft || readOnly) return;
     if (!editDraft.subject.trim() && !editDraft.lesson_name.trim()) {
       return alert("מלאי מקצוע או שם שיעור (לפחות אחד)");
+    }
+    if (editDraft.assignment_category === "התמחות") {
+      if (!editDraft.specialization_id) return alert("בחרי התמחות");
+    } else if (
+      !editDraft.class_id &&
+      !editDraft.track_id &&
+      !editDraft.psychology_enabled
+    ) {
+      return alert("בחרי יעד אחד: כיתה, מסלול או פסיכולוגיה");
     }
     setEditSaving(true);
     try {
@@ -252,7 +298,7 @@ export function AssignmentsClient() {
     <div className="space-y-8">
       <ListPageHeader
         title="שיבוצי מורות"
-        subtitle="טבלת כל השיבוצים · יעד אחד בלבד לכל שיבוץ"
+        subtitle="טבלת כל השיבוצים · ניתן לבחור כמה שכבות (למשל ג + א+ב)"
         actions={
           <>
             <ExportExcelButton
@@ -283,7 +329,7 @@ export function AssignmentsClient() {
       <div>
         <h2 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-zinc-50">הוספת שיבוץ</h2>
         <p className="mt-1 text-base font-light text-slate-500 dark:text-zinc-400">
-          מורה → מקצוע → שיעור → שכבה → סוג שיבוץ → יעד
+          מורה → מקצוע → שיעור → שכבות → סוג שיבוץ → יעד
         </p>
       </div>
 
@@ -314,22 +360,44 @@ export function AssignmentsClient() {
           <p className="mt-1 text-xs text-zinc-500">מקצוע או שם שיעור — חובה למלא אחד מהם</p>
         </label>
 
-        <label className="block">
-          <span className="text-sm font-medium text-zinc-700">שכבה *</span>
-          <select
-            required
-            className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm"
-            value={gradeLevel}
-            onChange={(e) => setGradeLevel(e.target.value)}
-          >
-            <option value="">— בחרי —</option>
-            {(aData?.grades ?? []).map((g) => (
-              <option key={g.grade_level} value={g.grade_level}>
-                {g.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <fieldset className="block md:col-span-2 lg:col-span-3">
+          <legend className="text-sm font-medium text-zinc-700">שכבות * (אפשר כמה)</legend>
+          <div className="mt-2 flex flex-wrap gap-3">
+            {gradeOptions.map((o) => {
+              const checked = gradeLevelOptionIds.includes(o.id);
+              return (
+                <label
+                  key={o.id}
+                  className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
+                    checked ? "border-zinc-900 bg-zinc-50" : "border-zinc-200"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => {
+                      setGradeLevelOptionIds((prev) =>
+                        checked ? prev.filter((id) => id !== o.id) : [...prev, o.id],
+                      );
+                    }}
+                  />
+                  {o.name}
+                  <span className="text-xs text-zinc-500">({o.grade_levels.join(", ")})</span>
+                </label>
+              );
+            })}
+          </div>
+          {!gradeOptions.length ? (
+            <p className="mt-1 text-xs text-amber-800">
+              אין שכבות בלוקאפ — הוסיפי בהגדרות → שכבות (למשל: א, ב, ג, א+ב)
+            </p>
+          ) : null}
+          {gradeLevelOptionIds.length > 1 ? (
+            <p className="mt-2 text-xs text-zinc-600">
+              נבחרו {selectedGradeLevels.size} שכבות — ייווצרו {selectedGradeLevels.size} שיבוצים (אותו מקצוע ויעד)
+            </p>
+          ) : null}
+        </fieldset>
 
         <fieldset className="block md:col-span-2 lg:col-span-3">
           <legend className="text-sm font-medium text-zinc-700">סוג שיבוץ *</legend>
@@ -451,11 +519,14 @@ export function AssignmentsClient() {
           </label>
         ) : null}
 
-        <div className="flex items-end md:col-span-2 lg:col-span-3">
+        <div className="flex flex-col gap-2 md:col-span-2 lg:col-span-3">
+          {formNotice ? (
+            <InlineNotice tone={formNotice.tone}>{formNotice.text}</InlineNotice>
+          ) : null}
           <button
             type="submit"
             disabled={saving}
-            className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+            className="w-fit rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
           >
             {saving ? "שומר…" : "הוספת שיבוץ"}
           </button>
