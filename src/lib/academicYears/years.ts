@@ -5,14 +5,22 @@ import type { AcademicYearRow } from "@/lib/academicYears/types";
 const YEAR_SELECT_FULL = "id, year_name, start_date, end_date, is_active, created_at";
 const YEAR_SELECT_LEGACY = "id, year_name, is_active, created_at";
 
-function mapYearRow(row: Record<string, unknown>): AcademicYearRow {
+function mapYearRow(row: unknown): AcademicYearRow {
+  const r = row as {
+    id: string;
+    year_name: string;
+    start_date?: string | null;
+    end_date?: string | null;
+    is_active: boolean;
+    created_at?: string;
+  };
   return {
-    id: String(row.id),
-    year_name: String(row.year_name),
-    start_date: (row.start_date as string | null | undefined) ?? null,
-    end_date: (row.end_date as string | null | undefined) ?? null,
-    is_active: Boolean(row.is_active),
-    created_at: row.created_at as string | undefined,
+    id: String(r.id),
+    year_name: String(r.year_name),
+    start_date: r.start_date ?? null,
+    end_date: r.end_date ?? null,
+    is_active: Boolean(r.is_active),
+    created_at: r.created_at,
   };
 }
 
@@ -25,7 +33,7 @@ async function queryAcademicYears(
     .select(select)
     .order("year_name", { ascending: false });
   if (error) throw new Error(dbSchemaHint(error.message));
-  return (data ?? []).map((row) => mapYearRow(row as Record<string, unknown>));
+  return (data ?? []).map((row) => mapYearRow(row));
 }
 
 export async function listAcademicYears(supabase: SupabaseClient): Promise<AcademicYearRow[]> {
@@ -89,7 +97,7 @@ export async function createAcademicYear(
   }
 
   if (error) throw new Error(dbSchemaHint(error.message));
-  return mapYearRow(data as Record<string, unknown>);
+  return mapYearRow(data);
 }
 
 export async function setActiveAcademicYear(
@@ -109,5 +117,5 @@ export async function setActiveAcademicYear(
     .single();
 
   if (error) throw new Error(dbSchemaHint(error.message));
-  return mapYearRow(data as Record<string, unknown>);
+  return mapYearRow(data);
 }

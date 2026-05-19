@@ -2,6 +2,7 @@
 -- כל ה-PATCHים ברצף — למסד קיים בלבד (לא מוחק נתונים)
 -- =============================================================================
 -- אם מתחילים מאפס: הריצי רק RUN_FULL_DATABASE_RESET.sql (כולל הכל).
+-- סדר: AUTH → SCHOOL_YEARS → GRADE_OPTIONS → STUDENT_EXT → REMAINING → MAKEUP
 -- אחרי ההרצה: רענון קשיח + npm run dev
 -- =============================================================================
 
@@ -196,5 +197,110 @@ where me.deleted_at is null
 on conflict (exam_id, student_id) do update set
   makeup_exam_id = coalesce(public.makeup_tracking.makeup_exam_id, excluded.makeup_exam_id),
   grade = coalesce(public.makeup_tracking.grade, excluded.grade);
+
+create index if not exists idx_makeup_tracking_academic_year on public.makeup_tracking (academic_year_id);
+
+create or replace function public.makeup_tracking_fill_academic_year()
+returns trigger language plpgsql as $$
+begin
+  if new.academic_year_id is null then
+    select e.academic_year_id into new.academic_year_id from public.exams e where e.id = new.exam_id;
+  end if;
+  if new.academic_year_id is null then raise exception 'makeup_tracking: exam not found'; end if;
+  return new;
+end; $$;
+
+drop trigger if exists trg_makeup_tracking_fill_year on public.makeup_tracking;
+create trigger trg_makeup_tracking_fill_year
+  before insert on public.makeup_tracking
+  for each row execute function public.makeup_tracking_fill_academic_year();
+
+-- ─── PATCH_STUDENT_EXTENSIONS ─────────────────────────────────────────────
+alter table public.students
+  add column if not exists secondary_specialization_id uuid references public.specializations (id) on delete restrict,
+  add column if not exists is_psychology boolean not null default false,
+  add column if not exists teaching_track_type text;
+
+alter table public.exams add column if not exists teaching_track_type text;
+
+alter table public.exam_students
+  add column if not exists secondary_specialization_snapshot text,
+  add column if not exists is_psychology_snapshot boolean,
+  add column if not exists teaching_track_type_snapshot text;
+
+alter table public.students drop constraint if exists students_teaching_track_type_check;
+alter table public.students add constraint students_teaching_track_type_check
+  check (teaching_track_type is null or teaching_track_type in ('full', 'short'));
+
+alter table public.students drop constraint if exists students_secondary_spec_distinct;
+alter table public.students add constraint students_secondary_spec_distinct
+  check (
+    secondary_specialization_id is null
+    or specialization_id is null
+    or secondary_specialization_id <> specialization_id
+  );
+
+alter table public.exams drop constraint if exists exams_teaching_track_type_check;
+alter table public.exams add constraint exams_teaching_track_type_check
+  check (teaching_track_type is null or teaching_track_type in ('full', 'short'));
+
+create or replace function public.students_validate_teaching_fields()
+returns trigger language plpgsql as $$
+declare track_name text;
+begin
+  if new.secondary_specialization_id is not null and new.specialization_id is not null
+     and new.secondary_specialization_id = new.specialization_id then
+    raise exception 'התמחות נוספת חייבת להיות שונה מהראשית';
+  end if;
+  if new.track_id is null then
+    if new.teaching_track_type is not null then raise exception 'סוג הוראה מותר רק במסלול הוראה'; end if;
+    return new;
+  end if;
+  select t.name into track_name from public.tracks t where t.id = new.track_id;
+  if coalesce(track_name, '') = 'הוראה' then return new; end if;
+  if new.teaching_track_type is not null then raise exception 'סוג הוראה מותר רק במסלול הוראה'; end if;
+  return new;
+end; $$;
+
+drop trigger if exists trg_students_validate_teaching on public.students;
+create trigger trg_students_validate_teaching
+  before insert or update on public.students
+  for each row execute function public.students_validate_teaching_fields();
+
+-- ─── PATCH_REMAINING_FEATURES ───────────────────────────────────────────────
+alter table public.exams add column if not exists makeup_locked_at timestamptz;
+
+alter table public.exam_students add column if not exists subject_snapshot text;
+alter table public.exam_students add column if not exists target_name_snapshot text;
+
+alter table public.audit_logs add column if not exists entity_name_snapshot text;
+
+create table if not exists public.notifications (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references public.users (id) on delete set null,
+  title text not null,
+  body text,
+  href text,
+  read_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_notifications_user_unread on public.notifications (user_id, created_at desc) where read_at is null;
+
+create extension if not exists pg_trgm;
+create index if not exists idx_students_full_name_trgm on public.students using gin (full_name_generated gin_trgm_ops);
+create index if not exists idx_teachers_full_name_trgm on public.teachers using gin (full_name_generated gin_trgm_ops);
+
+alter table public.notifications enable row level security;
+
+insert into public.users (username, password_hash, full_name, active)
+select
+  'admin',
+  '$2b$10$Te.XsoCRqDvBk462gYoLC.BCBgUbifAEj4GRpyMBMnhEa8/kt9ole',
+  'מנהלת מערכת',
+  true
+where not exists (
+  select 1 from public.users where username = 'admin' and deleted_at is null
+);
 
 notify pgrst, 'reload schema';

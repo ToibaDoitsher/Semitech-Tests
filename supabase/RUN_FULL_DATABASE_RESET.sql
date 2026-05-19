@@ -3,19 +3,22 @@
 -- =============================================================================
 -- Supabase → SQL Editor → העתיקי את כל הקובץ → Run
 --
--- כולל את כל ה-PATCHים (אין צורך להריץ אותם בנפרד אחרי איפוס מלא):
---   • PATCH_AUTH_USERS          — משתמשים, deleted_at, ייחודיות username
---   • PATCH_SCHOOL_YEARS_ISOLATED — שנים עצמאיות, לוקאפים ומורות לפי שנה
---   • PATCH_GRADE_LEVEL_OPTIONS — שכבות למבחנים (א, ב, ג, א+ב)
---   • PATCH_MAKEUP_TRACKING     — מעקב השלמות + grade ב-makeup_exams
---   • PATCH_STUDENT_EXTENSIONS  — התמחות שנייה, פסיכולוגיה, סוג הוראה
---   • PATCH_REMAINING_FEATURES  — makeup_locked, snapshots, התראות, audit
+-- קובץ זה מאחד את כל השינויים — אחרי איפוס מלא אין להריץ PATCH_*.sql בנפרד.
+-- לעדכון מסד קיים בלי מחיקת נתונים: PATCH_ALL_FOR_EXISTING_DB.sql
+--
+-- כולל במלואו:
+--   PATCH_AUTH_USERS            — משתמשים, deleted_at, ייחודיות username, admin
+--   PATCH_SCHOOL_YEARS_ISOLATED — שנים עצמאיות, לוקאפים/מורות לפי שנה, school_years
+--   PATCH_GRADE_LEVEL_OPTIONS   — אפשרויות שכבה למבחנים (א, ב, ג, א+ב)
+--   PATCH_STUDENT_EXTENSIONS    — התמחות שנייה, פסיכולוגיה, סוג הוראה
+--   PATCH_REMAINING_FEATURES    — makeup_locked, snapshots, התראות, audit, pg_trgm
+--   PATCH_MAKEUP_TRACKING       — makeup_tracking, grade ב-makeup_exams, מילוי שנה
 --
 -- מודל: כל שנת לימודים עצמאית (academic_year_id). אין מחזורים / קידום / העתקה.
 -- grade_level: א / ב / ג בלבד.
 --
--- אחרי איפוס מלא: אין להריץ PATCH_*.sql בנפרד.
--- לעדכון מסד קיים בלי מחיקה: PATCH_ALL_FOR_EXISTING_DB.sql
+-- אחרי ההרצה: רענון קשיח בדפדפן + npm run dev
+-- התחברות ראשונה: admin / admin (או יצירת משתמש בהגדרות)
 -- =============================================================================
 
 drop view if exists public.school_years;
@@ -58,6 +61,7 @@ drop function if exists public.assignments_validate_teaching_mode() cascade;
 drop function if exists public.exam_tracking_fill_academic_year() cascade;
 drop function if exists public.student_history_fill_academic_year() cascade;
 drop function if exists public.makeup_exams_fill_academic_year() cascade;
+drop function if exists public.makeup_tracking_fill_academic_year() cascade;
 drop function if exists public.teachers_validate_year_scope() cascade;
 
 drop type if exists public.student_status cascade;
@@ -397,6 +401,7 @@ create table public.makeup_tracking (
   unique (exam_id, student_id)
 );
 
+create index idx_makeup_tracking_academic_year on public.makeup_tracking (academic_year_id);
 create index idx_makeup_tracking_exam_id on public.makeup_tracking (exam_id);
 create index idx_makeup_tracking_teacher_id on public.makeup_tracking (teacher_id);
 create index idx_makeup_tracking_student_id on public.makeup_tracking (student_id);
@@ -728,6 +733,25 @@ create trigger trg_makeup_exams_fill_year
   before insert on public.makeup_exams
   for each row execute function public.makeup_exams_fill_academic_year();
 
+create or replace function public.makeup_tracking_fill_academic_year()
+returns trigger language plpgsql as $$
+begin
+  if new.academic_year_id is null then
+    select e.academic_year_id into new.academic_year_id
+    from public.exams e
+    where e.id = new.exam_id;
+  end if;
+  if new.academic_year_id is null then
+    raise exception 'makeup_tracking: exam not found';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger trg_makeup_tracking_fill_year
+  before insert on public.makeup_tracking
+  for each row execute function public.makeup_tracking_fill_academic_year();
+
 create index idx_students_tz on public.students (tz);
 create index idx_students_full_name on public.students (full_name_generated);
 create index idx_students_deleted on public.students (deleted_at) where deleted_at is null;
@@ -822,6 +846,7 @@ where not exists (
   select 1 from public.users where username = 'admin' and deleted_at is null
 );
 
+-- PATCH_SCHOOL_YEARS_ISOLATED: תצוגת קריאה (school_years = academic_years)
 create or replace view public.school_years as
   select
     id,
@@ -832,5 +857,5 @@ create or replace view public.school_years as
     created_at
   from public.academic_years;
 
--- סיום: סכמה מלאה מוכנה לאפליקציה (מעקב מבחנים, השלמות, שנים עצמאיות, משתמשים)
+-- סיום: סכמה מלאה — שנים עצמאיות, מעקב השלמות, משתמשים, מבחנים רב-שכבה
 notify pgrst, 'reload schema';
