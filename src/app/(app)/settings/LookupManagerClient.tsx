@@ -24,9 +24,8 @@ type Item = { id: string; name: string };
 
 export function LookupManagerClient({ entity }: { entity: LookupEntitySlug }) {
   const { viewingYear } = useAcademicYear();
-  const url = isYearScopedLookup(entity)
-    ? withYearQuery(`/api/lookups/${entity}`, viewingYear?.id)
-    : `/api/lookups/${entity}`;
+  const basePath = `/api/lookups/${entity}`;
+  const url = isYearScopedLookup(entity) ? withYearQuery(basePath, viewingYear?.id) : basePath;
   const { data, error, isLoading, mutate } = useSWR<{ items: Item[] }>(url, apiFetcher);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -61,7 +60,10 @@ export function LookupManagerClient({ entity }: { entity: LookupEntitySlug }) {
   async function saveEdit(id: string) {
     const n = editName.trim();
     if (!n) return;
-    const r = await fetch(`${url}/${id}`, {
+    const itemUrl = isYearScopedLookup(entity)
+      ? withYearQuery(`${basePath}/${id}`, viewingYear?.id)
+      : `${basePath}/${id}`;
+    const r = await fetch(itemUrl, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: n }),
@@ -77,7 +79,10 @@ export function LookupManagerClient({ entity }: { entity: LookupEntitySlug }) {
 
   async function removeItem(id: string) {
     if (!confirm("למחוק? לא ניתן אם קיימות הפניות מתלמידות או שיבוצים.")) return;
-    const r = await fetch(`${url}/${id}`, { method: "DELETE" });
+    const itemUrl = isYearScopedLookup(entity)
+      ? withYearQuery(`${basePath}/${id}`, viewingYear?.id)
+      : `${basePath}/${id}`;
+    const r = await fetch(itemUrl, { method: "DELETE" });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) {
       alert((j as { error?: string }).error ?? "מחיקה נכשלה");
