@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
 import { ListDataCard, ListTableToolbar } from "@/components/ui/ListPage";
@@ -42,8 +42,71 @@ function fmtDt(iso: string | null) {
   return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString("he-IL");
 }
 
+function GradeEditor({
+  row,
+  disabled,
+  busy,
+  onSaved,
+}: {
+  row: DetailItem;
+  disabled: boolean;
+  busy: boolean;
+  onSaved: () => Promise<void>;
+}) {
+  const [grade, setGrade] = useState(row.grade != null ? String(row.grade) : "");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setGrade(row.grade != null ? String(row.grade) : "");
+  }, [row.id, row.grade]);
+
+  async function save() {
+    if (disabled || busy || saving) return;
+    setSaving(true);
+    try {
+      const r = await fetch(`/api/makeup-tracking/${row.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ grade: grade.trim() ? Number(grade) : null }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error((j as { error?: string }).error ?? "שגיאה");
+      await onSaved();
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <input
+        type="number"
+        className="w-16 rounded border px-1 py-0.5"
+        value={grade}
+        onChange={(e) => setGrade(e.target.value)}
+        disabled={disabled || busy || saving}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") void save();
+        }}
+      />
+      {!disabled ? (
+        <button
+          type="button"
+          className="text-xs text-sky-800 underline disabled:opacity-50"
+          disabled={busy || saving}
+          onClick={() => void save()}
+        >
+          {saving ? "…" : "שמור"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export function MakeupTrackingTab() {
-  const { viewingYear } = useAcademicYear();
+  const { viewingYear, readOnly } = useAcademicYear();
   const [subjectFilter, setSubjectFilter] = useState("");
   const [completed, setCompleted] = useState<"" | "true" | "false">("false");
   const listUrl = useMemo(() => {
@@ -149,6 +212,9 @@ export function MakeupTrackingTab() {
                 סגור
               </button>
             </div>
+            {readOnly ? (
+              <p className="mb-2 text-sm text-amber-800">שנה בארכיון — צפייה בלבד</p>
+            ) : null}
             <Table className="text-xs">
               <TableHeader>
                 <TableRow>
@@ -169,7 +235,7 @@ export function MakeupTrackingTab() {
                       <TableCell>{name}</TableCell>
                       <TableCell>
                         {fmtDt(row.sent_to_teacher_at)}
-                        {!done && !row.sent_to_teacher_at ? (
+                        {!readOnly && !done && !row.sent_to_teacher_at ? (
                           <button
                             type="button"
                             className="mr-1 underline"
@@ -193,32 +259,15 @@ export function MakeupTrackingTab() {
                         ) : null}
                       </TableCell>
                       <TableCell>
-                        <input
-                          type="number"
-                          className="w-16 border px-1"
-                          defaultValue={row.grade ?? ""}
-                          disabled={done || busy}
-                          onBlur={async (e) => {
-                            const v = e.target.value;
-                            if (!v && row.grade == null) return;
-                            setBusy(true);
-                            try {
-                              await api(`/api/makeup-tracking/${row.id}`, {
-                                method: "PATCH",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ grade: v ? Number(v) : null }),
-                              });
-                              await refresh();
-                            } catch (err) {
-                              alert((err as Error).message);
-                            } finally {
-                              setBusy(false);
-                            }
-                          }}
+                        <GradeEditor
+                          row={row}
+                          disabled={readOnly || done}
+                          busy={busy}
+                          onSaved={refresh}
                         />
                       </TableCell>
                       <TableCell>
-                        {!done && row.grade != null ? (
+                        {!readOnly && !done && row.grade != null ? (
                           <button
                             type="button"
                             className="text-emerald-700 underline"

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpen, CheckCircle2, UserRound } from "lucide-react";
+import { BookOpen, CheckCircle2, Pencil, UserRound } from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
 import { CompleteMakeupDialog } from "@/components/makeup/CompleteMakeupDialog";
@@ -46,6 +46,9 @@ export function MakeupsClient() {
   const { data, error, isLoading, mutate } = useSWR<{ makeups: Row[] }>("/api/makeups", fetcher);
   const [completeId, setCompleteId] = useState<string | null>(null);
   const [completeBusy, setCompleteBusy] = useState(false);
+  const [editGradeId, setEditGradeId] = useState<string | null>(null);
+  const [editGradeValue, setEditGradeValue] = useState("");
+  const [editGradeBusy, setEditGradeBusy] = useState(false);
   const count = data?.makeups?.length ?? 0;
 
   async function completeSave(payload: { completed_at: string; notes: string }) {
@@ -104,6 +107,7 @@ export function MakeupsClient() {
               <TableHead>תאריך מבחן</TableHead>
               <TableHead>מורה</TableHead>
               <TableHead>סטטוס</TableHead>
+              <TableHead>ציון</TableHead>
               <TableHead>תאריך השלמה</TableHead>
               <TableHead className="w-[1%] whitespace-nowrap" />
             </TableRow>
@@ -121,6 +125,7 @@ export function MakeupsClient() {
                   <TableCell>
                     <MakeupStatusBadge status={m.status as "open" | "completed"} />
                   </TableCell>
+                  <TableCell className="tabular-nums">{m.grade ?? "—"}</TableCell>
                   <TableCell className="whitespace-nowrap tabular-nums">
                     {formatCompleted(m.completed_at)}
                   </TableCell>
@@ -134,6 +139,17 @@ export function MakeupsClient() {
                         <BookOpen className="size-3.5 shrink-0 opacity-80" strokeWidth={2} />
                         למבחן
                       </Link>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium"
+                        onClick={() => {
+                          setEditGradeId(m.id);
+                          setEditGradeValue(m.grade != null ? String(m.grade) : "");
+                        }}
+                      >
+                        <Pencil className="size-3.5 shrink-0" strokeWidth={2} />
+                        ציון
+                      </button>
                       {m.status === "open" ? (
                         <button
                           type="button"
@@ -150,7 +166,7 @@ export function MakeupsClient() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={7} className="py-14 text-center text-zinc-500">
+                <TableCell colSpan={8} className="py-14 text-center text-zinc-500">
                   {isLoading ? "טוען…" : "אין השלמות פתוחות"}
                 </TableCell>
               </TableRow>
@@ -171,6 +187,64 @@ export function MakeupsClient() {
         busy={completeBusy}
         onSave={completeSave}
       />
+
+      {editGradeId ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" role="presentation">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/45"
+            aria-label="סגירה"
+            onClick={() => !editGradeBusy && setEditGradeId(null)}
+          />
+          <div className="relative z-[101] w-full max-w-xs rounded-xl border bg-white p-4 shadow-lg">
+            <h3 className="font-semibold">עריכת ציון</h3>
+            <input
+              type="number"
+              className="mt-3 w-full rounded-lg border px-3 py-2 text-sm"
+              value={editGradeValue}
+              onChange={(e) => setEditGradeValue(e.target.value)}
+              disabled={editGradeBusy}
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                className="rounded-lg border px-3 py-1.5 text-sm"
+                disabled={editGradeBusy}
+                onClick={() => setEditGradeId(null)}
+              >
+                ביטול
+              </button>
+              <button
+                type="button"
+                className="rounded-lg bg-zinc-900 px-3 py-1.5 text-sm text-white disabled:opacity-50"
+                disabled={editGradeBusy}
+                onClick={async () => {
+                  setEditGradeBusy(true);
+                  try {
+                    const r = await fetch(`/api/makeups/${editGradeId}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        grade: editGradeValue.trim() ? Number(editGradeValue) : null,
+                      }),
+                    });
+                    const j = await r.json().catch(() => ({}));
+                    if (!r.ok) throw new Error((j as { error?: string }).error ?? "שגיאה");
+                    setEditGradeId(null);
+                    await mutate();
+                  } catch (e) {
+                    alert((e as Error).message);
+                  } finally {
+                    setEditGradeBusy(false);
+                  }
+                }}
+              >
+                {editGradeBusy ? "שומר…" : "שמירה"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
