@@ -1,5 +1,25 @@
 const DAY_LETTERS = ["", "א", "ב", "ג", "ד", "ה", "ו", "ז", "ח", "ט", "י", "י״א", "י״ב", "י״ג", "י״ד", "ט״ו", "ט״ז", "י״ז", "י״ח", "י״ט", "כ", "כ״א", "כ״ב", "כ״ג", "כ״ד", "כ״ה", "כ״ו", "כ״ז", "כ״ח", "כ״ט", "ל"];
 
+export const HEBREW_DAY_OPTIONS = Array.from({ length: 30 }, (_, i) => {
+  const value = i + 1;
+  return { value, label: DAY_LETTERS[value] ?? String(value) };
+});
+
+export function formatHebrewYearLetters(year: number): string {
+  return hebrewYearLetters(year);
+}
+
+/** אפשרויות שנה עברית (אותיות) סביב שנה נוכחית */
+export function hebrewYearOptions(aroundYear?: number): { value: number; label: string }[] {
+  const center = aroundYear ?? readHebrewParts(new Date())?.year ?? 5786;
+  const out: { value: number; label: string }[] = [];
+  for (let y = center - 6; y <= center + 6; y++) {
+    if (y < 5770 || y > 5800) continue;
+    out.push({ value: y, label: hebrewYearLetters(y) });
+  }
+  return out;
+}
+
 export const HEBREW_MONTH_OPTIONS = [
   { value: 1, label: "ניסן" },
   { value: 2, label: "אייר" },

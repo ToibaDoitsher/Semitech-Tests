@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import {
   formatHebrewDateTraditional,
   gregorianYmdToHebrewParts,
+  HEBREW_DAY_OPTIONS,
   HEBREW_MONTH_OPTIONS,
   hebrewPartsToGregorianYmd,
+  hebrewYearOptions,
   todayHebrewParts,
   type HebrewDateParts,
 } from "@/lib/hebrewDate";
@@ -37,6 +39,8 @@ export function HebrewDatePicker({
   const [month, setMonth] = useState(initial.month);
   const [year, setYear] = useState(initial.year);
 
+  const yearOptions = useMemo(() => hebrewYearOptions(year), [year]);
+
   useEffect(() => {
     if (!value) return;
     const parsed = gregorianYmdToHebrewParts(value);
@@ -51,7 +55,7 @@ export function HebrewDatePicker({
     const ymd = hebrewPartsToGregorianYmd({ day, month, year });
     if (!ymd) return null;
     const d = new Date(`${ymd}T12:00:00`);
-    return { ymd, label: formatHebrewDateTraditional(d) };
+    return formatHebrewDateTraditional(d);
   }, [day, month, year]);
 
   function emit(parts: HebrewDateParts) {
@@ -78,9 +82,9 @@ export function HebrewDatePicker({
             }}
             required={required}
           >
-            {Array.from({ length: 30 }, (_, i) => i + 1).map((n) => (
-              <option key={n} value={n}>
-                {n}
+            {HEBREW_DAY_OPTIONS.map((d) => (
+              <option key={d.value} value={d.value}>
+                {d.label}
               </option>
             ))}
           </select>
@@ -106,28 +110,26 @@ export function HebrewDatePicker({
         </label>
         <label className="block text-xs text-zinc-600">
           שנה
-          <input
-            type="number"
-            min={5780}
-            max={5800}
+          <select
             className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-2 py-2 text-sm"
             value={year}
             onChange={(e) => {
               const next = Number(e.target.value);
-              if (!Number.isFinite(next)) return;
               setYear(next);
               emit({ day, month, year: next });
             }}
             required={required}
-          />
+          >
+            {yearOptions.map((y) => (
+              <option key={y.value} value={y.value}>
+                {y.label}
+              </option>
+            ))}
+          </select>
         </label>
       </div>
       {preview ? (
-        <p className="mt-2 text-xs text-zinc-600">
-          {preview.label}
-          <span className="mx-1 text-zinc-400">·</span>
-          <span className="tabular-nums text-zinc-500">({preview.ymd} לועזי)</span>
-        </p>
+        <p className="mt-2 text-sm text-zinc-700">{preview}</p>
       ) : (
         <p className="mt-2 text-xs text-amber-800">תאריך עברי לא תקין</p>
       )}
