@@ -10,7 +10,9 @@ import {
   type AssignmentTargetFormValue,
 } from "@/components/assignments/AssignmentTargetForm";
 import { HebrewDatePicker } from "@/components/ui/HebrewDatePicker";
+import { InlineNotice } from "@/components/ui/InlineNotice";
 import { Spinner } from "@/components/ui/Spinner";
+import { clampHebrewParts, hebrewPartsToGregorianYmd, todayHebrewParts } from "@/lib/hebrewDate";
 import { TeacherSearchCombobox } from "@/components/teachers/TeacherSearchCombobox";
 import { TEACHING_TRACK_NAME } from "@/lib/students/fields";
 import { teachingModeLabel } from "@/lib/teachers/display";
@@ -77,7 +79,10 @@ export function NewExamClient() {
   const allAssignments = aData?.assignments ?? [];
 
   const [assignmentId, setAssignmentId] = useState("");
-  const [examDate, setExamDate] = useState("");
+  const [examDate, setExamDate] = useState(() => {
+    const ymd = hebrewPartsToGregorianYmd(clampHebrewParts(todayHebrewParts()));
+    return ymd ?? "";
+  });
   const [teachingTrackType, setTeachingTrackType] = useState<TeachingTrackType | "">("");
 
   const [newSubject, setNewSubject] = useState("");
@@ -122,15 +127,22 @@ export function NewExamClient() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (readOnly) return alert("שנה בארכיון — צפייה בלבד");
-    if (!teacherId || !examDate) {
-      alert("מלאי מורה ותאריך");
+    if (readOnly) {
+      alert("שנה בארכיון — צפייה בלבד. עברי לשנה הפעילה.");
+      return;
+    }
+    if (!teacherId) {
+      alert("בחרי מורה מהרשימה (לא רק הקלדה — לחצי על השם ברשימה)");
+      return;
+    }
+    if (!examDate) {
+      alert("בחרי תאריך מבחן");
       return;
     }
 
     if (assignmentMode === "existing") {
       if (!selected) {
-        alert("בחרי שיבוץ קיים");
+        alert("בחרי שיבוץ מהרשימה (שדה «שיבוץ»)");
         return;
       }
       if (isTeachingTarget && !teachingTrackType) {
@@ -243,12 +255,21 @@ export function NewExamClient() {
         </Link>
       </div>
 
-      <form onSubmit={submit} className="grid max-w-xl gap-4 rounded-xl border border-zinc-200 bg-white p-6">
+      <form
+        noValidate
+        onSubmit={submit}
+        className="grid max-w-xl gap-4 rounded-xl border border-zinc-200 bg-white p-6"
+      >
+        {readOnly ? (
+          <InlineNotice tone="error">
+            צפייה בשנה בארכיון — לא ניתן ליצור מבחן. עברי לשנה הפעילה מהתפריט למעלה.
+          </InlineNotice>
+        ) : null}
+
         <TeacherSearchCombobox
           value={teacherId}
-          onChange={setTeacherId}
+          onChange={(id) => setTeacherId(id)}
           disabled={readOnly}
-          required
           label="מורה"
         />
 
@@ -291,7 +312,6 @@ export function NewExamClient() {
                 setAssignmentId(e.target.value);
                 setTeachingTrackType("");
               }}
-              required
               disabled={!teacherId || readOnly}
             >
               <option value="">— בחרי —</option>
@@ -365,7 +385,6 @@ export function NewExamClient() {
               className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm"
               value={teachingTrackType}
               onChange={(e) => setTeachingTrackType(e.target.value as TeachingTrackType | "")}
-              required
             >
               <option value="">— בחרי —</option>
               <option value="full">מלא</option>
@@ -378,7 +397,6 @@ export function NewExamClient() {
           label="תאריך מבחן (עברי)"
           value={examDate}
           onChange={setExamDate}
-          required
           disabled={readOnly}
         />
 
@@ -386,7 +404,7 @@ export function NewExamClient() {
           <button
             type="submit"
             disabled={saving || readOnly}
-            className="rounded-lg border border-zinc-900 bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+            className="rounded-lg border border-zinc-900 bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving
               ? "יוצר…"

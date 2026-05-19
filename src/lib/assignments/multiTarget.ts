@@ -22,6 +22,7 @@ export type AssignmentMultiTargetRow = AssignmentMultiTarget & {
 
 export type MultiTargetInput = {
   grade_levels?: string[] | null;
+  grade_level?: string | null;
   class_ids?: string[] | null;
   track_ids?: string[] | null;
   specialization_ids?: string[] | null;
@@ -63,7 +64,10 @@ export function normalizeMultiTargetInput(raw: MultiTargetInput): AssignmentMult
   ]);
 
   return {
-    grade_levels: filterGradeLevels(raw.grade_levels ?? undefined),
+    grade_levels: filterGradeLevels([
+      ...(raw.grade_levels ?? []),
+      ...(raw.grade_level?.trim() ? [raw.grade_level.trim()] : []),
+    ]),
     class_ids,
     track_ids,
     specialization_ids,
@@ -302,20 +306,41 @@ export type AssignmentMultiSpec = {
 
 export function rowToMultiTarget(row: {
   grade_levels?: string[] | null;
+  grade_level?: string | null;
   class_ids?: string[] | null;
+  class_id?: string | null;
   track_ids?: string[] | null;
+  track_id?: string | null;
   specialization_ids?: string[] | null;
+  specialization_id?: string | null;
   psychology_enabled?: boolean;
   applies_to_all_in_grade?: boolean;
 }): AssignmentMultiTarget {
   return normalizeMultiTargetInput({
     grade_levels: row.grade_levels ?? [],
+    grade_level: row.grade_level,
     class_ids: row.class_ids ?? [],
+    class_id: row.class_id,
     track_ids: row.track_ids ?? [],
+    track_id: row.track_id,
     specialization_ids: row.specialization_ids ?? [],
+    specialization_id: row.specialization_id,
     psychology_enabled: row.psychology_enabled,
     applies_to_all_in_grade: row.applies_to_all_in_grade,
   });
+}
+
+/** תווית שכבות ממבחן/שיבוץ — תומך גם בעמודה ישנה grade_level. */
+export function examGradeLevelsLabel(row: {
+  grade_levels?: string[] | null;
+  grade_level?: string | null;
+}): string {
+  return formatGradeLevelsLabel(
+    normalizeMultiTargetInput({
+      grade_levels: row.grade_levels ?? [],
+      grade_level: row.grade_level,
+    }).grade_levels,
+  );
 }
 
 /** מפתח ייחודיות לייבוא — לפי טביעת אצבע יעדים (לא שורה לכל שכבה). */

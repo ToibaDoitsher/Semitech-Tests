@@ -4,6 +4,9 @@ export function makeupTrackingTableHint(message: string): string {
   if (/makeup_tracking|schema cache/i.test(message)) {
     return "טבלת מעקב השלמות חסרה — הריצי supabase/PATCH_MAKEUP_TRACKING.sql ב-Supabase SQL Editor";
   }
+  if (/grade_levels|column.*exams/i.test(message)) {
+    return "סכמת מבחנים לא מעודכנת — הריצי supabase/PATCH_ASSIGNMENT_MULTI_TARGET.sql ב-Supabase SQL Editor";
+  }
   return message;
 }
 
@@ -66,8 +69,7 @@ export async function backfillMakeupTrackingFromMakeups(
 ): Promise<{ error: string | null; synced: number }> {
   let q = supabase
     .from("makeup_exams")
-    .select("id, academic_year_id, exam_id, student_id, grade, notes")
-    .is("deleted_at", null);
+    .select("id, academic_year_id, exam_id, student_id, grade, notes");
   if (academicYearId) q = q.eq("academic_year_id", academicYearId);
 
   const { data: makeups, error: loadErr } = await q;

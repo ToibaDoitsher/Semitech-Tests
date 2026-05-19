@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { formatGradeLevelsLabel, rowToMultiTarget } from "@/lib/assignments/multiTarget";
+import { examGradeLevelsLabel } from "@/lib/assignments/multiTarget";
 import { resolveAcademicYearScope, scopeFromSearchParams } from "@/lib/academicYears/scope";
 import {
   backfillMakeupTrackingFromMakeups,
@@ -8,8 +8,77 @@ import {
 import { TEACHER_EMBED_IN_EXAM } from "@/lib/teachers/db";
 import { teacherEmbedDisplayName } from "@/lib/teachers/display";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
+
+type ExamSummary = {
+  subject: string;
+  exam_date: string;
+  teacher_id: string;
+  grade_level: string;
+  teacher_name: string | null;
+};
+
+type TrackingRow = {
+  exam_id: string;
+  teacher_id: string;
+  makeup_exam_id: string | null;
+  grade: number | null;
+  sent_to_teacher_at: string | null;
+};
+
+async function loadExamsById(
+  supabase: SupabaseClient,
+  examIds: string[],
+  academicYearId: string,
+): Promise<{ examsBy: Map<string, ExamSummary> } | { error: string }> {
+  const withNew = await supabase
+    .from("exams")
+    .select(
+      `id, subject, exam_date, teacher_id, grade_level, grade_levels, ${TEACHER_EMBED_IN_EXAM}`,
+    )
+    .in("id", examIds)
+    .eq("academic_year_id", academicYearId);
+
+  let exams: Record<string, unknown>[] | null = withNew.data;
+  if (withNew.error) {
+    const withOld = await supabase
+      .from("exams")
+      .select(`id, subject, exam_date, teacher_id, grade_level, ${TEACHER_EMBED_IN_EXAM}`)
+      .in("id", examIds)
+      .eq("academic_year_id", academicYearId);
+    if (withOld.error) {
+      return { error: makeupTrackingTableHint(withOld.error.message) };
+    }
+    exams = (withOld.data ?? []) as Record<string, unknown>[];
+  }
+
+  const examsBy = new Map<string, ExamSummary>();
+  for (const e of exams ?? []) {
+    const raw = e as {
+      id: string;
+      subject: string;
+      exam_date: string;
+      teacher_id: string;
+      grade_level?: string | null;
+      grade_levels?: string[] | null;
+      teachers: unknown;
+    };
+    examsBy.set(raw.id, {
+      subject: raw.subject,
+      exam_date: raw.exam_date,
+      teacher_id: raw.teacher_id,
+      grade_level: examGradeLevelsLabel(raw),
+      teacher_name:
+        teacherEmbedDisplayName(
+          raw.teachers as Parameters<typeof teacherEmbedDisplayName>[0],
+        ) || null,
+    });
+  }
+
+  return { examsBy };
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -45,48 +114,17 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: makeupTrackingTableHint(error.message) }, { status: 500 });
   }
 
-  const examIds = [...new Set((rows ?? []).map((r) => r.exam_id as string))];
+  const trackingRows = (rows ?? []) as TrackingRow[];
+  const examIds = [...new Set(trackingRows.map((r) => r.exam_id))];
   if (!examIds.length) return NextResponse.json({ groups: [] });
 
-  const { data: exams, error: examsErr } = await supabase
-    .from("exams")
-    .select(`id, subject, exam_date, teacher_id, grade_levels, ${TEACHER_EMBED_IN_EXAM}`)
-    .in("id", examIds)
-    .eq("academic_year_id", scope.year.id);
-
-  if (examsErr) {
-    return NextResponse.json({ error: makeupTrackingTableHint(examsErr.message) }, { status: 500 });
+  const loaded = await loadExamsById(supabase, examIds, scope.year.id);
+  if ("error" in loaded) {
+    return NextResponse.json({ error: loaded.error }, { status: 500 });
   }
 
-  const examsBy = new Map(
-    (exams ?? []).map((e) => {
-      const raw = e as {
-        id: string;
-        subject: string;
-        exam_date: string;
-        teacher_id: string;
-        grade_levels: string[];
-        teachers: unknown;
-      };
-      const mt = rowToMultiTarget(raw);
-      return [
-        raw.id,
-        {
-          subject: raw.subject,
-          exam_date: raw.exam_date,
-          teacher_id: raw.teacher_id,
-          grade_level: formatGradeLevelsLabel(mt.grade_levels),
-          teacher_name:
-            teacherEmbedDisplayName(
-              raw.teachers as Parameters<typeof teacherEmbedDisplayName>[0],
-            ) || null,
-        },
-      ] as const;
-    }),
-  );
-
-  const makeupIds = (rows ?? [])
-    .map((r) => r.makeup_exam_id as string | null)
+  const makeupIds = trackingRows
+    .map((r) => r.makeup_exam_id)
     .filter((id): id is string => Boolean(id));
   const makeupStatusBy = new Map<string, string>();
   if (makeupIds.length) {
@@ -114,15 +152,15 @@ export async function GET(request: Request) {
 
   const groups = new Map<string, GroupAcc>();
 
-  for (const r of rows ?? []) {
-    const exam = examsBy.get(r.exam_id as string);
+  for (const r of trackingRows) {
+    const exam = loaded.examsBy.get(r.exam_id);
     if (!exam) continue;
     if (subject && !exam.subject.includes(subject)) continue;
     if (examDateFrom && exam.exam_date < examDateFrom) continue;
     if (examDateTo && exam.exam_date > examDateTo) continue;
 
     const makeupStatus = r.makeup_exam_id
-      ? makeupStatusBy.get(r.makeup_exam_id as string) ?? "open"
+      ? makeupStatusBy.get(r.makeup_exam_id) ?? "open"
       : "open";
     const isCompleted = makeupStatus === "completed";
     if (completed === "true" && !isCompleted) continue;
@@ -136,8 +174,8 @@ export async function GET(request: Request) {
     let g = groups.get(key);
     if (!g) {
       g = {
-        exam_id: r.exam_id as string,
-        teacher_id: r.teacher_id as string,
+        exam_id: r.exam_id,
+        teacher_id: r.teacher_id,
         teacher_name: exam.teacher_name,
         subject: exam.subject,
         exam_date: exam.exam_date,
