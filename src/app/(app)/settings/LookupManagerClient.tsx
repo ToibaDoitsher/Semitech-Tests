@@ -1,6 +1,7 @@
 "use client";
 
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { FileUp, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
 import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
@@ -13,6 +14,7 @@ import {
   ListTableToolbar,
   LIST_ROW_DELETE_CLASS,
   LIST_ROW_LINK_CLASS,
+  LIST_SECONDARY_LINK_CLASS,
 } from "@/components/ui/ListPage";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
@@ -97,12 +99,18 @@ export function LookupManagerClient({ entity }: { entity: LookupEntitySlug }) {
         title={title}
         subtitle="ערכים קבועים בלבד — ללא הקלדה חופשית במסכים אחרים"
         actions={
-          <ExportExcelButton
-            label="ייצוא לאקסל"
-            filename={`לוקאפ-${entity}`}
-            sheetName={title}
-            exportUrl={`/api/export/lookups?entity=${encodeURIComponent(entity)}`}
-          />
+          <>
+            <Link href={`/settings/${entity}/import`} className={LIST_SECONDARY_LINK_CLASS}>
+              <FileUp className="size-4 shrink-0" strokeWidth={2} />
+              ייבוא מאקסל
+            </Link>
+            <ExportExcelButton
+              label="ייצוא לאקסל"
+              filename={`לוקאפ-${entity}`}
+              sheetName={title}
+              exportUrl={`/api/export/lookups?entity=${encodeURIComponent(entity)}`}
+            />
+          </>
         }
       />
 
