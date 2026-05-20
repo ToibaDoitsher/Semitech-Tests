@@ -67,7 +67,7 @@ export function NewExamClient() {
     fetcher,
   );
 
-  const needLookups = Boolean(teacherId && assignmentMode === "new");
+  const needLookups = assignmentMode === "new";
   const { data: clData } = useSWR<{ items: LookupItem[] }>(
     needLookups ? withYearQuery("/api/lookups/classes", viewingYear?.id) : null,
     fetcher,

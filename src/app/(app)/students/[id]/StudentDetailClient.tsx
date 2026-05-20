@@ -33,6 +33,22 @@ type MakeupRow = {
   exam: { subject: string; exam_date: string } | null;
 };
 
+type AuditRow = {
+  id: string;
+  action_type: string;
+  entity_name_snapshot: string | null;
+  created_at: string;
+  users: { full_name: string; username: string } | null;
+};
+
+const AUDIT_ACTION_LABEL: Record<string, string> = {
+  create: "יצירה",
+  update: "עדכון",
+  delete: "מחיקה",
+  restore: "שחזור",
+  status_change: "שינוי סטטוס",
+};
+
 export function StudentDetailClient({ id }: { id: string }) {
   const router = useRouter();
   const { data, error, isLoading } = useSWR<{
@@ -41,7 +57,7 @@ export function StudentDetailClient({ id }: { id: string }) {
     makeups: MakeupRow[];
   }>(`/api/students/${id}`, fetcher);
 
-  const { data: historyData } = useSWR<{ history: unknown[]; audit: unknown[] }>(
+  const { data: historyData } = useSWR<{ history: unknown[]; audit: AuditRow[] }>(
     `/api/students/${id}/history`,
     fetcher,
   );
@@ -169,10 +185,33 @@ export function StudentDetailClient({ id }: { id: string }) {
 
       {(historyData?.history?.length ?? 0) > 0 || (historyData?.audit?.length ?? 0) > 0 ? (
         <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm print:hidden">
-          <h2 className="text-lg font-semibold">היסטוריה</h2>
-          <p className="mt-2 text-sm text-zinc-600">
-            {historyData?.history?.length ?? 0} שינויי כיתה/מסלול · {historyData?.audit?.length ?? 0} רשומות ביקורת
-          </p>
+          <h2 className="text-lg font-semibold">היסטוריה וביקורת</h2>
+          {(historyData?.audit?.length ?? 0) > 0 ? (
+            <div className="mt-4">
+              <h3 className="text-sm font-medium text-zinc-800">מי ביצע שינויים</h3>
+              <ul className="mt-2 space-y-2 text-sm text-zinc-700">
+                {historyData!.audit.map((row) => (
+                  <li key={row.id} className="rounded-lg border border-zinc-100 bg-zinc-50 px-3 py-2">
+                    <span className="font-medium">
+                      {row.users?.full_name || row.users?.username || "משתמש לא ידוע"}
+                    </span>
+                    {" · "}
+                    {AUDIT_ACTION_LABEL[row.action_type] ?? row.action_type}
+                    {row.entity_name_snapshot ? ` · ${row.entity_name_snapshot}` : ""}
+                    {" · "}
+                    {new Date(row.created_at).toLocaleString("he-IL")}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-zinc-600">אין רשומות ביקורת לתלמידה זו.</p>
+          )}
+          {(historyData?.history?.length ?? 0) > 0 ? (
+            <p className="mt-3 text-xs text-zinc-500">
+              {historyData?.history?.length ?? 0} שינויי כיתה/מסלול נשמרו בהיסטוריה
+            </p>
+          ) : null}
         </section>
       ) : null}
     </div>

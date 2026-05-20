@@ -54,6 +54,9 @@ function hebrewYearLetters(y: number): string {
   const oIdx = h % 10;
   const core = `${hundreds[hIdx] ?? ""}${tens[tIdx] ?? ""}${ones[oIdx] ?? ""}`;
   const prefix = thousands > 5 ? "ה" : "";
+  if (core.length > 1) {
+    return `${prefix}${core.slice(0, -1)}״${core.slice(-1)}`;
+  }
   return `${prefix}${core}`;
 }
 
@@ -62,15 +65,69 @@ export type HebrewDateParts = { day: number; month: number; year: number };
 const hebrewToGregorianCache = new Map<string, string | null>();
 const maxDayInMonthCache = new Map<string, number>();
 
+const HEBREW_MONTH_BY_NAME: Record<string, number> = {
+  Nisan: 1,
+  Nissan: 1,
+  Iyar: 2,
+  Iyyar: 2,
+  Sivan: 3,
+  Tamuz: 4,
+  Tammuz: 4,
+  Av: 5,
+  Elul: 6,
+  Tishrei: 7,
+  Tishri: 7,
+  Cheshvan: 8,
+  Heshvan: 8,
+  Marcheshvan: 8,
+  Kislev: 9,
+  Tevet: 10,
+  Teves: 10,
+  Shevat: 11,
+  Shvat: 11,
+  Adar: 12,
+  "Adar I": 12,
+  "Adar II": 13,
+  "Adar Ii": 13,
+  ניסן: 1,
+  אייר: 2,
+  סיוון: 3,
+  תמוז: 4,
+  אב: 5,
+  אלול: 6,
+  תשרי: 7,
+  חשוון: 8,
+  כסלו: 9,
+  טבת: 10,
+  שבט: 11,
+  אדר: 12,
+  "אדר א": 12,
+  "אדר ב": 13,
+  "אדר ב׳": 13,
+};
+
+function parseHebrewMonth(raw: string): number {
+  const key = raw.trim();
+  if (!key) return 0;
+  const direct = HEBREW_MONTH_BY_NAME[key];
+  if (direct) return direct;
+  const lower = key.toLowerCase();
+  for (const [name, num] of Object.entries(HEBREW_MONTH_BY_NAME)) {
+    if (name.toLowerCase() === lower) return num;
+  }
+  const numeric = Number(key);
+  return numeric >= 1 && numeric <= 13 ? numeric : 0;
+}
+
 function readHebrewParts(d: Date): HebrewDateParts | null {
   try {
     const parts = new Intl.DateTimeFormat("en-u-ca-hebrew", {
       day: "numeric",
-      month: "numeric",
+      month: "long",
       year: "numeric",
     }).formatToParts(d);
     const day = Number(parts.find((p) => p.type === "day")?.value ?? 0);
-    const month = Number(parts.find((p) => p.type === "month")?.value ?? 0);
+    const month = parseHebrewMonth(parts.find((p) => p.type === "month")?.value ?? "");
     const year = Number(parts.find((p) => p.type === "year")?.value ?? 0);
     if (!day || !month || !year) return null;
     return { day, month, year };
@@ -79,15 +136,28 @@ function readHebrewParts(d: Date): HebrewDateParts | null {
   }
 }
 
-/** תאריך עברי בפורמט מסורתי: ג׳ בשבט תשפ״ו */
+/** תאריך עברי בפורמט מסורתי: ג סיוון, כ״ח תשרי */
 export function formatHebrewDateTraditional(d: Date): string {
   try {
     const hp = readHebrewParts(d);
     if (!hp) return "";
     const dayStr = DAY_LETTERS[hp.day] ?? String(hp.day);
     const monthStr = MONTH_NAMES[hp.month] ?? "";
+    return `${dayStr} ${monthStr}`.trim();
+  } catch {
+    return "";
+  }
+}
+
+/** תאריך עברי מלא כולל שנה: ג סיוון תשפ״ו */
+export function formatHebrewDateWithYear(d: Date): string {
+  try {
+    const hp = readHebrewParts(d);
+    if (!hp) return "";
+    const dayStr = DAY_LETTERS[hp.day] ?? String(hp.day);
+    const monthStr = MONTH_NAMES[hp.month] ?? "";
     const yearStr = hebrewYearLetters(hp.year);
-    return `${dayStr} ב${monthStr} ${yearStr}`.trim();
+    return `${dayStr} ${monthStr} ${yearStr}`.trim();
   } catch {
     return "";
   }
@@ -111,8 +181,9 @@ export function hebrewPartsToGregorianYmd(parts: HebrewDateParts): string | null
   }
 
   const approxGreg = year - 3760;
-  const start = new Date(approxGreg - 1, 0, 1, 12, 0, 0, 0);
-  const end = new Date(approxGreg + 1, 11, 31, 12, 0, 0, 0);
+  // Hebrew year ~Tishrei (Sep) of approxGreg-1 through ~Elul (Aug) of approxGreg
+  const start = new Date(approxGreg - 1, 8, 1, 12, 0, 0, 0);
+  const end = new Date(approxGreg, 10, 28, 12, 0, 0, 0);
   for (let t = start.getTime(); t <= end.getTime(); t += 86_400_000) {
     const d = new Date(t);
     d.setHours(12, 0, 0, 0);
@@ -135,11 +206,10 @@ export function maxHebrewDayInMonth(month: number, year: number): number {
     return maxDayInMonthCache.get(cacheKey)!;
   }
   let maxDay = 0;
-  for (let d = 30; d >= 1; d--) {
-    if (hebrewPartsToGregorianYmd({ day: d, month, year })) {
-      maxDay = d;
-      break;
-    }
+  if (hebrewPartsToGregorianYmd({ day: 30, month, year })) {
+    maxDay = 30;
+  } else if (hebrewPartsToGregorianYmd({ day: 29, month, year })) {
+    maxDay = 29;
   }
   maxDayInMonthCache.set(cacheKey, maxDay);
   return maxDay;
@@ -174,4 +244,25 @@ export function formatHebrewDateFromYmd(ymd: string): string {
 
 export function todayHebrewParts(): HebrewDateParts {
   return readHebrewParts(new Date()) ?? { day: 1, month: 7, year: 5786 };
+}
+
+if (typeof window !== "undefined") {
+  queueMicrotask(() => {
+    const today = todayHebrewParts();
+    clampHebrewParts(today);
+    hebrewPartsToGregorianYmd(today);
+    hebrewMonthsForYear(today.year);
+  });
+}
+
+const hebrewDisplayCache = new Map<number, string>();
+
+/** תאריך עברי מ־Date — עם cache ליומן / תצוגות חוזרות */
+export function formatHebrewDateFromDate(d: Date): string {
+  const key = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+  const cached = hebrewDisplayCache.get(key);
+  if (cached !== undefined) return cached;
+  const s = formatHebrewDateTraditional(d);
+  hebrewDisplayCache.set(key, s);
+  return s;
 }

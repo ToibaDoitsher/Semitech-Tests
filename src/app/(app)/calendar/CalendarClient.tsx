@@ -17,7 +17,7 @@ import { PrintButton } from "@/components/PrintButton";
 import { useAcademicYear } from "@/components/academicYears/AcademicYearProvider";
 import type { CalendarExamProps } from "@/lib/calendar/types";
 import { formatGregorianDateLong } from "@/lib/calendar/schedulePrint";
-import { formatHebrewDateTraditional } from "@/lib/hebrewDate";
+import { formatHebrewDateFromDate, formatHebrewDateFromYmd } from "@/lib/hebrewDate";
 
 function fmtLocalDate(d: Date): string {
   const y = d.getFullYear();
@@ -27,7 +27,7 @@ function fmtLocalDate(d: Date): string {
 }
 
 function formatHebrewCalendar(d: Date): string {
-  return formatHebrewDateTraditional(d);
+  return formatHebrewDateFromDate(d);
 }
 
 function parseLocalYmd(ymd: string): Date | null {
@@ -92,6 +92,7 @@ export function CalendarClient() {
 
   useEffect(() => {
     const id = window.setInterval(() => {
+      if (document.hidden) return;
       const g = rangeRef.current;
       if (!g) return;
       void (async () => {
@@ -105,7 +106,7 @@ export function CalendarClient() {
           setDayExamCount((j as { dayExamCount?: Record<string, number> }).dayExamCount ?? {});
         }
       })();
-    }, 30000);
+    }, 60_000);
     return () => window.clearInterval(id);
   }, []);
 
@@ -188,7 +189,7 @@ export function CalendarClient() {
       <div className="calendar-screen-only space-y-8">
       <ListPageHeader
         title="יומן מבחנים"
-        subtitle="חודש / שבוע / יום · תאריך עברי בכל יום · צבעים לפי סטטוס · ריענון כל 30 שניות. מוצגים רק מבחנים עם תאריך מבחן — שיבוץ מורה לכיתה/מסלול בלי יצירת מבחן לא מופיע כאן."
+        subtitle="חודש / שבוע / יום · תאריך עברי בכל יום · צבעים לפי סטטוס · ריענון כל דקה. מוצגים רק מבחנים עם תאריך מבחן — שיבוץ מורה לכיתה/מסלול בלי יצירת מבחן לא מופיע כאן."
         actions={
           <>
             <button
@@ -211,7 +212,7 @@ export function CalendarClient() {
                   const hd = parseLocalYmd(ymd);
                   return {
                     תאריך: ymd,
-                    תאריך_עברי: hd ? formatHebrewCalendar(hd) : "",
+                    תאריך_עברי: hd ? formatHebrewDateFromYmd(ymd) : "",
                     מקצוע: xp?.subject ?? "",
                     מורה: xp?.teacherName ?? "",
                     סוג_יעד: xp?.targetTypeLabel ?? xp?.targetType ?? "",
@@ -308,7 +309,6 @@ export function CalendarClient() {
 
       <div className="calendar-shell rounded-xl border border-zinc-200 bg-white p-2">
         <FullCalendar
-          key={`${fTeacher}-${fSubject}-${fGrade}-${fClass}-${fSpec}-${fTrack}-${fTone}-${visibleEvents.length}`}
           plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
           initialView="dayGridMonth"
           locale={heLocale}

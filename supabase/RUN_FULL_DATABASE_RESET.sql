@@ -12,10 +12,14 @@
 --   PATCH_GRADE_LEVEL_OPTIONS   — אפשרויות שכבה למבחנים (א, ב, ג, א+ב)
 --   PATCH_STUDENT_EXTENSIONS    — התמחות שנייה, פסיכולוגיה, סוג הוראה
 --   PATCH_REMAINING_FEATURES    — makeup_locked, snapshots, התראות, audit, pg_trgm
+--   PATCH_ASSIGNMENT_MULTI_TARGET — שיבוצים/מבחנים רב-יעד (grade_levels[], class_ids[], …)
 --   PATCH_MAKEUP_TRACKING       — makeup_tracking, grade ב-makeup_exams, מילוי שנה
 --
--- מודל: כל שנת לימודים עצמאית (academic_year_id). אין מחזורים / קידום / העתקה.
--- grade_level: א / ב / ג בלבד.
+-- טבלאות פעילות (17): academic_years, classes, specializations, tracks,
+--   grade_level_options, users, teachers, students, teacher_assignments, exams,
+--   exam_students, makeup_exams, makeup_tracking, exam_tracking, student_history,
+--   audit_logs, notifications
+-- טבלאות ישנות שנמחקות: cohorts, year_cohorts, year_layers, grade_levels (ישנה)
 --
 -- אחרי ההרצה: רענון קשיח בדפדפן + npm run dev
 -- התחברות ראשונה: admin / admin (או יצירת משתמש בהגדרות)
@@ -667,14 +671,16 @@ create or replace function public.assignments_validate_teaching_mode()
 returns trigger language plpgsql as $$
 declare
   track_name text;
+  tid uuid;
 begin
   if new.teaching_mode is null then
     return new;
   end if;
-  if new.track_id is null then
-    raise exception 'סוג הוראה מותר רק בשיבוץ מסלול';
+  if cardinality(coalesce(new.track_ids, '{}'::uuid[])) <> 1 then
+    raise exception 'סוג הוראה מותר רק בשיבוץ מסלול הוראה יחיד';
   end if;
-  select t.name into track_name from public.tracks t where t.id = new.track_id;
+  tid := new.track_ids[1];
+  select t.name into track_name from public.tracks t where t.id = tid;
   if coalesce(track_name, '') <> 'הוראה' then
     raise exception 'סוג הוראה מותר רק במסלול הוראה';
   end if;
@@ -799,6 +805,7 @@ create index idx_makeup_status on public.makeup_exams (status);
 create index idx_exam_tracking_academic_year on public.exam_tracking (academic_year_id);
 create index idx_exam_tracking_deleted on public.exam_tracking (deleted_at) where deleted_at is null;
 create index idx_audit_entity on public.audit_logs (entity_type, entity_id);
+create index idx_audit_created on public.audit_logs (created_at desc);
 create index idx_student_history_student on public.student_history (student_id, changed_at desc);
 create index idx_notifications_user_unread on public.notifications (user_id, created_at desc) where read_at is null;
 
@@ -824,38 +831,8 @@ alter table public.exam_tracking enable row level security;
 alter table public.student_history enable row level security;
 alter table public.audit_logs enable row level security;
 
--- ─── נתוני התחלה (שנה פעילה + לוקאפים) ─────────────────────────────────────
-insert into public.classes (academic_year_id, name)
-select y.id, v.name
-from public.academic_years y
-cross join (values ('יד2'), ('יד1'), ('יג2'), ('1יג')) as v(name)
-where y.is_active = true
-  and not exists (
-    select 1 from public.classes c
-    where c.academic_year_id = y.id and c.name = v.name and c.deleted_at is null
-  );
-
-insert into public.specializations (academic_year_id, name)
-select y.id, v.name
-from public.academic_years y
-cross join (values ('גרפיקה'), ('תכנות'), ('חשבונאות')) as v(name)
-where y.is_active = true
-  and not exists (
-    select 1 from public.specializations s
-    where s.academic_year_id = y.id and s.name = v.name and s.deleted_at is null
-  );
-
-insert into public.tracks (academic_year_id, name)
-select y.id, v.name
-from public.academic_years y
-cross join (values ('הוראה'), ('הוראה קצרה'), ('ללא הוראה')) as v(name)
-where y.is_active = true
-  and not exists (
-    select 1 from public.tracks t
-    where t.academic_year_id = y.id and t.name = v.name and t.deleted_at is null
-  );
-
-insert into public.grade_level_options (name, grade_levels) values
+-- ─── נתוני התחלה מינימליים (שנה פעילה + אפשרויות שכבה + admin) ─────────────
+-- כיתות / התמחויות / מסלולים — ריקים; הוסיפי בהגדרות או בייבוא.
   ('א', array['א']::text[]),
   ('ב', array['ב']::text[]),
   ('ג', array['ג']::text[]),

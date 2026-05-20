@@ -80,18 +80,34 @@ export async function GET(request: Request) {
   const supabase = createSupabaseAdminClient();
   const scope = await resolveAcademicYearScope(supabase, scopeFromSearchParams(searchParams));
 
-  const examsQuery = notDeleted(
-    supabase
-      .from("exams")
-      .select(
-        "id, subject, exam_date, grade_levels, class_ids, track_ids, specialization_ids, psychology_enabled, applies_to_all_in_grade, assignment_category, teacher_id, teachers ( id, first_name, last_name, full_name_generated )",
-      ),
-  )
-    .eq("academic_year_id", scope.year.id)
-    .gte("exam_date", start)
-    .lte("exam_date", end);
+  const teacherEmbed =
+    "teachers ( id, first_name, last_name, full_name_generated )";
+  const newSelect = `id, subject, exam_date, grade_levels, class_ids, track_ids, specialization_ids, psychology_enabled, applies_to_all_in_grade, assignment_category, teacher_id, ${teacherEmbed}`;
+  const oldSelect = `id, subject, exam_date, grade_level, class_id, track_id, specialization_id, psychology_enabled, assignment_category, teacher_id, ${teacherEmbed}`;
 
-  const { data: examsRaw, error: eErr } = await examsQuery;
+  const baseQuery = () =>
+    notDeleted(supabase.from("exams").select(newSelect))
+      .eq("academic_year_id", scope.year.id)
+      .gte("exam_date", start)
+      .lte("exam_date", end);
+
+  let examsRaw: Record<string, unknown>[] | null = null;
+  let eErr: { message: string } | null = null;
+
+  const withNew = await baseQuery();
+  if (withNew.error) {
+    const withOld = await notDeleted(supabase.from("exams").select(oldSelect))
+      .eq("academic_year_id", scope.year.id)
+      .gte("exam_date", start)
+      .lte("exam_date", end);
+    if (withOld.error) {
+      eErr = withOld.error;
+    } else {
+      examsRaw = (withOld.data ?? []) as Record<string, unknown>[];
+    }
+  } else {
+    examsRaw = (withNew.data ?? []) as Record<string, unknown>[];
+  }
 
   if (eErr) return NextResponse.json({ error: eErr.message }, { status: 500 });
 
@@ -99,12 +115,16 @@ export async function GET(request: Request) {
     id: string;
     subject: string;
     exam_date: string;
-    grade_levels: string[];
-    class_ids: string[];
-    track_ids: string[];
-    specialization_ids: string[];
+    grade_levels?: string[];
+    grade_level?: string | null;
+    class_ids?: string[];
+    class_id?: string | null;
+    track_ids?: string[];
+    track_id?: string | null;
+    specialization_ids?: string[];
+    specialization_id?: string | null;
     psychology_enabled: boolean;
-    applies_to_all_in_grade: boolean;
+    applies_to_all_in_grade?: boolean;
     assignment_category: "חובה" | "התמחות";
     teacher_id: string;
     teachers:
@@ -168,7 +188,8 @@ export async function GET(request: Request) {
   const classDayKey = (date: string, classId: string) => `${date}|${classId}`;
   const classDayCount = new Map<string, number>();
   for (const e of exams) {
-    for (const classId of e.class_ids ?? []) {
+    const mt = rowToMultiTarget(e);
+    for (const classId of mt.class_ids) {
       const k = classDayKey(e.exam_date, classId);
       classDayCount.set(k, (classDayCount.get(k) ?? 0) + 1);
     }
@@ -189,7 +210,7 @@ export async function GET(request: Request) {
     const teacherName = teacherEmbedDisplayName(e.teachers);
     const mt = rowToMultiTarget(e);
     const gradeLevelName = formatGradeLevelsLabel(mt.grade_levels);
-    const classConflict = (e.class_ids ?? []).some(
+    const classConflict = rowToMultiTarget(e).class_ids.some(
       (classId) => (classDayCount.get(classDayKey(e.exam_date, classId)) ?? 0) > 1,
     );
     const teacherOverlap = (teacherDayCount.get(`${e.exam_date}|${e.teacher_id}`) ?? 0) > 1;

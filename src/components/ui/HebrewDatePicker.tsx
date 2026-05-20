@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   clampHebrewParts,
   formatHebrewDateTraditional,
+  formatHebrewDateWithYear,
   gregorianYmdToHebrewParts,
   HEBREW_DAY_OPTIONS,
   hebrewMonthsForYear,
@@ -46,29 +47,27 @@ export function HebrewDatePicker({
   );
 
   useEffect(() => {
-    if (!value) {
-      const today = clampHebrewParts(todayHebrewParts());
-      const ymd = hebrewPartsToGregorianYmd(today);
-      if (ymd) onChange(ymd);
-      return;
-    }
+    if (!value) return;
     const parsed = gregorianYmdToHebrewParts(value);
     if (parsed) setParts(clampHebrewParts(parsed));
-  }, [value, onChange]);
+  }, [value]);
 
   const preview = useMemo(() => {
     const ymd = hebrewPartsToGregorianYmd(parts);
     if (!ymd) return null;
     const d = new Date(`${ymd}T12:00:00`);
-    return formatHebrewDateTraditional(d);
+    return formatHebrewDateWithYear(d);
   }, [parts]);
 
-  function apply(next: HebrewDateParts) {
-    const clamped = clampHebrewParts(next);
-    setParts(clamped);
-    const ymd = hebrewPartsToGregorianYmd(clamped);
-    if (ymd) onChange(ymd);
-  }
+  const apply = useCallback(
+    (next: HebrewDateParts) => {
+      const clamped = clampHebrewParts(next);
+      setParts(clamped);
+      const ymd = hebrewPartsToGregorianYmd(clamped);
+      if (ymd) onChange(ymd);
+    },
+    [onChange],
+  );
 
   return (
     <fieldset className="block" disabled={disabled}>
