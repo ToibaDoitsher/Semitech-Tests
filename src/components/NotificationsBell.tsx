@@ -12,7 +12,9 @@ type Item = { id: string; type: string; message: string; href: string };
 export function NotificationsBell() {
   const [open, setOpen] = useState(false);
   const { data } = useSWR<{ items: Item[]; unread: number }>("/api/notifications", fetcher, {
-    refreshInterval: 60000,
+    refreshInterval: 120_000,
+    refreshWhenHidden: false,
+    dedupingInterval: 30_000,
   });
 
   const items = data?.items ?? [];

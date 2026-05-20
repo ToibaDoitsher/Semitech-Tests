@@ -59,6 +59,9 @@ function hebrewYearLetters(y: number): string {
 
 export type HebrewDateParts = { day: number; month: number; year: number };
 
+const hebrewToGregorianCache = new Map<string, string | null>();
+const maxDayInMonthCache = new Map<string, number>();
+
 function readHebrewParts(d: Date): HebrewDateParts | null {
   try {
     const parts = new Intl.DateTimeFormat("en-u-ca-hebrew", {
@@ -102,6 +105,11 @@ export function hebrewPartsToGregorianYmd(parts: HebrewDateParts): string | null
   const { day, month, year } = parts;
   if (!day || !month || !year || day < 1 || day > 30 || month < 1 || month > 13) return null;
 
+  const cacheKey = `${year}:${month}:${day}`;
+  if (hebrewToGregorianCache.has(cacheKey)) {
+    return hebrewToGregorianCache.get(cacheKey)!;
+  }
+
   const approxGreg = year - 3760;
   const start = new Date(approxGreg - 1, 0, 1, 12, 0, 0, 0);
   const end = new Date(approxGreg + 1, 11, 31, 12, 0, 0, 0);
@@ -111,18 +119,30 @@ export function hebrewPartsToGregorianYmd(parts: HebrewDateParts): string | null
     const hp = readHebrewParts(d);
     if (hp && hp.day === day && hp.month === month && hp.year === year) {
       const pad = (n: number) => String(n).padStart(2, "0");
-      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      const ymd = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      hebrewToGregorianCache.set(cacheKey, ymd);
+      return ymd;
     }
   }
+  hebrewToGregorianCache.set(cacheKey, null);
   return null;
 }
 
 /** מספר הימים בחודש עברי (29/30; אדר ב רק בשנה מעוברת). */
 export function maxHebrewDayInMonth(month: number, year: number): number {
-  for (let d = 30; d >= 1; d--) {
-    if (hebrewPartsToGregorianYmd({ day: d, month, year })) return d;
+  const cacheKey = `${year}:${month}`;
+  if (maxDayInMonthCache.has(cacheKey)) {
+    return maxDayInMonthCache.get(cacheKey)!;
   }
-  return 0;
+  let maxDay = 0;
+  for (let d = 30; d >= 1; d--) {
+    if (hebrewPartsToGregorianYmd({ day: d, month, year })) {
+      maxDay = d;
+      break;
+    }
+  }
+  maxDayInMonthCache.set(cacheKey, maxDay);
+  return maxDay;
 }
 
 /** חודשים תקפים לשנה עברית (בלי «אדר ב» בשנה שאינה מעוברת). */

@@ -156,6 +156,9 @@ export function TeacherSearchCombobox({
         </ul>
         ) : null}
       </div>
+      {!value ? (
+        <p className="mt-1 text-xs text-zinc-500">הקלידי לחיפוש ולחצי על שם המורה ברשימה שנפתחת</p>
+      ) : null}
     </div>
   );
 }

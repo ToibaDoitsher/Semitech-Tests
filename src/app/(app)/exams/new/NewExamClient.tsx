@@ -54,7 +54,7 @@ export function NewExamClient() {
   const { viewingYear, readOnly } = useAcademicYear();
 
   const [teacherId, setTeacherId] = useState("");
-  const [assignmentMode, setAssignmentMode] = useState<"existing" | "new">("existing");
+  const [assignmentMode, setAssignmentMode] = useState<"existing" | "new">("new");
 
   const assignUrl = useMemo(() => {
     if (!teacherId) return null;
@@ -62,17 +62,22 @@ export function NewExamClient() {
     return withYearQuery(`/api/teacher-assignments?${p.toString()}`, viewingYear?.id);
   }, [teacherId, viewingYear?.id]);
 
-  const { data: aData, isLoading: aLoad } = useSWR<{ assignments: AssignmentRow[] }>(assignUrl, fetcher);
+  const { data: aData, isLoading: aLoad, error: aError } = useSWR<{ assignments: AssignmentRow[] }>(
+    assignUrl,
+    fetcher,
+  );
+
+  const needLookups = Boolean(teacherId && assignmentMode === "new");
   const { data: clData } = useSWR<{ items: LookupItem[] }>(
-    withYearQuery("/api/lookups/classes", viewingYear?.id),
+    needLookups ? withYearQuery("/api/lookups/classes", viewingYear?.id) : null,
     fetcher,
   );
   const { data: spData } = useSWR<{ items: LookupItem[] }>(
-    withYearQuery("/api/lookups/specializations", viewingYear?.id),
+    needLookups ? withYearQuery("/api/lookups/specializations", viewingYear?.id) : null,
     fetcher,
   );
   const { data: trData } = useSWR<{ items: LookupItem[] }>(
-    withYearQuery("/api/lookups/tracks", viewingYear?.id),
+    needLookups ? withYearQuery("/api/lookups/tracks", viewingYear?.id) : null,
     fetcher,
   );
 
@@ -107,15 +112,8 @@ export function NewExamClient() {
 
   useEffect(() => {
     setAssignmentId("");
-    setAssignmentMode("existing");
     setNewTarget(emptyNewTarget());
   }, [teacherId]);
-
-  useEffect(() => {
-    if (teacherId && !aLoad && allAssignments.length === 0) {
-      setAssignmentMode("new");
-    }
-  }, [teacherId, aLoad, allAssignments.length]);
 
   useEffect(() => {
     if (assignmentMode === "existing" && selected?.teaching_mode) {
@@ -236,6 +234,7 @@ export function NewExamClient() {
   const showExistingPicker = assignmentMode === "existing";
   const showNewForm = assignmentMode === "new";
   const canPickExisting = allAssignments.length > 0;
+  const detailsLocked = !teacherId || readOnly;
 
   return (
     <div className="space-y-6">
@@ -255,6 +254,16 @@ export function NewExamClient() {
         </Link>
       </div>
 
+      <ol className="grid max-w-xl gap-2 rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-700">
+        <li className={teacherId ? "text-emerald-800" : "font-medium text-zinc-900"}>
+          1. בחרי מורה מהרשימה (לא רק הקלדה)
+        </li>
+        <li className={teacherId ? "font-medium text-zinc-900" : ""}>
+          2. מלאי פרטי שיבוץ — מקצוע, שכבות, כיתות/מסלולים
+        </li>
+        <li>3. בחרי תאריך מבחן עברי</li>
+      </ol>
+
       <form
         noValidate
         onSubmit={submit}
@@ -266,14 +275,27 @@ export function NewExamClient() {
           </InlineNotice>
         ) : null}
 
-        <TeacherSearchCombobox
-          value={teacherId}
-          onChange={(id) => setTeacherId(id)}
-          disabled={readOnly}
-          label="מורה"
-        />
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold text-zinc-800">שלב 1 — מורה</h2>
+          <TeacherSearchCombobox
+            value={teacherId}
+            onChange={(id) => setTeacherId(id)}
+            disabled={readOnly}
+            label="מורה"
+          />
+        </section>
 
-        {teacherId ? (
+        <section
+          className={`space-y-3 rounded-lg border p-4 ${
+            detailsLocked ? "border-zinc-100 bg-zinc-50/80 opacity-90" : "border-zinc-200 bg-white"
+          }`}
+        >
+          <h2 className="text-sm font-semibold text-zinc-800">שלב 2 — שיבוץ</h2>
+
+          {!teacherId ? (
+            <p className="text-sm text-amber-900">בחרי מורה בשלב 1 — ואז תוכלי למלא את פרטי השיבוץ כאן.</p>
+          ) : null}
+
           <div className="flex flex-wrap gap-2">
             {canPickExisting ? (
               <button
@@ -284,6 +306,7 @@ export function NewExamClient() {
                     : "border-zinc-200"
                 }`}
                 onClick={() => setAssignmentMode("existing")}
+                disabled={detailsLocked}
               >
                 שיבוץ קיים
               </button>
@@ -296,109 +319,119 @@ export function NewExamClient() {
                   : "border-zinc-200"
               }`}
               onClick={() => setAssignmentMode("new")}
+              disabled={detailsLocked}
             >
               {canPickExisting ? "שיבוץ חדש" : "יצירת שיבוץ ומבחן"}
             </button>
           </div>
-        ) : null}
 
-        {showExistingPicker ? (
-          <label className="block">
-            <span className="text-sm font-medium text-zinc-700">שיבוץ (מקצוע · יעדים)</span>
-            <select
-              className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-400"
-              value={assignmentId}
-              onChange={(e) => {
-                setAssignmentId(e.target.value);
-                setTeachingTrackType("");
-              }}
-              disabled={!teacherId || readOnly}
-            >
-              <option value="">— בחרי —</option>
-              {allAssignments.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.year_label ? `${a.year_label} · ` : ""}
-                  {a.subject}
-                  {a.lesson_name ? ` · ${a.lesson_name}` : ""}
-                  {a.teaching_mode ? ` · ${teachingModeLabel(a.teaching_mode)}` : ""}
-                  {" · "}
-                  {a.target_type_label ? `${a.target_type_label}: ` : ""}
-                  {a.target_label ?? "—"}
-                </option>
-              ))}
-            </select>
-            {aLoad ? (
-              <div className="mt-1 flex items-center gap-2 text-xs text-zinc-500">
-                <Spinner className="size-4" />
-                טוען שיבוצים…
-              </div>
-            ) : !allAssignments.length ? (
-              <p className="mt-1 text-xs text-amber-800">אין שיבוצים למורה — עברי ל«שיבוץ חדש»</p>
-            ) : selected ? (
-              <p className="mt-1 text-xs text-zinc-600">
-                יעדי השיבוץ: {selected.target_label ?? "—"}
-              </p>
+          <fieldset disabled={detailsLocked} className="min-w-0 space-y-3 border-0 p-0">
+            {showExistingPicker ? (
+              <label className="block">
+                <span className="text-sm font-medium text-zinc-700">שיבוץ (מקצוע · יעדים)</span>
+                <select
+                  className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-400 disabled:bg-zinc-50"
+                  value={assignmentId}
+                  onChange={(e) => {
+                    setAssignmentId(e.target.value);
+                    setTeachingTrackType("");
+                  }}
+                >
+                  <option value="">— בחרי —</option>
+                  {allAssignments.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.year_label ? `${a.year_label} · ` : ""}
+                      {a.subject}
+                      {a.lesson_name ? ` · ${a.lesson_name}` : ""}
+                      {a.teaching_mode ? ` · ${teachingModeLabel(a.teaching_mode)}` : ""}
+                      {" · "}
+                      {a.target_type_label ? `${a.target_type_label}: ` : ""}
+                      {a.target_label ?? "—"}
+                    </option>
+                  ))}
+                </select>
+                {aLoad ? (
+                  <div className="mt-1 flex items-center gap-2 text-xs text-zinc-500">
+                    <Spinner className="size-4" />
+                    טוען שיבוצים…
+                  </div>
+                ) : aError ? (
+                  <p className="mt-1 text-xs text-red-700">
+                    שגיאה בטעינת שיבוצים — השתמשי ב«שיבוץ חדש» או פני למנהלת מערכת
+                  </p>
+                ) : !allAssignments.length ? (
+                  <p className="mt-1 text-xs text-amber-800">אין שיבוצים למורה — מלאי «שיבוץ חדש» למטה</p>
+                ) : selected ? (
+                  <p className="mt-1 text-xs text-zinc-600">
+                    יעדי השיבוץ: {selected.target_label ?? "—"}
+                  </p>
+                ) : null}
+              </label>
             ) : null}
-          </label>
-        ) : null}
 
-        {showNewForm ? (
-          <fieldset className="grid gap-3 rounded-lg border border-zinc-200 bg-zinc-50/50 p-4">
-            <legend className="px-1 text-sm font-medium text-zinc-800">יצירת שיבוץ ומבחן</legend>
+            {showNewForm ? (
+              <div className="grid gap-3 rounded-lg border border-zinc-200 bg-zinc-50/50 p-4">
+                <p className="text-sm font-medium text-zinc-800">פרטי שיבוץ חדש</p>
 
-            <label className="block">
-              <span className="text-sm font-medium text-zinc-700">מקצוע</span>
-              <input
-                value={newSubject}
-                onChange={(e) => setNewSubject(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm"
-                placeholder="גרפיקה, הנה״ח…"
-              />
-            </label>
+                <label className="block">
+                  <span className="text-sm font-medium text-zinc-700">מקצוע</span>
+                  <input
+                    value={newSubject}
+                    onChange={(e) => setNewSubject(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm"
+                    placeholder="גרפיקה, הנה״ח…"
+                  />
+                </label>
 
-            <label className="block">
-              <span className="text-sm font-medium text-zinc-700">שם שיעור</span>
-              <input
-                value={newLessonName}
-                onChange={(e) => setNewLessonName(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm"
-                placeholder="אופציונלי"
-              />
-              <p className="mt-1 text-xs text-zinc-500">מקצוע או שם שיעור — חובה למלא אחד מהם</p>
-            </label>
+                <label className="block">
+                  <span className="text-sm font-medium text-zinc-700">שם שיעור</span>
+                  <input
+                    value={newLessonName}
+                    onChange={(e) => setNewLessonName(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm"
+                    placeholder="אופציונלי"
+                  />
+                  <p className="mt-1 text-xs text-zinc-500">מקצוע או שם שיעור — חובה למלא אחד מהם</p>
+                </label>
 
-            <AssignmentTargetForm
-              value={newTarget}
-              onChange={setNewTarget}
-              classes={clData?.items ?? []}
-              tracks={trData?.items ?? []}
-              specializations={spData?.items ?? []}
-              disabled={readOnly}
-            />
+                <AssignmentTargetForm
+                  value={newTarget}
+                  onChange={setNewTarget}
+                  classes={clData?.items ?? []}
+                  tracks={trData?.items ?? []}
+                  specializations={spData?.items ?? []}
+                  disabled={detailsLocked}
+                />
+              </div>
+            ) : null}
           </fieldset>
-        ) : null}
+        </section>
 
-        {isTeachingTarget ? (
-          <label className="block">
-            <span className="text-sm font-medium text-zinc-700">סוג הוראה במבחן *</span>
-            <select
-              className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm"
-              value={teachingTrackType}
-              onChange={(e) => setTeachingTrackType(e.target.value as TeachingTrackType | "")}
-            >
-              <option value="">— בחרי —</option>
-              <option value="full">מלא</option>
-              <option value="short">מקוצר</option>
-            </select>
-          </label>
-        ) : null}
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold text-zinc-800">שלב 3 — תאריך</h2>
+          {isTeachingTarget ? (
+            <label className="block">
+              <span className="text-sm font-medium text-zinc-700">סוג הוראה במבחן *</span>
+              <select
+                className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm"
+                value={teachingTrackType}
+                onChange={(e) => setTeachingTrackType(e.target.value as TeachingTrackType | "")}
+                disabled={detailsLocked}
+              >
+                <option value="">— בחרי —</option>
+                <option value="full">מלא</option>
+                <option value="short">מקוצר</option>
+              </select>
+            </label>
+          ) : null}
 
-        <HebrewDatePicker
-          label="תאריך מבחן (עברי)"
-          value={examDate}
-          onChange={setExamDate}
-          disabled={readOnly}
-        />
+          <HebrewDatePicker
+            label="תאריך מבחן (עברי)"
+            value={examDate}
+            onChange={setExamDate}
+            disabled={readOnly}
+          />
+        </section>
 
         <div className="flex justify-end pt-2">
           <button
