@@ -16,6 +16,8 @@ import { asStudentRow } from "@/lib/db/studentRow";
 
 import { getStudentWithLookupsSelect } from "@/lib/db/studentSelect";
 
+import { getActiveAcademicYear } from "@/lib/academicYears/years";
+
 import { normalizeStudentFields } from "@/lib/students/patch";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -63,6 +65,18 @@ export default async function EditStudentPage({ params }: { params: Promise<{ id
     if (!(await hasAppSession())) redirect("/login");
 
     const sb = createSupabaseAdminClient();
+
+    const active = await getActiveAcademicYear(sb);
+
+    const { data: current } = await sb.from("students").select("academic_year_id").eq("id", id).maybeSingle();
+
+    if (!current) throw new Error("תלמידה לא נמצאה");
+
+    if (!active || current.academic_year_id !== active.id) {
+
+      throw new Error("שנה בארכיון — צפייה בלבד");
+
+    }
 
     const grade_level = parseGradeLevel(String(formData.get("grade_level") ?? ""));
 

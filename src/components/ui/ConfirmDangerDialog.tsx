@@ -79,7 +79,7 @@ export function ConfirmDangerDialog({
           {title}
         </h2>
         {description ? <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">{description}</p> : null}
-        {hint ? <p className="mt-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-950 dark:bg-amber-950/30 dark:text-amber-100">{hint}</p> : null}
+        {hint ? <p className="mt-2 whitespace-pre-line rounded-lg bg-amber-50 p-3 text-sm text-amber-950 dark:bg-amber-950/30 dark:text-amber-100">{hint}</p> : null}
         {requiredPhrase ? (
           <label className="mt-4 block text-sm font-medium text-zinc-700 dark:text-zinc-200">
             לאישור הקלידי בדיוק: <span className="font-mono text-red-700">{requiredPhrase}</span>

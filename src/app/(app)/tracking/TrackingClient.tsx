@@ -14,6 +14,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TableClearFooter } from "@/components/ui/TableClearFooter";
+import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
 import { formatHebrewDateFromYmd } from "@/lib/hebrewDate";
 import {
   examTrackingDueDate,
@@ -70,7 +71,12 @@ function BoolCell({ value }: { value: boolean }) {
 
 export function TrackingClient() {
   const [tab, setTab] = useState<"exams" | "makeups">("exams");
-  const { data, error, isLoading, mutate } = useSWR<{ tracking: Row[] }>("/api/tracking", fetcher);
+  const { viewingYear, readOnly } = useAcademicYear();
+  const yearId = viewingYear?.id;
+  const { data, error, isLoading, mutate } = useSWR<{ tracking: Row[] }>(
+    withYearQuery("/api/tracking", yearId),
+    fetcher,
+  );
   const [editingId, setEditingId] = useState<string | null>(null);
   const count = data?.tracking?.length ?? 0;
 
@@ -85,7 +91,7 @@ export function TrackingClient() {
       transferred_to_system: boolean;
     },
   ) {
-    const r = await fetch(`/api/tracking/${id}`, {
+    const r = await fetch(withYearQuery(`/api/tracking/${id}`, yearId), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -114,7 +120,7 @@ export function TrackingClient() {
               label="ייצוא לאקסל"
               filename="מעקב-מבחנים"
               sheetName="מעקב"
-              exportUrl="/api/export/tracking"
+              exportUrl={withYearQuery("/api/export/tracking", yearId)}
             />
           ) : null
         }
@@ -216,7 +222,7 @@ export function TrackingClient() {
                           onCancel={() => setEditingId(null)}
                           onSave={(payload) => void saveRow(row.id, payload)}
                         />
-                      ) : (
+                      ) : !readOnly ? (
                         <button
                           type="button"
                           className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium"
@@ -225,7 +231,7 @@ export function TrackingClient() {
                           <Pencil className="size-3.5" strokeWidth={2} />
                           עריכה
                         </button>
-                      )}
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 ))
@@ -238,12 +244,14 @@ export function TrackingClient() {
               )}
             </TableBody>
           </Table>
-          <TableClearFooter
-            label="שורות מעקב"
-            count={count}
-            apiPath="/api/tracking/clear-all"
-            onCleared={() => void mutate()}
-          />
+          {!readOnly ? (
+            <TableClearFooter
+              label="שורות מעקב"
+              count={count}
+              apiPath={withYearQuery("/api/tracking/clear-all", yearId)}
+              onCleared={() => void mutate()}
+            />
+          ) : null}
         </ListDataCard>
       ) : null}
     </div>

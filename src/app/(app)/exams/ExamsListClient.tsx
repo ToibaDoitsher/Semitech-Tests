@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { CalendarPlus, PenLine } from "lucide-react";
 import useSWR from "swr";
+import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
 import {
   ListDataCard,
   ListPageHeader,
@@ -31,14 +32,10 @@ type ExamRow = {
   teachers: Teacher | null;
 };
 
-const targetLabel: Record<string, string> = {
-  class: "כיתה",
-  specialization: "התמחות",
-  track: "מסלול",
-};
-
 export function ExamsListClient() {
-  const { data, error, isLoading, mutate } = useSWR<{ exams: ExamRow[] }>("/api/exams", fetcher);
+  const { viewingYear, readOnly } = useAcademicYear();
+  const url = withYearQuery("/api/exams", viewingYear?.id);
+  const { data, error, isLoading, mutate } = useSWR<{ exams: ExamRow[] }>(url, fetcher);
   const count = data?.exams?.length ?? 0;
 
   return (
@@ -52,18 +49,20 @@ export function ExamsListClient() {
               label="מבחנים לאקסל"
               filename="מבחנים"
               sheetName="מבחנים"
-              exportUrl="/api/export/exams"
+              exportUrl={withYearQuery("/api/export/exams", viewingYear?.id)}
             />
             <ExportExcelButton
               label="תלמידות במבחנים"
               filename="מבחנים-תלמידות"
               sheetName="שורות"
-              exportUrl="/api/export/exam-lines"
+              exportUrl={withYearQuery("/api/export/exam-lines", viewingYear?.id)}
             />
-            <Link href="/exams/new" className={LIST_PRIMARY_LINK_CLASS}>
-              <CalendarPlus className="size-4 shrink-0" strokeWidth={2} />
-              יצירת מבחן
-            </Link>
+            {!readOnly ? (
+              <Link href="/exams/new" className={LIST_PRIMARY_LINK_CLASS}>
+                <CalendarPlus className="size-4 shrink-0" strokeWidth={2} />
+                יצירת מבחן
+              </Link>
+            ) : null}
           </>
         }
       />
@@ -118,14 +117,16 @@ export function ExamsListClient() {
             )}
           </TableBody>
         </Table>
-        <TableClearFooter
-          label="מבחנים"
-          count={count}
-          apiPath="/api/exams/clear-all"
-          scopePreviewPath="/api/scope/delete-preview"
-          confirmHint="מחיקה רכה של מבחנים בזוג המחזורים הנבחר."
-          onCleared={() => void mutate()}
-        />
+        {!readOnly ? (
+          <TableClearFooter
+            label="מבחנים"
+            count={count}
+            apiPath={withYearQuery("/api/exams/clear-all", viewingYear?.id)}
+            scopePreviewPath={withYearQuery("/api/scope/delete-preview", viewingYear?.id)}
+            confirmHint="מחיקה רכה של מבחנים בשנה הנבחרת."
+            onCleared={() => void mutate()}
+          />
+        ) : null}
       </ListDataCard>
     </div>
   );

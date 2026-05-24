@@ -1,4 +1,8 @@
 import { NextResponse } from "next/server";
+import {
+  resolveAcademicYearScope,
+  scopeFromSearchParams,
+} from "@/lib/academicYears/scope";
 import { notDeleted } from "@/lib/db/softDelete";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -10,17 +14,23 @@ function todayISODate(): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = createSupabaseAdminClient();
+  const scope = await resolveAcademicYearScope(
+    supabase,
+    scopeFromSearchParams(new URL(request.url).searchParams),
+  );
   const today = todayISODate();
 
   const examsTodayQ = notDeleted(
     supabase.from("exams").select("id", { count: "exact", head: true }),
-  ).eq("exam_date", today);
+  )
+    .eq("academic_year_id", scope.year.id)
+    .eq("exam_date", today);
 
-  const trackingQ = notDeleted(supabase.from("exam_tracking").select("id", { count: "exact", head: true })).or(
-    "grades_submitted.eq.false,transferred_to_system.eq.false",
-  );
+  const trackingQ = notDeleted(supabase.from("exam_tracking").select("id", { count: "exact", head: true }))
+    .eq("academic_year_id", scope.year.id)
+    .or("grades_submitted.eq.false,transferred_to_system.eq.false");
 
   const [{ count: examsToday }, { count: trackingTodo }] = await Promise.all([
     examsTodayQ,

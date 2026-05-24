@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server";
+import {
+  readOnlyResponse,
+  resolveAcademicYearScope,
+  scopeFromSearchParams,
+} from "@/lib/academicYears/scope";
 import { writeAudit } from "@/lib/audit/log";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import type { ExamStudentStatus } from "@/lib/types/db";
@@ -23,6 +28,13 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   }
 
   const supabase = createSupabaseAdminClient();
+  const scope = await resolveAcademicYearScope(
+    supabase,
+    scopeFromSearchParams(new URL(request.url).searchParams),
+  );
+  if (scope.readOnly) {
+    return NextResponse.json(readOnlyResponse(), { status: 403 });
+  }
   const user = await getCurrentUser(supabase);
 
   const transition = await assertValidExamStudentStatusTransition(supabase, id, status);
@@ -42,6 +54,9 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     .eq("id", row.exam_id as string)
     .maybeSingle();
   const examYearId = examRow?.academic_year_id as string | undefined;
+  if (examYearId && examYearId !== scope.year.id) {
+    return NextResponse.json({ error: "מבחן לא שייך לשנה הנוכחית" }, { status: 403 });
+  }
 
   if (!fromStudentCard) {
     const locked = await assertExamNotLocked(supabase, row.exam_id as string);

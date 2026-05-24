@@ -112,6 +112,9 @@ export function AssignmentTargetForm({
 
           {!value.appliesToAllInGrade ? (
             <>
+              <p className="text-xs text-zinc-500">
+                ניתן לבחור שילוב — כיתות + מסלולים + פסיכולוגיה. כל יעד שנבחר ייכלל בשיבוץ. צריך לבחור לפחות יעד אחד.
+              </p>
               <fieldset className="block">
                 <legend className="text-sm font-medium text-zinc-700">כיתות</legend>
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -124,13 +127,7 @@ export function AssignmentTargetForm({
                         type="checkbox"
                         disabled={disabled}
                         checked={value.classIds.includes(o.id)}
-                        onChange={() =>
-                          patch({
-                            classIds: toggleId(value.classIds, o.id),
-                            trackIds: [],
-                            psychologyEnabled: false,
-                          })
-                        }
+                        onChange={() => patch({ classIds: toggleId(value.classIds, o.id) })}
                       />
                       {o.name}
                     </label>
@@ -150,13 +147,7 @@ export function AssignmentTargetForm({
                         type="checkbox"
                         disabled={disabled}
                         checked={value.trackIds.includes(o.id)}
-                        onChange={() =>
-                          patch({
-                            trackIds: toggleId(value.trackIds, o.id),
-                            classIds: [],
-                            psychologyEnabled: false,
-                          })
-                        }
+                        onChange={() => patch({ trackIds: toggleId(value.trackIds, o.id) })}
                       />
                       {o.name}
                     </label>
@@ -169,14 +160,7 @@ export function AssignmentTargetForm({
                   type="checkbox"
                   checked={value.psychologyEnabled}
                   disabled={disabled}
-                  onChange={(e) => {
-                    const on = e.target.checked;
-                    patch({
-                      psychologyEnabled: on,
-                      classIds: on ? [] : value.classIds,
-                      trackIds: on ? [] : value.trackIds,
-                    });
-                  }}
+                  onChange={(e) => patch({ psychologyEnabled: e.target.checked })}
                 />
                 מיועד לפסיכולוגיה
               </label>

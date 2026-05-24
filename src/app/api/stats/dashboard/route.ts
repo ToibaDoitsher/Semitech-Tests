@@ -107,8 +107,11 @@ export async function GET(request: Request) {
           .eq("grade_level", grade),
         notDeleted(supabase.from("exams").select("id", { count: "exact", head: true }))
           .eq("academic_year_id", yearId)
-          .eq("grade_level", grade),
+          .contains("grade_levels", [grade]),
       ]);
+      if (ex.error && !isMissingTableError(ex.error.message)) {
+        return { grade_level: grade, students: st.count ?? 0, exams: 0 };
+      }
       return {
         grade_level: grade,
         students: st.count ?? 0,

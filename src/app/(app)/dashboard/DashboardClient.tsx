@@ -4,6 +4,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { AlarmClock, ArrowLeft, CalendarDays, ClipboardList, Eye, Users } from "lucide-react";
 import Link from "next/link";
 import useSWR from "swr";
+import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
 import { ListPageHeader } from "@/components/ui/ListPage";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
@@ -88,8 +89,15 @@ function StatCard({
 
 export function DashboardClient() {
   const reduceMotion = useReducedMotion();
-  const { data, error, isLoading } = useSWR<{ items: Item[] }>("/api/exams/upcoming?limit=8", apiFetcher);
-  const { data: stats, error: statsErr } = useSWR<Stats>("/api/stats/dashboard", apiFetcher);
+  const { viewingYear } = useAcademicYear();
+  const { data, error, isLoading } = useSWR<{ items: Item[] }>(
+    withYearQuery("/api/exams/upcoming?limit=8", viewingYear?.id),
+    apiFetcher,
+  );
+  const { data: stats, error: statsErr } = useSWR<Stats>(
+    withYearQuery("/api/stats/dashboard", viewingYear?.id),
+    apiFetcher,
+  );
 
   return (
     <div className="space-y-10">
@@ -102,11 +110,11 @@ export function DashboardClient() {
             filename="מבחנים-קרובים"
             sheetName="קרובים"
             getRows={async () => {
-              const r = await fetch("/api/exams/upcoming?limit=300");
+              const r = await fetch(withYearQuery("/api/exams/upcoming?limit=300", viewingYear?.id));
               const j = (await r.json()) as { items?: Item[]; error?: string };
               if (!r.ok) throw new Error(j.error ?? "שגיאה");
               return (j.items ?? []).map((it) => ({
-                תאריך: it.exam_date,
+                תאריך: formatHebrewDateFromYmd(it.exam_date),
                 מקצוע: it.subject,
                 מורה: it.teacher_name,
                 סטטוס: it.statusLabel,

@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server";
+import {
+  readOnlyResponse,
+  resolveAcademicYearScope,
+  scopeFromSearchParams,
+} from "@/lib/academicYears/scope";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -12,14 +17,25 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   };
 
   const supabase = createSupabaseAdminClient();
+  const scope = await resolveAcademicYearScope(
+    supabase,
+    scopeFromSearchParams(new URL(request.url).searchParams),
+  );
+  if (scope.readOnly) {
+    return NextResponse.json(readOnlyResponse(), { status: 403 });
+  }
+
   const { data: existing, error: loadErr } = await supabase
     .from("makeup_exams")
-    .select("id, student_id, exam_id, status")
+    .select("id, student_id, exam_id, status, academic_year_id")
     .eq("id", id)
     .maybeSingle();
 
   if (loadErr) return NextResponse.json({ error: loadErr.message }, { status: 500 });
   if (!existing) return NextResponse.json({ error: "רשומת השלמה לא נמצאה" }, { status: 404 });
+  if (existing.academic_year_id !== scope.year.id) {
+    return NextResponse.json({ error: "רשומה לא שייכת לשנה הנוכחית" }, { status: 403 });
+  }
 
   const patch: Record<string, unknown> = {};
 

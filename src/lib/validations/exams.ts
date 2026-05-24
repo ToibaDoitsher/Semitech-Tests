@@ -1,45 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AssignmentTargetColumns } from "@/lib/assignments/target";
 import { notDeleted } from "@/lib/db/softDelete";
-import type { GradeLevel } from "@/lib/types/db";
-
-export async function assertNoDuplicateExam(
-  supabase: SupabaseClient,
-  params: {
-    gradeLevel: GradeLevel;
-    teacherId: string;
-    subject: string;
-    target: AssignmentTargetColumns;
-    examDate: string;
-    excludeExamId?: string;
-  },
-): Promise<{ ok: boolean; error: string | null }> {
-  let q = notDeleted(
-    supabase
-      .from("exams")
-      .select("id")
-      .eq("grade_level", params.gradeLevel)
-      .eq("teacher_id", params.teacherId)
-      .eq("subject", params.subject.trim())
-      .eq("exam_date", params.examDate),
-  );
-
-  const t = params.target;
-  if (t.psychology_enabled) q = q.eq("psychology_enabled", true);
-  else if (t.class_id) q = q.eq("class_id", t.class_id);
-  else if (t.specialization_id) q = q.eq("specialization_id", t.specialization_id);
-  else if (t.track_id) q = q.eq("track_id", t.track_id);
-
-  q = q.limit(1);
-  if (params.excludeExamId) q = q.neq("id", params.excludeExamId);
-
-  const { data, error } = await q;
-  if (error) return { ok: false, error: error.message };
-  if (data?.length) {
-    return { ok: false, error: "כבר קיים מבחן זהה לאותה קבוצה באותו תאריך" };
-  }
-  return { ok: true, error: null };
-}
 
 export async function assertNoOpenMakeupDuplicate(
   supabase: SupabaseClient,

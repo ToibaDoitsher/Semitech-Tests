@@ -4,6 +4,7 @@ import Link from "next/link";
 import { BookOpen, CheckCircle2, Pencil, UserRound } from "lucide-react";
 import { useState } from "react";
 import useSWR from "swr";
+import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
 import { CompleteMakeupDialog } from "@/components/makeup/CompleteMakeupDialog";
 import { ListDataCard, ListPageHeader, ListTableToolbar, LIST_ROW_LINK_CLASS } from "@/components/ui/ListPage";
 import { MakeupStatusBadge } from "@/components/ui/StatusBadge";
@@ -44,7 +45,12 @@ function formatCompleted(iso: string | null) {
 }
 
 export function MakeupsClient() {
-  const { data, error, isLoading, mutate } = useSWR<{ makeups: Row[] }>("/api/makeups", fetcher);
+  const { viewingYear, readOnly } = useAcademicYear();
+  const yearId = viewingYear?.id;
+  const { data, error, isLoading, mutate } = useSWR<{ makeups: Row[] }>(
+    withYearQuery("/api/makeups", yearId),
+    fetcher,
+  );
   const [completeId, setCompleteId] = useState<string | null>(null);
   const [completeBusy, setCompleteBusy] = useState(false);
   const [editGradeId, setEditGradeId] = useState<string | null>(null);
@@ -56,7 +62,7 @@ export function MakeupsClient() {
     if (!completeId) return;
     setCompleteBusy(true);
     try {
-      const r = await fetch(`/api/makeups/${completeId}/complete`, {
+      const r = await fetch(withYearQuery(`/api/makeups/${completeId}/complete`, yearId), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -82,7 +88,7 @@ export function MakeupsClient() {
             label="ייצוא לאקסל (כל ההשלמות)"
             filename="השלמות"
             sheetName="השלמות"
-            exportUrl="/api/export/makeups"
+            exportUrl={withYearQuery("/api/export/makeups", yearId)}
           />
         }
       />
@@ -140,18 +146,20 @@ export function MakeupsClient() {
                         <BookOpen className="size-3.5 shrink-0 opacity-80" strokeWidth={2} />
                         למבחן
                       </Link>
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium"
-                        onClick={() => {
-                          setEditGradeId(m.id);
-                          setEditGradeValue(m.grade != null ? String(m.grade) : "");
-                        }}
-                      >
-                        <Pencil className="size-3.5 shrink-0" strokeWidth={2} />
-                        ציון
-                      </button>
-                      {m.status === "open" ? (
+                      {!readOnly ? (
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium"
+                          onClick={() => {
+                            setEditGradeId(m.id);
+                            setEditGradeValue(m.grade != null ? String(m.grade) : "");
+                          }}
+                        >
+                          <Pencil className="size-3.5 shrink-0" strokeWidth={2} />
+                          ציון
+                        </button>
+                      ) : null}
+                      {!readOnly && m.status === "open" ? (
                         <button
                           type="button"
                           className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium"
@@ -174,12 +182,14 @@ export function MakeupsClient() {
             )}
           </TableBody>
         </Table>
-        <TableClearFooter
-          label="השלמות"
-          count={count}
-          apiPath="/api/makeups/clear-all"
-          onCleared={() => void mutate()}
-        />
+        {!readOnly ? (
+          <TableClearFooter
+            label="השלמות"
+            count={count}
+            apiPath={withYearQuery("/api/makeups/clear-all", yearId)}
+            onCleared={() => void mutate()}
+          />
+        ) : null}
       </ListDataCard>
 
       <CompleteMakeupDialog
@@ -222,7 +232,7 @@ export function MakeupsClient() {
                 onClick={async () => {
                   setEditGradeBusy(true);
                   try {
-                    const r = await fetch(`/api/makeups/${editGradeId}`, {
+                    const r = await fetch(withYearQuery(`/api/makeups/${editGradeId}`, yearId), {
                       method: "PATCH",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({

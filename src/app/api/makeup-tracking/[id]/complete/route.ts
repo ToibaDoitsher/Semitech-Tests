@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server";
+import {
+  readOnlyResponse,
+  resolveAcademicYearScope,
+  scopeFromSearchParams,
+} from "@/lib/academicYears/scope";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -11,15 +16,25 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   };
 
   const supabase = createSupabaseAdminClient();
+  const scope = await resolveAcademicYearScope(
+    supabase,
+    scopeFromSearchParams(new URL(request.url).searchParams),
+  );
+  if (scope.readOnly) {
+    return NextResponse.json(readOnlyResponse(), { status: 403 });
+  }
 
   const { data: row, error: loadErr } = await supabase
     .from("makeup_tracking")
-    .select("id, exam_id, student_id, makeup_exam_id, grade")
+    .select("id, exam_id, student_id, makeup_exam_id, grade, academic_year_id")
     .eq("id", id)
     .maybeSingle();
 
   if (loadErr) return NextResponse.json({ error: loadErr.message }, { status: 500 });
   if (!row) return NextResponse.json({ error: "רשומה לא נמצאה" }, { status: 404 });
+  if (row.academic_year_id !== scope.year.id) {
+    return NextResponse.json({ error: "רשומה לא שייכת לשנה הנוכחית" }, { status: 403 });
+  }
 
   if (row.grade === null || row.grade === undefined) {
     return NextResponse.json({ error: "יש להזין ציון לפני סימון השלמה סופית" }, { status: 400 });

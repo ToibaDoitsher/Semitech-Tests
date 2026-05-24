@@ -4,6 +4,7 @@ import type { GradeLevel, TeachingTrackType } from "@/lib/types/db";
 
 type StudentSnapRow = {
   id: string;
+  grade_level: GradeLevel;
   is_psychology: boolean;
   teaching_track_type: TeachingTrackType | null;
   classes: { name: string } | { name: string }[] | null;
@@ -25,7 +26,7 @@ export async function buildExamStudentRows(
     studentIds: string[];
     teacherName: string;
     subject: string;
-    gradeLevel: GradeLevel;
+    fallbackGradeLevel: GradeLevel;
     academicYearName: string | null;
     targetName: string | null;
   },
@@ -35,7 +36,7 @@ export async function buildExamStudentRows(
   const { data, error } = await supabase
     .from("students")
     .select(
-      "id, is_psychology, teaching_track_type, classes(name), tracks(name), specializations:specializations!students_specialization_id_fkey(name), secondary_specializations:specializations!students_secondary_specialization_id_fkey(name)",
+      "id, grade_level, is_psychology, teaching_track_type, classes(name), tracks(name), specializations:specializations!students_specialization_id_fkey(name), secondary_specializations:specializations!students_secondary_specialization_id_fkey(name)",
     )
     .in("id", params.studentIds);
 
@@ -58,7 +59,7 @@ export async function buildExamStudentRows(
       teaching_track_type_snapshot: tType ? teachingTrackTypeLabel(tType) : null,
       teacher_snapshot: params.teacherName,
       subject_snapshot: params.subject,
-      grade_level_snapshot: params.gradeLevel,
+      grade_level_snapshot: s?.grade_level ?? params.fallbackGradeLevel,
       academic_year_name_snapshot: params.academicYearName,
       target_name_snapshot: params.targetName,
     };

@@ -7,6 +7,16 @@ import { notDeleted } from "@/lib/db/softDelete";
 
 export type { AssignmentMultiSpec };
 
+type LessonFilterable<T> = {
+  is(column: "lesson_name", value: null): T;
+  eq(column: "lesson_name", value: string): T;
+};
+
+function applyLessonFilter<T extends LessonFilterable<T>>(query: T, lesson: string | null): T {
+  if (lesson === null) return query.is("lesson_name", null);
+  return query.eq("lesson_name", lesson);
+}
+
 export async function findOrCreateAssignment(
   supabase: SupabaseClient,
   academicYearId: string,
@@ -15,14 +25,13 @@ export async function findOrCreateAssignment(
   const fingerprint = computeTargetsFingerprint(spec);
   const lesson = spec.lesson_name?.trim() || null;
 
-  const existing = await notDeleted(supabase.from("teacher_assignments").select("id"))
+  const existingBase = notDeleted(supabase.from("teacher_assignments").select("id"))
     .eq("academic_year_id", academicYearId)
     .eq("teacher_id", spec.teacher_id)
     .eq("subject", spec.subject)
     .eq("assignment_category", spec.assignment_category)
-    .eq("targets_fingerprint", fingerprint)
-    .limit(1)
-    .maybeSingle();
+    .eq("targets_fingerprint", fingerprint);
+  const existing = await applyLessonFilter(existingBase, lesson).limit(1).maybeSingle();
 
   if (existing.error) return { error: existing.error.message };
   if (existing.data?.id) return { id: existing.data.id as string, created: false };
@@ -51,14 +60,14 @@ export async function findOrCreateAssignment(
     return { id: inserted.id as string, created: true };
   }
 
-  if (insertErr?.message.includes("uq_teacher_assignment")) {
-    const retry = await notDeleted(supabase.from("teacher_assignments").select("id"))
+  if (insertErr?.message.includes("uq_teacher_assignment_fingerprint")) {
+    const retryBase = notDeleted(supabase.from("teacher_assignments").select("id"))
       .eq("academic_year_id", academicYearId)
-      .eq("targets_fingerprint", fingerprint)
       .eq("teacher_id", spec.teacher_id)
       .eq("subject", spec.subject)
-      .limit(1)
-      .maybeSingle();
+      .eq("assignment_category", spec.assignment_category)
+      .eq("targets_fingerprint", fingerprint);
+    const retry = await applyLessonFilter(retryBase, lesson).limit(1).maybeSingle();
     if (retry.error) return { error: retry.error.message };
     if (retry.data?.id) return { id: retry.data.id as string, created: false };
   }

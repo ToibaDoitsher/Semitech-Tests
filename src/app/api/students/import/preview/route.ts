@@ -82,9 +82,21 @@ export async function POST(request: Request) {
     scopeFromSearchParams(new URL(request.url).searchParams),
   );
   const [cl, sp, tr, tzRes] = await Promise.all([
-    supabase.from("classes").select("id,name"),
-    supabase.from("specializations").select("id,name"),
-    supabase.from("tracks").select("id,name"),
+    supabase
+      .from("classes")
+      .select("id,name")
+      .eq("academic_year_id", scope.year.id)
+      .is("deleted_at", null),
+    supabase
+      .from("specializations")
+      .select("id,name")
+      .eq("academic_year_id", scope.year.id)
+      .is("deleted_at", null),
+    supabase
+      .from("tracks")
+      .select("id,name")
+      .eq("academic_year_id", scope.year.id)
+      .is("deleted_at", null),
     supabase.from("students").select("tz").eq("academic_year_id", scope.year.id),
   ]);
 

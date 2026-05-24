@@ -77,7 +77,13 @@ function titleForPath(pathname: string): string {
   return "מערכת מבחנים";
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  userDisplayName = "",
+}: {
+  children: React.ReactNode;
+  userDisplayName?: string;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
@@ -187,6 +193,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-lg font-bold tracking-tight text-[var(--color-primary)] dark:text-blue-200">{pageTitle}</h1>
           </div>
+          {userDisplayName ? (
+            <div
+              className="hidden items-center gap-2 rounded-2xl border border-sky-200/70 bg-gradient-to-l from-sky-50 via-white to-violet-50 px-3.5 py-1.5 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-white/60 sm:inline-flex dark:border-sky-400/30 dark:from-sky-950/40 dark:via-zinc-900/40 dark:to-violet-950/40 dark:text-zinc-100 dark:ring-white/5"
+              title={`שלום, ${userDisplayName}`}
+            >
+              <span aria-hidden className="text-base leading-none">👋</span>
+              <span className="text-[var(--muted)] dark:text-zinc-300">שלום,</span>
+              <span className="bg-gradient-to-l from-[var(--color-primary)] to-violet-600 bg-clip-text font-extrabold text-transparent dark:from-sky-300 dark:to-violet-300">
+                {userDisplayName}
+              </span>
+            </div>
+          ) : null}
           <AcademicYearBanner />
           <div className="hidden w-full max-w-sm md:block md:w-72">
             <GlobalSearch />

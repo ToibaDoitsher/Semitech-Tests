@@ -329,6 +329,14 @@ alter table public.exams add constraint exams_multi_target_check
         or cardinality(class_ids) >= 1
         or cardinality(track_ids) >= 1
       )
+      and (
+        not applies_to_all_in_grade
+        or (
+          cardinality(class_ids) = 0
+          and cardinality(track_ids) = 0
+          and not psychology_enabled
+        )
+      )
     )
   );
 
@@ -758,8 +766,10 @@ create index idx_students_full_name on public.students (full_name_generated);
 create index idx_students_deleted on public.students (deleted_at) where deleted_at is null;
 create index idx_students_import_batch on public.students (import_batch_id);
 create index idx_teacher_assignments_grade_levels on public.teacher_assignments using gin (grade_levels);
+create index idx_teacher_assignments_year on public.teacher_assignments (academic_year_id);
 create index idx_exams_academic_year on public.exams (academic_year_id);
 create index idx_exams_exam_date on public.exams (exam_date);
+create index idx_exams_grade_levels_gin on public.exams using gin (grade_levels);
 create index idx_exams_deleted on public.exams (deleted_at) where deleted_at is null;
 create index idx_exam_students_exam_id on public.exam_students (exam_id);
 create index idx_exam_students_student_id on public.exam_students (student_id);
@@ -768,6 +778,7 @@ create index idx_makeup_exams_academic_year on public.makeup_exams (academic_yea
 create index idx_makeup_exams_student_id on public.makeup_exams (student_id);
 create index idx_makeup_status on public.makeup_exams (status);
 create index idx_exam_tracking_academic_year on public.exam_tracking (academic_year_id);
+create index idx_exam_tracking_exam_id on public.exam_tracking (exam_id);
 create index idx_exam_tracking_deleted on public.exam_tracking (deleted_at) where deleted_at is null;
 create index idx_audit_entity on public.audit_logs (entity_type, entity_id);
 create index idx_audit_created on public.audit_logs (created_at desc);

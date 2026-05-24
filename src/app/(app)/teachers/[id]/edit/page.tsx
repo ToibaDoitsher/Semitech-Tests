@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { TeacherFormFields } from "@/components/teachers/TeacherFormFields";
+import { getActiveAcademicYear } from "@/lib/academicYears/years";
 import { hasAppSession } from "@/lib/auth/passwordSession";
 import { notDeleted } from "@/lib/db/softDelete";
 import { TEACHER_COLUMNS } from "@/lib/teachers/db";
@@ -30,6 +31,12 @@ export default async function EditTeacherPage({ params }: { params: Promise<{ id
     if (parsed.error) throw new Error(parsed.error);
 
     const sb = createSupabaseAdminClient();
+    const active = await getActiveAcademicYear(sb);
+    const { data: current } = await sb.from("teachers").select("academic_year_id").eq("id", id).maybeSingle();
+    if (!current) throw new Error("מורה לא נמצאה");
+    if (!active || current.academic_year_id !== active.id) {
+      throw new Error("שנה בארכיון — צפייה בלבד");
+    }
     const { error: uErr } = await sb
       .from("teachers")
       .update({

@@ -14,7 +14,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 import { ExamSchedulePrintSheet } from "@/components/calendar/ExamSchedulePrintSheet";
 import { PrintButton } from "@/components/PrintButton";
-import { useAcademicYear } from "@/components/academicYears/AcademicYearProvider";
+import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
 import type { CalendarExamProps } from "@/lib/calendar/types";
 import { formatGregorianDateLong } from "@/lib/calendar/schedulePrint";
 import { formatHebrewDateFromDate, formatHebrewDateFromYmd } from "@/lib/hebrewDate";
@@ -76,7 +76,11 @@ export function CalendarClient() {
     setLoading(true);
     setLoadError(null);
     try {
-      const r = await fetch(`/api/calendar/exams?start=${encodeURIComponent(s)}&end=${encodeURIComponent(e)}`);
+      const url = withYearQuery(
+        `/api/calendar/exams?start=${encodeURIComponent(s)}&end=${encodeURIComponent(e)}`,
+        viewingYear?.id,
+      );
+      const r = await fetch(url);
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error((j as { error?: string }).error ?? "שגיאת טעינה");
       setRawEvents((j as { events: EventInput[] }).events ?? []);
@@ -88,7 +92,7 @@ export function CalendarClient() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [viewingYear]);
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -96,9 +100,11 @@ export function CalendarClient() {
       const g = rangeRef.current;
       if (!g) return;
       void (async () => {
-        const r = await fetch(
+        const url = withYearQuery(
           `/api/calendar/exams?start=${encodeURIComponent(g.start)}&end=${encodeURIComponent(g.end)}`,
+          viewingYear?.id,
         );
+        const r = await fetch(url);
         const j = await r.json().catch(() => ({}));
         if (r.ok) {
           setLoadError(null);
@@ -108,7 +114,25 @@ export function CalendarClient() {
       })();
     }, 60_000);
     return () => window.clearInterval(id);
-  }, []);
+  }, [viewingYear]);
+
+  useEffect(() => {
+    const g = rangeRef.current;
+    if (!g) return;
+    void (async () => {
+      const url = withYearQuery(
+        `/api/calendar/exams?start=${encodeURIComponent(g.start)}&end=${encodeURIComponent(g.end)}`,
+        viewingYear?.id,
+      );
+      const r = await fetch(url);
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) {
+        setLoadError(null);
+        setRawEvents((j as { events: EventInput[] }).events ?? []);
+        setDayExamCount((j as { dayExamCount?: Record<string, number> }).dayExamCount ?? {});
+      }
+    })();
+  }, [viewingYear]);
 
   const filterOptions = useMemo(() => {
     const teachers = new Map<string, string>();

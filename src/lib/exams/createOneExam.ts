@@ -42,9 +42,10 @@ export async function createOneExam(
   const { data: ta } = await supabase
     .from("teacher_assignments")
     .select(
-      "id, academic_year_id, grade_levels, teacher_id, subject, assignment_category, class_ids, track_ids, specialization_ids, psychology_enabled, applies_to_all_in_grade, teaching_mode, lesson_name",
+      "id, academic_year_id, grade_levels, teacher_id, subject, assignment_category, class_ids, track_ids, specialization_ids, psychology_enabled, applies_to_all_in_grade, teaching_mode, lesson_name, deleted_at",
     )
     .eq("id", assignmentId)
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (!ta) return { error: "שיבוץ לא נמצא" };
@@ -77,11 +78,14 @@ export async function createOneExam(
   }
 
   if (multiTarget.track_ids.length) {
-    const teachingTrack = await isTeachingTrackId(supabase, multiTarget.track_ids[0]);
-    if (teachingTrack && !teaching_track_type) {
+    const checks = await Promise.all(
+      multiTarget.track_ids.map((id) => isTeachingTrackId(supabase, id)),
+    );
+    const hasTeachingTrack = checks.some(Boolean);
+    if (hasTeachingTrack && !teaching_track_type) {
       return { error: "במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)" };
     }
-    if (!teachingTrack) teaching_track_type = null;
+    if (!hasTeachingTrack) teaching_track_type = null;
   } else {
     teaching_track_type = null;
   }
@@ -118,13 +122,21 @@ export async function createOneExam(
 
   const examId = exam.id as string;
 
+  async function rollbackExam(): Promise<void> {
+    await supabase.from("makeup_tracking").delete().eq("exam_id", examId);
+    await supabase.from("makeup_exams").delete().eq("exam_id", examId);
+    await supabase.from("exam_students").delete().eq("exam_id", examId);
+    await supabase.from("exam_tracking").delete().eq("exam_id", examId);
+    await supabase.from("exams").delete().eq("id", examId);
+  }
+
   const { error: trErr } = await supabase.from("exam_tracking").insert({
     exam_id: examId,
     teacher_id: teacherId,
     academic_year_id: academicYearId,
   });
   if (trErr) {
-    await supabase.from("exams").delete().eq("id", examId);
+    await rollbackExam();
     return { error: trErr.message };
   }
 
@@ -139,20 +151,20 @@ export async function createOneExam(
     { id: examId, ...multiTarget },
   ]);
 
-  const primaryGrade = multiTarget.grade_levels[0] ?? "א";
+  const fallbackGrade = multiTarget.grade_levels[0] ?? "א";
   const rows = await buildExamStudentRows(supabase, {
     examId,
     studentIds,
     teacherName,
     subject,
-    gradeLevel: primaryGrade,
+    fallbackGradeLevel: fallbackGrade,
     academicYearName,
     targetName: targetLabels[examId] ?? null,
   });
 
   const { error: esErr } = await supabase.from("exam_students").insert(rows);
   if (esErr) {
-    await supabase.from("exams").delete().eq("id", examId);
+    await rollbackExam();
     return { error: esErr.message };
   }
 

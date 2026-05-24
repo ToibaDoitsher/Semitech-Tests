@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server";
+import {
+  resolveAcademicYearScope,
+  scopeFromSearchParams,
+} from "@/lib/academicYears/scope";
+import { notDeleted } from "@/lib/db/softDelete";
 import { teacherEmbedDisplayName } from "@/lib/teachers/display";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -16,9 +21,16 @@ export async function GET(request: Request) {
   const start = (searchParams.get("from") ?? todayISODate()).trim();
 
   const supabase = createSupabaseAdminClient();
-  const { data: exams, error } = await supabase
-    .from("exams")
-    .select("id, subject, exam_date, teacher_id, teachers ( id, first_name, last_name, full_name_generated )")
+  const scope = await resolveAcademicYearScope(supabase, scopeFromSearchParams(searchParams));
+
+  const { data: exams, error } = await notDeleted(
+    supabase
+      .from("exams")
+      .select(
+        "id, subject, exam_date, teacher_id, teachers ( id, first_name, last_name, full_name_generated )",
+      ),
+  )
+    .eq("academic_year_id", scope.year.id)
     .gte("exam_date", start)
     .order("exam_date", { ascending: true })
     .limit(limit);

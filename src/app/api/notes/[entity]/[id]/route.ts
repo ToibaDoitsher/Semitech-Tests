@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server";
+import {
+  readOnlyResponse,
+  resolveAcademicYearScope,
+  scopeFromSearchParams,
+} from "@/lib/academicYears/scope";
 import { requireCurrentUser } from "@/lib/auth/currentUser";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -29,8 +34,25 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ entity: s
   const table = TABLES[entity];
   if (!table) return NextResponse.json({ error: "ישות לא תקינה" }, { status: 400 });
 
-  const body = (await request.json()) as { notes?: string };
   const supabase = createSupabaseAdminClient();
+  const scope = await resolveAcademicYearScope(
+    supabase,
+    scopeFromSearchParams(new URL(request.url).searchParams),
+  );
+  if (scope.readOnly) {
+    return NextResponse.json(readOnlyResponse(), { status: 403 });
+  }
+
+  const { data: existing } = await supabase
+    .from(table)
+    .select("academic_year_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (existing && (existing as { academic_year_id: string }).academic_year_id !== scope.year.id) {
+    return NextResponse.json({ error: "רשומה לא שייכת לשנה הנוכחית" }, { status: 403 });
+  }
+
+  const body = (await request.json()) as { notes?: string };
   const { data, error } = await supabase
     .from(table)
     .update({ notes: body.notes ?? "" })

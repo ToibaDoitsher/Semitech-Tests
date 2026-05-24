@@ -41,6 +41,20 @@ type AuditRow = {
   users: { full_name: string; username: string } | null;
 };
 
+type HistoryRow = {
+  id: string;
+  changed_at: string;
+  old_grade_level: string | null;
+  new_grade_level: string | null;
+  old_class_id: string | null;
+  new_class_id: string | null;
+  old_specialization_id: string | null;
+  new_specialization_id: string | null;
+  old_track_id: string | null;
+  new_track_id: string | null;
+  users?: { full_name?: string | null } | null;
+};
+
 const AUDIT_ACTION_LABEL: Record<string, string> = {
   create: "יצירה",
   update: "עדכון",
@@ -48,6 +62,17 @@ const AUDIT_ACTION_LABEL: Record<string, string> = {
   restore: "שחזור",
   status_change: "שינוי סטטוס",
 };
+
+function summarizeHistoryChange(row: HistoryRow): string[] {
+  const parts: string[] = [];
+  if (row.old_grade_level !== row.new_grade_level) {
+    parts.push(`שכבה: ${row.old_grade_level ?? "—"} → ${row.new_grade_level ?? "—"}`);
+  }
+  if (row.old_class_id !== row.new_class_id) parts.push("כיתה התעדכנה");
+  if (row.old_specialization_id !== row.new_specialization_id) parts.push("התמחות התעדכנה");
+  if (row.old_track_id !== row.new_track_id) parts.push("מסלול התעדכן");
+  return parts;
+}
 
 export function StudentDetailClient({ id }: { id: string }) {
   const router = useRouter();
@@ -57,7 +82,7 @@ export function StudentDetailClient({ id }: { id: string }) {
     makeups: MakeupRow[];
   }>(`/api/students/${id}`, fetcher);
 
-  const { data: historyData } = useSWR<{ history: unknown[]; audit: AuditRow[] }>(
+  const { data: historyData } = useSWR<{ history: HistoryRow[]; audit: AuditRow[] }>(
     `/api/students/${id}/history`,
     fetcher,
   );
@@ -208,9 +233,25 @@ export function StudentDetailClient({ id }: { id: string }) {
             <p className="mt-2 text-sm text-zinc-600">אין רשומות ביקורת לתלמידה זו.</p>
           )}
           {(historyData?.history?.length ?? 0) > 0 ? (
-            <p className="mt-3 text-xs text-zinc-500">
-              {historyData?.history?.length ?? 0} שינויי כיתה/מסלול נשמרו בהיסטוריה
-            </p>
+            <div className="mt-4">
+              <h3 className="text-sm font-medium text-zinc-800">שינויי שכבה/כיתה/מסלול</h3>
+              <ul className="mt-2 space-y-2 text-sm text-zinc-700">
+                {historyData!.history.map((row) => {
+                  const changes = summarizeHistoryChange(row);
+                  return (
+                    <li key={row.id} className="rounded-lg border border-zinc-100 bg-zinc-50 px-3 py-2">
+                      <div className="text-xs text-zinc-500">
+                        {new Date(row.changed_at).toLocaleString("he-IL")}
+                        {row.users?.full_name ? ` · ${row.users.full_name}` : ""}
+                      </div>
+                      <div className="mt-1 text-sm">
+                        {changes.length ? changes.join(" · ") : "שינוי ללא פירוט"}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           ) : null}
         </section>
       ) : null}

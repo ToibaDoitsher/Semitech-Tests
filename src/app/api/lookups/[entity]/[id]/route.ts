@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server";
+import {
+  readOnlyResponse,
+  resolveAcademicYearScope,
+  scopeFromSearchParams,
+} from "@/lib/academicYears/scope";
 import { parseGradeLevelsFromName } from "@/lib/gradeLevels/options";
 import { ENTITY_TO_TABLE, isLookupEntity } from "@/lib/lookups/entities";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -6,6 +11,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 export const dynamic = "force-dynamic";
 
 const LOOKUPS_WITH_IS_ACTIVE = new Set(["classes", "specializations", "tracks", "grade_level_options"]);
+const YEAR_SCOPED_TABLES = new Set(["classes", "specializations", "tracks"]);
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ entity: string; id: string }> }) {
   const { entity, id } = await ctx.params;
@@ -35,6 +41,25 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ entity: s
   }
 
   const supabase = createSupabaseAdminClient();
+
+  if (YEAR_SCOPED_TABLES.has(table)) {
+    const scope = await resolveAcademicYearScope(
+      supabase,
+      scopeFromSearchParams(new URL(request.url).searchParams),
+    );
+    if (scope.readOnly) {
+      return NextResponse.json(readOnlyResponse(), { status: 403 });
+    }
+    const { data: existing } = await supabase
+      .from(table)
+      .select("academic_year_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (existing && existing.academic_year_id !== scope.year.id) {
+      return NextResponse.json({ error: "פריט לא שייך לשנה הנוכחית" }, { status: 403 });
+    }
+  }
+
   const selectCols = table === "grade_level_options" ? "id,name,grade_levels" : "id,name";
   const { data, error } = await supabase.from(table).update(patch).eq("id", id).select(selectCols).single();
 
@@ -42,7 +67,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ entity: s
   return NextResponse.json({ item: data });
 }
 
-export async function DELETE(_request: Request, ctx: { params: Promise<{ entity: string; id: string }> }) {
+export async function DELETE(request: Request, ctx: { params: Promise<{ entity: string; id: string }> }) {
   const { entity, id } = await ctx.params;
   if (!isLookupEntity(entity)) {
     return NextResponse.json({ error: "סוג לוקאפ לא תקין" }, { status: 404 });
@@ -50,6 +75,24 @@ export async function DELETE(_request: Request, ctx: { params: Promise<{ entity:
 
   const table = ENTITY_TO_TABLE[entity];
   const supabase = createSupabaseAdminClient();
+
+  if (YEAR_SCOPED_TABLES.has(table)) {
+    const scope = await resolveAcademicYearScope(
+      supabase,
+      scopeFromSearchParams(new URL(request.url).searchParams),
+    );
+    if (scope.readOnly) {
+      return NextResponse.json(readOnlyResponse(), { status: 403 });
+    }
+    const { data: existing } = await supabase
+      .from(table)
+      .select("academic_year_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (existing && existing.academic_year_id !== scope.year.id) {
+      return NextResponse.json({ error: "פריט לא שייך לשנה הנוכחית" }, { status: 403 });
+    }
+  }
 
   if (LOOKUPS_WITH_IS_ACTIVE.has(table)) {
     const { data, error } = await supabase

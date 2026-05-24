@@ -1,16 +1,25 @@
 import { NextResponse } from "next/server";
+import {
+  resolveAcademicYearScope,
+  scopeFromSearchParams,
+} from "@/lib/academicYears/scope";
 import { TEACHER_EMBED_IN_EXAM } from "@/lib/teachers/db";
 import { teacherEmbedDisplayName } from "@/lib/teachers/display";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = createSupabaseAdminClient();
+  const scope = await resolveAcademicYearScope(
+    supabase,
+    scopeFromSearchParams(new URL(request.url).searchParams),
+  );
 
   const { data: rows, error } = await supabase
     .from("exam_tracking")
     .select("id, submitted_exam, approved_by_coordinator, sent_for_review, grades_submitted, grades_approved, transferred_to_system, exam_id, teacher_id")
+    .eq("academic_year_id", scope.year.id)
     .order("id", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

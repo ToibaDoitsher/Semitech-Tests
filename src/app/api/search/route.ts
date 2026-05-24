@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { formatGradeLabel, parseGradeLevel } from "@/lib/academicYears/labels";
 import { resolveAcademicYearScope, scopeFromSearchParams } from "@/lib/academicYears/scope";
+import { examGradeLevelsLabel } from "@/lib/assignments/multiTarget";
 import { notDeleted } from "@/lib/db/softDelete";
 import { teacherDisplayName } from "@/lib/teachers/display";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -44,7 +45,7 @@ export async function GET(request: Request) {
   let examsQ = notDeleted(
     supabase
       .from("exams")
-      .select("id, subject, exam_date, grade_level")
+      .select("id, subject, exam_date, grade_levels")
       .eq("academic_year_id", yearId)
       .limit(browse ? BROWSE_LIMIT : SEARCH_LIMIT),
   );
@@ -96,7 +97,8 @@ export async function GET(request: Request) {
       typeof e.exam_date === "string" && e.exam_date.length >= 10
         ? e.exam_date.slice(0, 10)
         : String(e.exam_date ?? "");
-    const grade = e.grade_level ? ` · ${formatGradeLabel(parseGradeLevel(String(e.grade_level)))}` : "";
+    const gradeLabel = examGradeLevelsLabel({ grade_levels: e.grade_levels ?? [] });
+    const grade = gradeLabel ? ` · ${gradeLabel}` : "";
     results.push({
       type: "מבחן",
       id: e.id,

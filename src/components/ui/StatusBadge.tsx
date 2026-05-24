@@ -56,13 +56,3 @@ export function MakeupStatusBadge({ status }: { status: MakeupExamStatus }) {
     </span>
   );
 }
-
-export function BoolBadge({ value, yes, no }: { value: boolean; yes: string; no: string }) {
-  return (
-    <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${value ? toneClass.ok : toneClass.neutral}`}
-    >
-      {value ? yes : no}
-    </span>
-  );
-}

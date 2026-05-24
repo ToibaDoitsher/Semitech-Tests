@@ -4,6 +4,12 @@ import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { USER_COOKIE } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
+function appPasswordBypassEnabled(): boolean {
+  const flag = process.env.APP_PASSWORD_BYPASS;
+  if (flag == null) return false;
+  return /^(1|true|on|yes)$/i.test(String(flag).trim());
+}
+
 export const dynamic = "force-dynamic";
 
 function sessionResponse(body: Record<string, unknown>, userId: string, status = 200) {
@@ -48,11 +54,13 @@ export async function POST(request: Request) {
       const ok = await verifyPassword(password, user.password_hash as string);
       if (!ok) {
         const appPassword = getAppPassword();
-        if (!appPassword || password !== appPassword) {
+        if (
+          !appPasswordBypassEnabled() ||
+          !appPassword ||
+          password !== appPassword
+        ) {
           return NextResponse.json({ error: "שם משתמש או סיסמה שגויים" }, { status: 401 });
         }
-        const password_hash = await hashPassword(password);
-        await supabase.from("users").update({ password_hash }).eq("id", user.id);
       }
       return sessionResponse(
         {

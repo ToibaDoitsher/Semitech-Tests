@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server";
+import {
+  readOnlyResponse,
+  resolveAcademicYearScope,
+  scopeFromSearchParams,
+} from "@/lib/academicYears/scope";
 import { TEACHER_COLUMNS } from "@/lib/teachers/db";
 import { parseTeacherBody } from "@/lib/teachers/validation";
 import { notDeleted } from "@/lib/db/softDelete";
@@ -25,6 +30,23 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   if (parsed.error) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
   const supabase = createSupabaseAdminClient();
+  const scope = await resolveAcademicYearScope(
+    supabase,
+    scopeFromSearchParams(new URL(request.url).searchParams),
+  );
+  if (scope.readOnly) {
+    return NextResponse.json(readOnlyResponse(), { status: 403 });
+  }
+
+  const { data: existing } = await supabase
+    .from("teachers")
+    .select("academic_year_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (existing && existing.academic_year_id !== scope.year.id) {
+    return NextResponse.json({ error: "מורה לא שייכת לשנה הנוכחית" }, { status: 403 });
+  }
+
   const { data, error } = await supabase
     .from("teachers")
     .update({
@@ -42,9 +64,26 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   return NextResponse.json({ teacher: data });
 }
 
-export async function DELETE(_request: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const supabase = createSupabaseAdminClient();
+  const scope = await resolveAcademicYearScope(
+    supabase,
+    scopeFromSearchParams(new URL(request.url).searchParams),
+  );
+  if (scope.readOnly) {
+    return NextResponse.json(readOnlyResponse(), { status: 403 });
+  }
+
+  const { data: existing } = await supabase
+    .from("teachers")
+    .select("academic_year_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (existing && existing.academic_year_id !== scope.year.id) {
+    return NextResponse.json({ error: "מורה לא שייכת לשנה הנוכחית" }, { status: 403 });
+  }
+
   const { error } = await supabase
     .from("teachers")
     .update({ deleted_at: new Date().toISOString() })

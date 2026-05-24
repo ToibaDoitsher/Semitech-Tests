@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import useSWR from "swr";
+import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
 import { ConfirmDangerDialog } from "@/components/ui/ConfirmDangerDialog";
 import { ExamStudentStatusBadge } from "@/components/ui/StatusBadge";
 import { Spinner } from "@/components/ui/Spinner";
@@ -78,6 +79,8 @@ const lineStatusHe: Record<string, string> = {
 
 export function ExamEditClient({ id }: { id: string }) {
   const router = useRouter();
+  const { viewingYear, readOnly } = useAcademicYear();
+  const yearId = viewingYear?.id;
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const { data, error, isLoading, mutate } = useSWR<{
@@ -85,12 +88,12 @@ export function ExamEditClient({ id }: { id: string }) {
     exam_students: Line[];
     delete_preview?: DeletePreview;
   }>(
-    `/api/exams/${id}`,
+    withYearQuery(`/api/exams/${id}`, yearId),
     fetcher,
   );
 
   async function setStatus(lineId: string, status: ExamStudentStatus) {
-    const r = await fetch(`/api/exam-students/${lineId}`, {
+    const r = await fetch(withYearQuery(`/api/exam-students/${lineId}`, yearId), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
@@ -105,7 +108,7 @@ export function ExamEditClient({ id }: { id: string }) {
 
   async function finishMakeups() {
     if (!confirm("ליצור רשומות השלמה לכל התלמידות שסומנו כלא נבחנות?")) return;
-    const r = await fetch(`/api/exams/${id}/finish`, { method: "POST" });
+    const r = await fetch(withYearQuery(`/api/exams/${id}/finish`, yearId), { method: "POST" });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) {
       alert((j as { error?: string }).error ?? "פעולה נכשלה");
@@ -118,7 +121,7 @@ export function ExamEditClient({ id }: { id: string }) {
   async function deleteExam() {
     setDeleteBusy(true);
     try {
-      const r = await fetch(`/api/exams/${id}`, {
+      const r = await fetch(withYearQuery(`/api/exams/${id}`, yearId), {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ confirm_phrase: EXAM_HARD_DELETE_PHRASE }),
@@ -196,21 +199,25 @@ export function ExamEditClient({ id }: { id: string }) {
               }))
             }
           />
-          <button
-            type="button"
-            onClick={() => void finishMakeups()}
-            disabled={locked}
-            className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50 disabled:opacity-50"
-          >
-            {locked ? "המבחן ננעל — השלמות נוצרו" : "סיום — יצירת השלמות"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setDeleteOpen(true)}
-            className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-100"
-          >
-            מחק מבחן
-          </button>
+          {!readOnly ? (
+            <button
+              type="button"
+              onClick={() => void finishMakeups()}
+              disabled={locked}
+              className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50 disabled:opacity-50"
+            >
+              {locked ? "המבחן ננעל — השלמות נוצרו" : "סיום — יצירת השלמות"}
+            </button>
+          ) : null}
+          {!readOnly ? (
+            <button
+              type="button"
+              onClick={() => setDeleteOpen(true)}
+              className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-100"
+            >
+              מחק מבחן
+            </button>
+          ) : null}
           <Link href="/exams" className="rounded-lg border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm text-white hover:bg-zinc-800">
             חזרה
           </Link>
@@ -297,32 +304,36 @@ export function ExamEditClient({ id }: { id: string }) {
                     <ExamStudentStatusBadge status={row.status} />
                   </TableCell>
                   <TableCell>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        disabled={locked}
-                        className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-900 hover:bg-emerald-100 disabled:opacity-40"
-                        onClick={() => void setStatus(row.id, "took")}
-                      >
-                        נבחנה במועד
-                      </button>
-                      <button
-                        type="button"
-                        disabled={locked}
-                        className="rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-900 hover:bg-red-100 disabled:opacity-40"
-                        onClick={() => void setStatus(row.id, "missing")}
-                      >
-                        לא נבחנה
-                      </button>
-                      <button
-                        type="button"
-                        disabled={locked}
-                        className="rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-xs font-medium text-sky-900 hover:bg-sky-100 disabled:opacity-40"
-                        onClick={() => void setStatus(row.id, "completed")}
-                      >
-                        הושלמה בהשלמה
-                      </button>
-                    </div>
+                    {!readOnly ? (
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={locked}
+                          className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-900 hover:bg-emerald-100 disabled:opacity-40"
+                          onClick={() => void setStatus(row.id, "took")}
+                        >
+                          נבחנה במועד
+                        </button>
+                        <button
+                          type="button"
+                          disabled={locked}
+                          className="rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-900 hover:bg-red-100 disabled:opacity-40"
+                          onClick={() => void setStatus(row.id, "missing")}
+                        >
+                          לא נבחנה
+                        </button>
+                        <button
+                          type="button"
+                          disabled={locked}
+                          className="rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-xs font-medium text-sky-900 hover:bg-sky-100 disabled:opacity-40"
+                          onClick={() => void setStatus(row.id, "completed")}
+                        >
+                          הושלמה בהשלמה
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-zinc-400">צפייה בלבד</span>
+                    )}
                   </TableCell>
                 </TableRow>
               );
@@ -336,13 +347,15 @@ export function ExamEditClient({ id }: { id: string }) {
             )}
           </TableBody>
         </Table>
-        <TableClearFooter
-          label="תלמידות במבחן"
-          count={lines.length}
-          apiPath={`/api/exams/${id}/exam-students/clear-all`}
-          confirmHint="יימחקו כל שורות התלמידות במבחן זה וגם רשומות השלמה פתוחות/קשורות לאותו מבחן."
-          onCleared={() => void mutate()}
-        />
+        {!readOnly ? (
+          <TableClearFooter
+            label="תלמידות במבחן"
+            count={lines.length}
+            apiPath={withYearQuery(`/api/exams/${id}/exam-students/clear-all`, yearId)}
+            confirmHint="יימחקו כל שורות התלמידות במבחן זה וגם רשומות השלמה פתוחות/קשורות לאותו מבחן."
+            onCleared={() => void mutate()}
+          />
+        ) : null}
       </div>
     </div>
   );

@@ -33,7 +33,10 @@ export async function previewScopedDeletes(
       "academic_year_id",
       academicYearId,
     ),
-    supabase.from("makeup_exams").select("id", { count: "exact", head: true }),
+    supabase
+      .from("makeup_exams")
+      .select("id", { count: "exact", head: true })
+      .eq("academic_year_id", academicYearId),
   ]);
 
   return {
@@ -59,10 +62,10 @@ export async function previewScopedDeletesDetailed(
         .eq("grade_level", grade.grade_level),
       notDeleted(supabase.from("exams").select("id", { count: "exact", head: true }))
         .eq("academic_year_id", academicYearId)
-        .eq("grade_level", grade.grade_level),
+        .contains("grade_levels", [grade.grade_level]),
       notDeleted(supabase.from("teacher_assignments").select("id", { count: "exact", head: true }))
         .eq("academic_year_id", academicYearId)
-        .eq("grade_level", grade.grade_level),
+        .contains("grade_levels", [grade.grade_level]),
     ]);
     byGrade.push({
       grade_level: grade.grade_level,
@@ -112,14 +115,15 @@ export async function softDeleteAssignmentsInYear(
   return softDeleteScoped(supabase, "teacher_assignments", academicYearId);
 }
 
-export async function softDeleteMakeupsInCohorts(
+export async function softDeleteMakeupsInYear(
   supabase: SupabaseClient,
-  _academicYearId?: string,
+  academicYearId: string,
 ): Promise<number> {
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from("makeup_exams")
     .update({ deleted_at: now })
+    .eq("academic_year_id", academicYearId)
     .is("deleted_at", null)
     .select("id");
   if (error) throw new Error(error.message);

@@ -1,17 +1,26 @@
 import { NextResponse } from "next/server";
+import {
+  resolveAcademicYearScope,
+  scopeFromSearchParams,
+} from "@/lib/academicYears/scope";
 import { TEACHER_EMBED_IN_EXAM } from "@/lib/teachers/db";
 import { teacherEmbedDisplayName } from "@/lib/teachers/display";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = createSupabaseAdminClient();
+  const scope = await resolveAcademicYearScope(
+    supabase,
+    scopeFromSearchParams(new URL(request.url).searchParams),
+  );
 
   const { data: rows, error } = await supabase
     .from("makeup_exams")
     .select("id, status, created_at, completed_at, grade, student_id, exam_id")
     .eq("status", "open")
+    .eq("academic_year_id", scope.year.id)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
 

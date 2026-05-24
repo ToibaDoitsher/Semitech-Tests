@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { enrichStudentsWithGrade, formatCohortGradeLabel } from "@/lib/academic/studentGrade";
-import { formatGradeLabel } from "@/lib/academicYears/labels";
 import {
   formatGradeLevelsLabel,
   multiTargetTypeLabel,
@@ -12,11 +11,38 @@ import { notDeleted } from "@/lib/db/softDelete";
 import { asStudentRows, type StudentWithLookupsRow } from "@/lib/db/studentRow";
 import { getStudentWithLookupsSelect } from "@/lib/db/studentSelect";
 import { resolveExamTargetLabels } from "@/lib/exams/resolveTargetNames";
+import { formatHebrewDateFromYmd } from "@/lib/hebrewDate";
 import { pickLookupName } from "@/lib/lookups/display";
 import { TEACHER_EMBED_IN_EXAM } from "@/lib/teachers/db";
-import { teacherDisplayName, teacherEmbedDisplayName, teachingModeLabel } from "@/lib/teachers/display";
+import { teacherDisplayName, teacherEmbedDisplayName } from "@/lib/teachers/display";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { examTrackingDueDate } from "@/lib/tracking/dates";
+
+function namesByIdMap(
+  rows: { id: string; name: string }[] | null | undefined,
+): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const r of rows ?? []) m.set(r.id, r.name);
+  return m;
+}
+
+function joinNames(ids: string[], byId: Map<string, string>): string {
+  return ids
+    .map((id) => byId.get(id) ?? "")
+    .filter(Boolean)
+    .join(", ");
+}
+
+function teachingModeForExport(mode: string | null | undefined): string {
+  if (mode === "full") return "מלא";
+  if (mode === "short") return "מקוצר";
+  return "";
+}
+
+function hebrewYmd(ymd: string | null | undefined): string {
+  if (!ymd) return "";
+  return formatHebrewDateFromYmd(ymd);
+}
 
 export const dynamic = "force-dynamic";
 
@@ -190,7 +216,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
         const mt = rowToMultiTarget(e);
         return {
           מקצוע: e.subject,
-          תאריך: e.exam_date,
+          תאריך: hebrewYmd(e.exam_date),
           מורה: teacherNameCell(e.teachers),
           שכבות: formatGradeLevelsLabel(mt.grade_levels),
           סוג_יעד: multiTargetTypeLabel(mt, e.assignment_category),
@@ -211,19 +237,53 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
         lesson_name?: string | null;
         teaching_mode?: string | null;
       })[];
-      const labels = await resolveExamTargetLabels(supabase, raw.map(examTargetRow));
+
+      const classIds = new Set<string>();
+      const specIds = new Set<string>();
+      const trackIds = new Set<string>();
+      for (const a of raw) {
+        const mt = rowToMultiTarget(a);
+        mt.class_ids.forEach((id) => classIds.add(id));
+        mt.specialization_ids.forEach((id) => specIds.add(id));
+        mt.track_ids.forEach((id) => trackIds.add(id));
+      }
+      const [classesRes, specsRes, tracksRes] = await Promise.all([
+        classIds.size
+          ? supabase.from("classes").select("id,name").in("id", [...classIds])
+          : Promise.resolve({ data: [] }),
+        specIds.size
+          ? supabase.from("specializations").select("id,name").in("id", [...specIds])
+          : Promise.resolve({ data: [] }),
+        trackIds.size
+          ? supabase.from("tracks").select("id,name").in("id", [...trackIds])
+          : Promise.resolve({ data: [] }),
+      ]);
+      const classByIdName = namesByIdMap(classesRes.data as { id: string; name: string }[]);
+      const specByIdName = namesByIdMap(specsRes.data as { id: string; name: string }[]);
+      const trackByIdName = namesByIdMap(tracksRes.data as { id: string; name: string }[]);
+
       const rows = raw.map((a) => {
         const row = a as typeof a & { assignment_category?: "חובה" | "התמחות" };
         const mt = rowToMultiTarget(a);
+        const teacher = unwrapOne(a.teachers as unknown as
+          | { first_name?: string; last_name?: string }
+          | { first_name?: string; last_name?: string }[]
+          | null);
+        const classCell = mt.applies_to_all_in_grade
+          ? "כל השכבה"
+          : joinNames(mt.class_ids, classByIdName);
         return {
-          מורה: teacherNameCell(a.teachers),
-          מקצוע: a.subject,
-          שם_שיעור: a.lesson_name ?? "",
-          שכבות: formatGradeLevelsLabel(mt.grade_levels),
-          סוג_שיבוץ: row.assignment_category ?? "—",
-          סוג_יעד: multiTargetTypeLabel(mt, row.assignment_category),
-          ערך_שיבוץ: labels[a.id] ?? "—",
-          סוג_הוראה: teachingModeLabel(a.teaching_mode),
+          "שם פרטי מורה": teacher?.first_name ?? "",
+          "שם משפחה מורה": teacher?.last_name ?? "",
+          מקצוע: a.subject ?? "",
+          "שם שיעור": a.lesson_name ?? "",
+          שכבה: mt.grade_levels.join(", "),
+          "סוג שיבוץ": row.assignment_category ?? "",
+          כיתה: classCell,
+          התמחות: joinNames(mt.specialization_ids, specByIdName),
+          מסלול: joinNames(mt.track_ids, trackByIdName),
+          פסיכולוגיה: mt.psychology_enabled ? "כן" : "לא",
+          "סוג הוראה": teachingModeForExport(a.teaching_mode),
         };
       });
       return NextResponse.json({ rows });
@@ -276,7 +336,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
           שם_משפחה: st?.last_name ?? "",
           תעודת_זהות: st?.tz ?? "",
           מקצוע: ex?.subject ?? "",
-          תאריך_מבחן: ex?.exam_date ?? "",
+          תאריך_מבחן: hebrewYmd(ex?.exam_date),
           מורה: ex ? teacherNameCell(ex.teachers) : "",
         };
       });
@@ -320,7 +380,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
         return {
           מקצוע: ex?.subject ?? "",
           הגשת_המבחן: examTrackingDueDate(examDate, -7),
-          תאריך: examDate,
+          תאריך: hebrewYmd(examDate),
           הגשת_ציונים: examTrackingDueDate(examDate, 7),
           מורה: ex ? teacherNameCell(ex.teachers) : "",
           הוגש_מבחן: row.submitted_exam ? row.submitted_exam.slice(0, 19) : "",
@@ -380,7 +440,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
       const targetLabel = ex ? examTargetLabels[raw.exam_id] ?? "—" : "";
       return {
         מקצוע: ex?.subject ?? "",
-        תאריך_מבחן: ex?.exam_date ?? "",
+        תאריך_מבחן: hebrewYmd(ex?.exam_date),
         מורה: ex ? teacherNameCell(ex.teachers) : "",
         סוג_יעד: ex ? multiTargetTypeLabel(rowToMultiTarget(ex), ex.assignment_category) : "",
         שם_יעד: targetLabel,

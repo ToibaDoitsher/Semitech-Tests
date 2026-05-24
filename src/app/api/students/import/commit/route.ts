@@ -37,9 +37,24 @@ export async function POST(request: Request) {
   }
 
   const [cl, sp, tr] = await Promise.all([
-    supabase.from("classes").select("id,name").eq("is_active", true),
-    supabase.from("specializations").select("id,name").eq("is_active", true),
-    supabase.from("tracks").select("id,name").eq("is_active", true),
+    supabase
+      .from("classes")
+      .select("id,name")
+      .eq("academic_year_id", scope.year.id)
+      .eq("is_active", true)
+      .is("deleted_at", null),
+    supabase
+      .from("specializations")
+      .select("id,name")
+      .eq("academic_year_id", scope.year.id)
+      .eq("is_active", true)
+      .is("deleted_at", null),
+    supabase
+      .from("tracks")
+      .select("id,name")
+      .eq("academic_year_id", scope.year.id)
+      .eq("is_active", true)
+      .is("deleted_at", null),
   ]);
 
   for (const res of [cl, sp, tr]) {

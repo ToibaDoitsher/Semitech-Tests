@@ -1,12 +1,24 @@
 import { NextResponse } from "next/server";
+import {
+  readOnlyResponse,
+  resolveAcademicYearScope,
+  scopeFromSearchParams,
+} from "@/lib/academicYears/scope";
 import { ensureMakeupTrackingBatch } from "@/lib/makeupTracking/sync";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(_request: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: examId } = await ctx.params;
   const supabase = createSupabaseAdminClient();
+  const scope = await resolveAcademicYearScope(
+    supabase,
+    scopeFromSearchParams(new URL(request.url).searchParams),
+  );
+  if (scope.readOnly) {
+    return NextResponse.json(readOnlyResponse(), { status: 403 });
+  }
 
   const { data: exam, error: examErr } = await supabase
     .from("exams")
@@ -15,6 +27,9 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
     .maybeSingle();
   if (examErr) return NextResponse.json({ error: examErr.message }, { status: 500 });
   if (!exam) return NextResponse.json({ error: "מבחן לא נמצא" }, { status: 404 });
+  if (exam.academic_year_id !== scope.year.id) {
+    return NextResponse.json({ error: "מבחן לא שייך לשנה הנוכחית" }, { status: 403 });
+  }
   if (exam.makeup_locked_at) {
     return NextResponse.json({ error: "המבחן כבר ננעל להשלמות" }, { status: 400 });
   }
