@@ -10,6 +10,7 @@ import {
 } from "@/lib/academicYears/scope";
 import { asStudentRow } from "@/lib/db/studentRow";
 import { getStudentWithLookupsSelect } from "@/lib/db/studentSelect";
+import { propagateStudentChangeToFutureExams } from "@/lib/exams/syncExamStudents";
 import { recordStudentHistoryIfChanged } from "@/lib/students/history";
 import { normalizeStudentFields } from "@/lib/students/patch";
 import { TEACHER_EMBED_IN_EXAM } from "@/lib/teachers/db";
@@ -40,7 +41,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
     .order("updated_at", { ascending: false });
 
   const examIds = [...new Set((examStudents ?? []).map((r) => r.exam_id))];
-  let examsMeta: Record<string, { subject: string; exam_date: string; teacher_name: string | null }> =
+  const examsMeta: Record<string, { subject: string; exam_date: string; teacher_name: string | null }> =
     {};
 
   if (examIds.length) {
@@ -99,7 +100,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
   }
 
   const uniqueMakeupExamIds = [...new Set((makeups ?? []).map((m) => m.exam_id))];
-  let makeupExamsMeta: Record<string, { subject: string; exam_date: string }> = {};
+  const makeupExamsMeta: Record<string, { subject: string; exam_date: string }> = {};
   if (uniqueMakeupExamIds.length) {
     const { data: mex } = await supabase
       .from("exams")
@@ -134,7 +135,9 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 
   const { data: before } = await supabase
     .from("students")
-    .select("class_id, specialization_id, track_id, grade_level")
+    .select(
+      "class_id, specialization_id, secondary_specialization_id, track_id, grade_level, is_psychology, teaching_track_type, academic_year_id",
+    )
     .eq("id", id)
     .single();
 
@@ -182,6 +185,36 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 
   const after = data ? asStudentRow(data) : null;
   const name = after ? `${after.last_name} ${after.first_name}` : null;
+
+  type StudentTargetFields = {
+    class_id: string | null;
+    specialization_id: string | null;
+    secondary_specialization_id: string | null;
+    track_id: string | null;
+    grade_level: string | null;
+    is_psychology: boolean | null;
+    teaching_track_type: "full" | "short" | null;
+  };
+  const beforeFields = before as StudentTargetFields | null;
+  const afterFields = (data as unknown as StudentTargetFields | null) ?? null;
+  const targetChanged =
+    Boolean(beforeFields && afterFields) &&
+    (beforeFields!.class_id !== afterFields!.class_id ||
+      beforeFields!.specialization_id !== afterFields!.specialization_id ||
+      beforeFields!.secondary_specialization_id !== afterFields!.secondary_specialization_id ||
+      beforeFields!.track_id !== afterFields!.track_id ||
+      beforeFields!.grade_level !== afterFields!.grade_level ||
+      Boolean(beforeFields!.is_psychology) !== Boolean(afterFields!.is_psychology) ||
+      beforeFields!.teaching_track_type !== afterFields!.teaching_track_type);
+
+  let sync: Awaited<ReturnType<typeof propagateStudentChangeToFutureExams>> | null = null;
+  if (targetChanged) {
+    sync = await propagateStudentChangeToFutureExams(supabase, id, scope.year.id);
+    if (sync && "error" in sync) {
+      return NextResponse.json({ error: sync.error }, { status: 400 });
+    }
+  }
+
   await writeAudit(supabase, {
     userId: user?.id ?? null,
     entityType: "student",
@@ -192,7 +225,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     newValue: data,
   });
 
-  return NextResponse.json({ student: data });
+  return NextResponse.json({ student: data, sync });
 }
 
 export async function DELETE(request: Request, ctx: { params: Promise<{ id: string }> }) {

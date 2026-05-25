@@ -11,20 +11,21 @@
 export function TeacherFormFields({ defaults }: Props) {
   return (
     <>
+      <p className="md:col-span-2 -mb-2 text-xs text-zinc-500">
+        חובה להזין לפחות אחד מהשמות (שם פרטי או שם משפחה).
+      </p>
       <label className="block">
-        <div className="text-sm font-medium">שם פרטי *</div>
+        <div className="text-sm font-medium">שם פרטי</div>
         <input
           name="first_name"
-          required
           defaultValue={defaults?.first_name ?? ""}
           className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-400"
         />
       </label>
       <label className="block">
-        <div className="text-sm font-medium">שם משפחה *</div>
+        <div className="text-sm font-medium">שם משפחה</div>
         <input
           name="last_name"
-          required
           defaultValue={defaults?.last_name ?? ""}
           className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-400"
         />

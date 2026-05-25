@@ -42,14 +42,14 @@ export function parseTeacherBody(body: Record<string, unknown>): {
   const last_name = String(body.last_name ?? "").trim();
   const notesRaw = String(body.notes ?? "").trim();
 
-  if (!first_name || !last_name) {
+  if (!first_name && !last_name) {
     return {
       first_name,
       last_name,
       tz: null,
       email: null,
       notes: null,
-      error: "שם פרטי ושם משפחה חובה",
+      error: "חובה להזין שם פרטי או שם משפחה (לפחות אחד)",
     };
   }
 

@@ -1,17 +1,26 @@
 import { NextResponse } from "next/server";
-import { rowToMultiTarget } from "@/lib/assignments/multiTarget";
+import { writeAudit } from "@/lib/audit/log";
+import { getCurrentUser } from "@/lib/auth/currentUser";
+import {
+  normalizeMultiTargetInput,
+  rowToMultiTarget,
+  validateMultiTarget,
+} from "@/lib/assignments/multiTarget";
 import {
   EXAM_HARD_DELETE_PHRASE,
   hardDeleteExam,
   previewExamHardDelete,
 } from "@/lib/exams/deleteExam";
+import { isTeachingTrackId } from "@/lib/exams/logic";
 import { resolveExamTargetLabels } from "@/lib/exams/resolveTargetNames";
+import { syncExamStudentsToTarget } from "@/lib/exams/syncExamStudents";
 import {
   readOnlyResponse,
   resolveAcademicYearScope,
   scopeFromSearchParams,
 } from "@/lib/academicYears/scope";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import type { TeachingTrackType } from "@/lib/types/db";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +64,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
     specializations?: { name: string } | { name: string }[] | null;
     secondary_specializations?: { name: string } | { name: string }[] | null;
   };
-  let byStudent: Record<string, StudentLine> = {};
+  const byStudent: Record<string, StudentLine> = {};
 
   if (studentIds.length) {
     const { data: studs } = await supabase
@@ -87,6 +96,162 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
     });
 
   return NextResponse.json({ exam: examEnriched, exam_students, delete_preview });
+}
+
+type PatchBody = {
+  exam_date?: string;
+  grade_levels?: string[];
+  class_ids?: string[];
+  track_ids?: string[];
+  specialization_ids?: string[];
+  psychology_enabled?: boolean;
+  applies_to_all_in_grade?: boolean;
+  teaching_track_type?: TeachingTrackType | null | "";
+};
+
+export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
+  const { searchParams } = new URL(request.url);
+  const supabase = createSupabaseAdminClient();
+  const scope = await resolveAcademicYearScope(supabase, scopeFromSearchParams(searchParams));
+  if (scope.readOnly) {
+    return NextResponse.json(readOnlyResponse(), { status: 403 });
+  }
+
+  const body = (await request.json().catch(() => ({}))) as PatchBody;
+
+  const { data: examBefore, error: loadErr } = await supabase
+    .from("exams")
+    .select(
+      "id, academic_year_id, teacher_id, subject, exam_date, assignment_category, grade_levels, class_ids, track_ids, specialization_ids, psychology_enabled, applies_to_all_in_grade, teaching_track_type, makeup_locked_at",
+    )
+    .eq("id", id)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (loadErr) return NextResponse.json({ error: loadErr.message }, { status: 500 });
+  if (!examBefore) return NextResponse.json({ error: "מבחן לא נמצא" }, { status: 404 });
+  if (examBefore.academic_year_id !== scope.year.id) {
+    return NextResponse.json({ error: "מבחן לא שייך לשנה הנוכחית" }, { status: 403 });
+  }
+
+  const wantsTargetChange =
+    body.grade_levels !== undefined ||
+    body.class_ids !== undefined ||
+    body.track_ids !== undefined ||
+    body.specialization_ids !== undefined ||
+    body.psychology_enabled !== undefined ||
+    body.applies_to_all_in_grade !== undefined ||
+    body.teaching_track_type !== undefined;
+
+  if (examBefore.makeup_locked_at && wantsTargetChange) {
+    return NextResponse.json(
+      { error: "המבחן ננעל להשלמות — לא ניתן לערוך יעד. אפשר לעדכן רק תאריך." },
+      { status: 400 },
+    );
+  }
+
+  const update: Record<string, unknown> = {};
+
+  if (body.exam_date !== undefined) {
+    const v = (body.exam_date ?? "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+      return NextResponse.json({ error: "תאריך לא תקין (YYYY-MM-DD)" }, { status: 400 });
+    }
+    update.exam_date = v;
+  }
+
+  let newTarget = rowToMultiTarget(examBefore);
+  let newTeachingTrackType =
+    (examBefore.teaching_track_type as TeachingTrackType | null) ?? null;
+
+  if (wantsTargetChange) {
+    newTarget = normalizeMultiTargetInput({
+      grade_levels: body.grade_levels ?? newTarget.grade_levels,
+      class_ids: body.class_ids ?? newTarget.class_ids,
+      track_ids: body.track_ids ?? newTarget.track_ids,
+      specialization_ids: body.specialization_ids ?? newTarget.specialization_ids,
+      psychology_enabled:
+        body.psychology_enabled !== undefined
+          ? body.psychology_enabled
+          : newTarget.psychology_enabled,
+      applies_to_all_in_grade:
+        body.applies_to_all_in_grade !== undefined
+          ? body.applies_to_all_in_grade
+          : newTarget.applies_to_all_in_grade,
+    });
+
+    const targetErr = validateMultiTarget(examBefore.assignment_category, newTarget);
+    if (targetErr) return NextResponse.json({ error: targetErr }, { status: 400 });
+
+    if (body.teaching_track_type !== undefined) {
+      const v = body.teaching_track_type;
+      newTeachingTrackType = v === "full" || v === "short" ? v : null;
+    }
+
+    if (newTarget.track_ids.length) {
+      const checks = await Promise.all(
+        newTarget.track_ids.map((tid) => isTeachingTrackId(supabase, tid)),
+      );
+      const hasTeachingTrack = checks.some(Boolean);
+      if (hasTeachingTrack && !newTeachingTrackType) {
+        return NextResponse.json(
+          { error: "במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)" },
+          { status: 400 },
+        );
+      }
+      if (!hasTeachingTrack) newTeachingTrackType = null;
+    } else {
+      newTeachingTrackType = null;
+    }
+
+    update.grade_levels = newTarget.grade_levels;
+    update.class_ids = newTarget.class_ids;
+    update.track_ids = newTarget.track_ids;
+    update.specialization_ids = newTarget.specialization_ids;
+    update.psychology_enabled = newTarget.psychology_enabled;
+    update.applies_to_all_in_grade = newTarget.applies_to_all_in_grade;
+    update.teaching_track_type = newTeachingTrackType;
+  }
+
+  if (!Object.keys(update).length) {
+    return NextResponse.json({ error: "אין מה לעדכן" }, { status: 400 });
+  }
+
+  const { data: examAfter, error: upErr } = await supabase
+    .from("exams")
+    .update(update)
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (upErr) return NextResponse.json({ error: upErr.message }, { status: 400 });
+
+  let syncResult: Awaited<ReturnType<typeof syncExamStudentsToTarget>> | null = null;
+  if (wantsTargetChange) {
+    syncResult = await syncExamStudentsToTarget(supabase, id);
+    if (syncResult && "error" in syncResult) {
+      return NextResponse.json({ error: syncResult.error }, { status: 400 });
+    }
+  }
+
+  const user = await getCurrentUser(supabase);
+  await writeAudit(supabase, {
+    userId: user?.id ?? null,
+    entityType: "exam",
+    entityId: id,
+    actionType: "update",
+    entityNameSnapshot: (examAfter as { subject?: string }).subject ?? null,
+    oldValue: examBefore,
+    newValue: examAfter,
+  });
+
+  const labels = await resolveExamTargetLabels(supabase, [
+    { id, ...rowToMultiTarget(examAfter) },
+  ]);
+
+  return NextResponse.json({
+    exam: { ...examAfter, target_label: labels[id] ?? null },
+    sync: syncResult,
+  });
 }
 
 export async function DELETE(request: Request, ctx: { params: Promise<{ id: string }> }) {

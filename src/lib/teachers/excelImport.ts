@@ -1,6 +1,5 @@
 import { filterDataRows } from "@/lib/students/excelImport";
 import { teacherDisplayName } from "@/lib/teachers/display";
-import { TEACHER_EXCEL_HEADERS } from "@/lib/teachers/excelTemplate";
 import {
   normalizeTeacherEmail,
   normalizeTeacherTz,
@@ -47,13 +46,13 @@ export const TEACHER_FIELD_ALIASES: Record<
   notes: ["הערות", "notes"],
 };
 
-const REQUIRED_FIELDS: (keyof typeof TEACHER_FIELD_ALIASES)[] = [
+const NAME_FIELDS: (keyof typeof TEACHER_FIELD_ALIASES)[] = [
   "first_name",
   "last_name",
 ];
 
 const ALL_FIELDS: (keyof typeof TEACHER_FIELD_ALIASES)[] = [
-  ...REQUIRED_FIELDS,
+  ...NAME_FIELDS,
   "tz",
   "email",
   "notes",
@@ -88,13 +87,12 @@ function cellFromRow(obj: Record<string, unknown>, field: keyof typeof TEACHER_F
 
 export function assertTeacherRequiredHeaders(rawKeys: string[]): string | null {
   const nk = new Set(rawKeys.map((k) => normalizeHeaderKey(k)).filter(Boolean));
-  const missing: string[] = [];
-  for (const field of REQUIRED_FIELDS) {
-    const ok = TEACHER_FIELD_ALIASES[field].some((a) => nk.has(normalizeHeaderKey(a)));
-    if (!ok) missing.push(TEACHER_FIELD_ALIASES[field][0]);
-  }
-  if (!missing.length) return null;
-  return `חסרות עמודות חובה: ${missing.join(", ")}. הורידי את התבנית ממסך ייבוא המורות.`;
+  const hasAnyName = NAME_FIELDS.some((field) =>
+    TEACHER_FIELD_ALIASES[field].some((a) => nk.has(normalizeHeaderKey(a))),
+  );
+  if (hasAnyName) return null;
+  const labels = NAME_FIELDS.map((field) => TEACHER_FIELD_ALIASES[field][0]).join(" / ");
+  return `חסרה עמודת שם. נדרשת לפחות אחת מהעמודות: ${labels}. הורידי את התבנית ממסך ייבוא המורות.`;
 }
 
 export function sheetRowsToTeacherObjects(raw: Record<string, unknown>[]): ParsedTeacherRow[] {
@@ -189,8 +187,9 @@ export function validateTeacherImportRows(
     const first_name = r.first_name.trim();
     const last_name = r.last_name.trim();
 
-    if (!first_name) errors.push("שם פרטי חסר");
-    if (!last_name) errors.push("שם משפחה חסר");
+    if (!first_name && !last_name) {
+      errors.push("חובה להזין לפחות אחד מהשמות (שם פרטי או שם משפחה)");
+    }
 
     const tzErr = validateTeacherTz(r.tz);
     if (tzErr) errors.push(tzErr);

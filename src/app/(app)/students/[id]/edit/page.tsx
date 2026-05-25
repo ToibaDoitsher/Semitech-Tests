@@ -18,6 +18,8 @@ import { getStudentWithLookupsSelect } from "@/lib/db/studentSelect";
 
 import { getActiveAcademicYear } from "@/lib/academicYears/years";
 
+import { propagateStudentChangeToFutureExams } from "@/lib/exams/syncExamStudents";
+
 import { normalizeStudentFields } from "@/lib/students/patch";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -68,7 +70,13 @@ export default async function EditStudentPage({ params }: { params: Promise<{ id
 
     const active = await getActiveAcademicYear(sb);
 
-    const { data: current } = await sb.from("students").select("academic_year_id").eq("id", id).maybeSingle();
+    const { data: current } = await sb
+      .from("students")
+      .select(
+        "academic_year_id, class_id, specialization_id, secondary_specialization_id, track_id, grade_level, is_psychology, teaching_track_type",
+      )
+      .eq("id", id)
+      .maybeSingle();
 
     if (!current) throw new Error("תלמידה לא נמצאה");
 
@@ -102,6 +110,8 @@ export default async function EditStudentPage({ params }: { params: Promise<{ id
 
 
 
+    const newClassId = String(formData.get("class_id") ?? "").trim();
+
     const { error: uErr } = await sb
 
       .from("students")
@@ -116,7 +126,7 @@ export default async function EditStudentPage({ params }: { params: Promise<{ id
 
         grade_level,
 
-        class_id: String(formData.get("class_id") ?? "").trim(),
+        class_id: newClassId,
 
         ...extra.patch,
 
@@ -125,6 +135,36 @@ export default async function EditStudentPage({ params }: { params: Promise<{ id
       .eq("id", id);
 
     if (uErr) throw new Error(uErr.message);
+
+    type StudentTargetFields = {
+      class_id: string | null;
+      specialization_id: string | null;
+      secondary_specialization_id: string | null;
+      track_id: string | null;
+      grade_level: string | null;
+      is_psychology: boolean | null;
+      teaching_track_type: "full" | "short" | null;
+    };
+    const beforeFields = current as unknown as StudentTargetFields;
+    const newSpecId = (extra.patch as { specialization_id?: string | null }).specialization_id ?? null;
+    const newSecSpecId = (extra.patch as { secondary_specialization_id?: string | null }).secondary_specialization_id ?? null;
+    const newTrackId = (extra.patch as { track_id?: string | null }).track_id ?? null;
+    const newIsPsych = Boolean((extra.patch as { is_psychology?: boolean }).is_psychology);
+    const newTeachingType = ((extra.patch as { teaching_track_type?: "full" | "short" | null }).teaching_track_type ?? null);
+
+    const targetChanged =
+      beforeFields.class_id !== newClassId ||
+      beforeFields.specialization_id !== newSpecId ||
+      beforeFields.secondary_specialization_id !== newSecSpecId ||
+      beforeFields.track_id !== newTrackId ||
+      beforeFields.grade_level !== grade_level ||
+      Boolean(beforeFields.is_psychology) !== newIsPsych ||
+      beforeFields.teaching_track_type !== newTeachingType;
+
+    if (targetChanged) {
+      const result = await propagateStudentChangeToFutureExams(sb, id, active.id);
+      if (result && "error" in result) throw new Error(result.error);
+    }
 
     redirect(`/students/${id}`);
 

@@ -213,12 +213,12 @@ export function AppShell({
         </header>
 
         <motion.main
-          className="min-h-0 flex-1 overflow-y-auto px-4 py-8 md:px-10 md:py-10"
+          className="min-h-0 flex-1 overflow-y-auto px-4 py-8 md:px-8 md:py-10 2xl:px-12"
           initial={{ opacity: 0.96 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.2 }}
         >
-          <div className="mx-auto w-full max-w-6xl pb-4">{children}</div>
+          <div className="mx-auto w-full max-w-[1600px] pb-4">{children}</div>
         </motion.main>
       </div>
     </div>

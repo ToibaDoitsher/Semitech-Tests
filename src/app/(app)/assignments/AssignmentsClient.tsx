@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Pencil, Settings2, Trash2, Upload } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import useSWR from "swr";
 import {
   ListDataCard,
@@ -11,6 +11,7 @@ import {
   LIST_ROW_DELETE_CLASS,
 } from "@/components/ui/ListPage";
 import { InlineNotice } from "@/components/ui/InlineNotice";
+import { ListFilterBar, matchesNameQuery } from "@/components/ui/ListFilterBar";
 import { Spinner } from "@/components/ui/Spinner";
 import type { GradeLevel } from "@/lib/academicYears/types";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
@@ -61,12 +62,17 @@ type EditDraft = {
 export function AssignmentsClient() {
   const { viewingYear, readOnly } = useAcademicYear();
   const [categoryFilter, setCategoryFilter] = useState<"" | AssignmentCategory>("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [gradeFilter, setGradeFilter] = useState("");
+  const [classFilter, setClassFilter] = useState("");
+  const [trackFilter, setTrackFilter] = useState("");
+  const [specFilter, setSpecFilter] = useState("");
+  const [teachingModeFilter, setTeachingModeFilter] = useState("");
+  const [psychologyFilter, setPsychologyFilter] = useState("");
+  const deferredSearch = useDeferredValue(searchTerm);
   const assignmentsUrl = useMemo(() => {
-    const base = withYearQuery("/api/teacher-assignments", viewingYear?.id);
-    if (!categoryFilter) return base;
-    const sep = base.includes("?") ? "&" : "?";
-    return `${base}${sep}assignment_category=${encodeURIComponent(categoryFilter)}`;
-  }, [viewingYear?.id, categoryFilter]);
+    return withYearQuery("/api/teacher-assignments", viewingYear?.id);
+  }, [viewingYear?.id]);
   const { data: aData, error: aErr, isLoading: aLoad, mutate } = useSWR<{
     assignments: AssignmentRow[];
     grades?: GradeOption[];
@@ -245,7 +251,58 @@ export function AssignmentsClient() {
     await mutate();
   }
 
-  const rows = aData?.assignments ?? [];
+  const allRows = aData?.assignments ?? [];
+
+  const rows = useMemo(() => {
+    return allRows.filter((a) => {
+      if (categoryFilter && a.assignment_category !== categoryFilter) return false;
+      if (gradeFilter && !a.grade_levels.includes(gradeFilter)) return false;
+      if (classFilter && !a.class_ids.includes(classFilter)) return false;
+      if (trackFilter && !a.track_ids.includes(trackFilter)) return false;
+      if (specFilter && !a.specialization_ids.includes(specFilter)) return false;
+      if (teachingModeFilter && (a.teaching_mode ?? "") !== teachingModeFilter) return false;
+      if (psychologyFilter === "1" && !a.psychology_enabled) return false;
+      if (psychologyFilter === "0" && a.psychology_enabled) return false;
+      if (deferredSearch.trim()) {
+        const tFirst = a.teachers?.first_name ?? "";
+        const tLast = a.teachers?.last_name ?? "";
+        const tFull = (a.teachers as { full_name_generated?: string } | null)?.full_name_generated ?? "";
+        const matches = matchesNameQuery(deferredSearch, [
+          tFirst,
+          tLast,
+          tFull,
+          a.subject,
+          a.lesson_name,
+          a.target_label,
+        ]);
+        if (!matches) return false;
+      }
+      return true;
+    });
+  }, [
+    allRows,
+    deferredSearch,
+    categoryFilter,
+    gradeFilter,
+    classFilter,
+    trackFilter,
+    specFilter,
+    teachingModeFilter,
+    psychologyFilter,
+  ]);
+
+  const isFiltering = Boolean(
+    deferredSearch.trim() ||
+      categoryFilter ||
+      gradeFilter ||
+      classFilter ||
+      trackFilter ||
+      specFilter ||
+      teachingModeFilter ||
+      psychologyFilter,
+  );
+
+  const gradeOptions = (aData?.grades ?? []).map((g) => ({ value: g.grade_level, label: g.label }));
 
   return (
     <div className="space-y-8">
@@ -344,19 +401,94 @@ export function AssignmentsClient() {
       ) : null}
 
       <ListDataCard>
+        <ListFilterBar
+          searchValue={searchTerm}
+          onSearchChange={setSearchTerm}
+          searchLabel="חיפוש שיבוץ"
+          searchPlaceholder="למשל: שרה כהן · גרפיקה · פוטושופ…"
+          searchHint="חיפוש לפי שם מורה (פרטי + משפחה, גם בסדר הפוך) · מקצוע · שיעור · יעד"
+          filters={[
+            {
+              id: "category",
+              label: "סוג שיבוץ",
+              value: categoryFilter,
+              onChange: (v) => setCategoryFilter(v as "" | AssignmentCategory),
+              options: [
+                { value: "חובה", label: "חובה" },
+                { value: "התמחות", label: "התמחות" },
+              ],
+            },
+            {
+              id: "grade",
+              label: "שכבה",
+              value: gradeFilter,
+              onChange: setGradeFilter,
+              options: gradeOptions.length
+                ? gradeOptions
+                : [
+                    { value: "א", label: "א" },
+                    { value: "ב", label: "ב" },
+                    { value: "ג", label: "ג" },
+                  ],
+            },
+            {
+              id: "class",
+              label: "כיתה",
+              value: classFilter,
+              onChange: setClassFilter,
+              options: (clData?.items ?? []).map((it) => ({ value: it.id, label: it.name })),
+            },
+            {
+              id: "track",
+              label: "מסלול",
+              value: trackFilter,
+              onChange: setTrackFilter,
+              options: (trData?.items ?? []).map((it) => ({ value: it.id, label: it.name })),
+            },
+            {
+              id: "spec",
+              label: "התמחות",
+              value: specFilter,
+              onChange: setSpecFilter,
+              options: (spData?.items ?? []).map((it) => ({ value: it.id, label: it.name })),
+            },
+            {
+              id: "psychology",
+              label: "פסיכולוגיה",
+              value: psychologyFilter,
+              onChange: setPsychologyFilter,
+              options: [
+                { value: "1", label: "כן" },
+                { value: "0", label: "לא" },
+              ],
+            },
+            {
+              id: "teaching-mode",
+              label: "סוג הוראה",
+              value: teachingModeFilter,
+              onChange: setTeachingModeFilter,
+              options: [
+                { value: "full", label: "מלא" },
+                { value: "short", label: "מקוצר" },
+              ],
+            },
+          ]}
+          isAnyActive={isFiltering}
+          onClearAll={() => {
+            setSearchTerm("");
+            setCategoryFilter("");
+            setGradeFilter("");
+            setClassFilter("");
+            setTrackFilter("");
+            setSpecFilter("");
+            setTeachingModeFilter("");
+            setPsychologyFilter("");
+          }}
+        />
+      </ListDataCard>
+
+      <ListDataCard enterDelay={0.09}>
         <ListTableToolbar>
-          <label className="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-zinc-300">
-            <span className="font-medium">סוג שיבוץ</span>
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value as "" | AssignmentCategory)}
-              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm dark:border-zinc-600 dark:bg-zinc-900"
-            >
-              <option value="">הכל</option>
-              <option value="חובה">חובה</option>
-              <option value="התמחות">התמחות</option>
-            </select>
-          </label>
           {aLoad ? (
             <span className="inline-flex items-center gap-2">
               <Spinner className="size-4" />
@@ -365,7 +497,10 @@ export function AssignmentsClient() {
           ) : aErr ? (
             <span className="text-red-600">{(aErr as Error).message}</span>
           ) : (
-            <span>{rows.length} שיבוצים</span>
+            <span>
+              {rows.length} שיבוצים
+              {isFiltering && rows.length !== allRows.length ? ` · מתוך ${allRows.length}` : ""}
+            </span>
           )}
         </ListTableToolbar>
         <Table className="min-w-[720px]">
@@ -476,7 +611,7 @@ export function AssignmentsClient() {
             ) : (
               <TableRow>
                 <TableCell className="py-14 text-center text-slate-500 dark:text-zinc-400" colSpan={7}>
-                  {aLoad ? "טוען…" : "אין שיבוצים"}
+                  {aLoad ? "טוען…" : isFiltering ? "אין תוצאות תואמות לסינון" : "אין שיבוצים"}
                 </TableCell>
               </TableRow>
             )}
@@ -484,7 +619,7 @@ export function AssignmentsClient() {
         </Table>
         <TableClearFooter
           label="שיבוצי מורות"
-          count={rows.length}
+          count={allRows.length}
           apiPath="/api/teacher-assignments/clear-all"
           scopePreviewPath="/api/scope/delete-preview"
           onCleared={() => void mutate()}

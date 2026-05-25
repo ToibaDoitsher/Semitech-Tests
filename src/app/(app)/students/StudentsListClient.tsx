@@ -12,6 +12,7 @@ import {
   LIST_ROW_LINK_CLASS,
   LIST_SECONDARY_LINK_CLASS,
 } from "@/components/ui/ListPage";
+import { ListFilterBar } from "@/components/ui/ListFilterBar";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -21,9 +22,6 @@ import { pickLookupName } from "@/lib/lookups/display";
 import { psychologyLabel } from "@/lib/students/display";
 import { teachingTrackTypeLabel } from "@/lib/students/fields";
 import type { Student } from "@/lib/types/db";
-
-const filterControlClass =
-  "mt-1.5 w-full rounded-2xl border border-slate-200/90 bg-white px-3.5 py-2.5 text-sm shadow-sm outline-none transition focus:border-[var(--color-primary)] focus:ring-2 focus:ring-blue-500/25 dark:border-zinc-600 dark:bg-zinc-950/40 dark:focus:ring-blue-400/20";
 
 const fetcher = async (url: string) => {
   const r = await fetch(url);
@@ -101,119 +99,79 @@ export function StudentsListClient() {
       />
 
       <ListDataCard>
-        <div className="bg-gradient-to-bl from-slate-50/95 via-white to-sky-50/35 p-5 sm:p-6 dark:from-slate-900/50 dark:via-zinc-900/35 dark:to-slate-900/25">
-          <div className="mb-4 flex flex-col gap-2 border-b border-slate-200/60 pb-4 dark:border-slate-700/50 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm font-semibold text-slate-800 dark:text-zinc-100">סינון תוצאות</p>
-            {(gradeLevel || classId || trackId || specializationId || psychology || teachingType) ? (
-              <button
-                type="button"
-                className="self-start text-sm font-medium text-[var(--color-primary)] underline-offset-2 hover:underline dark:text-blue-300"
-                onClick={() => {
-                  setGradeLevel("");
-                  setClassId("");
-                  setSpecializationId("");
-                  setTrackId("");
-                  setPsychology("");
-                  setTeachingType("");
-                }}
-              >
-                ניקוי סינון
-              </button>
-            ) : null}
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-            <label className="block sm:col-span-2 xl:col-span-2">
-              <span className="block text-xs font-semibold text-slate-600 dark:text-zinc-400">חיפוש</span>
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="למשל: יעל כהן · או כהן יעל · או ת״ז…"
-                className={filterControlClass}
-                dir="rtl"
-              />
-            </label>
-
-            <label className="block">
-              <span className="block text-xs font-semibold text-slate-600 dark:text-zinc-400">שכבה</span>
-              <select
-                value={gradeLevel}
-                onChange={(e) => setGradeLevel(e.target.value)}
-                className={filterControlClass}
-              >
-                <option value="">הכל</option>
-                <option value="א">א</option>
-                <option value="ב">ב</option>
-                <option value="ג">ג</option>
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="block text-xs font-semibold text-slate-600 dark:text-zinc-400">כיתה</span>
-              <select
-                value={classId}
-                onChange={(e) => setClassId(e.target.value)}
-                className={filterControlClass}
-              >
-                <option value="">הכל</option>
-                {(clData?.items ?? []).map((it) => (
-                  <option key={it.id} value={it.id}>
-                    {it.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="block text-xs font-semibold text-slate-600 dark:text-zinc-400">מסלול</span>
-              <select
-                value={trackId}
-                onChange={(e) => setTrackId(e.target.value)}
-                className={filterControlClass}
-              >
-                <option value="">הכל</option>
-                {(trData?.items ?? []).map((it) => (
-                  <option key={it.id} value={it.id}>
-                    {it.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="block text-xs font-semibold text-slate-600 dark:text-zinc-400">התמחות</span>
-              <select
-                value={specializationId}
-                onChange={(e) => setSpecializationId(e.target.value)}
-                className={filterControlClass}
-              >
-                <option value="">הכל</option>
-                {(spData?.items ?? []).map((it) => (
-                  <option key={it.id} value={it.id}>
-                    {it.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="block text-xs font-semibold text-slate-600 dark:text-zinc-400">פסיכולוגיה</span>
-              <select value={psychology} onChange={(e) => setPsychology(e.target.value)} className={filterControlClass}>
-                <option value="">הכל</option>
-                <option value="1">כן</option>
-                <option value="0">לא</option>
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="block text-xs font-semibold text-slate-600 dark:text-zinc-400">סוג הוראה</span>
-              <select value={teachingType} onChange={(e) => setTeachingType(e.target.value)} className={filterControlClass}>
-                <option value="">הכל</option>
-                <option value="full">מלא</option>
-                <option value="short">מקוצר</option>
-              </select>
-            </label>
-          </div>
-        </div>
+        <ListFilterBar
+          searchValue={q}
+          onSearchChange={setQ}
+          searchLabel="חיפוש תלמידה"
+          searchPlaceholder="למשל: יעל כהן · כהן יעל · ת״ז…"
+          searchHint="חיפוש שם פרטי + משפחה גם בסדר הפוך · או ת״ז"
+          filters={[
+            {
+              id: "grade",
+              label: "שכבה",
+              value: gradeLevel,
+              onChange: setGradeLevel,
+              options: [
+                { value: "א", label: "א" },
+                { value: "ב", label: "ב" },
+                { value: "ג", label: "ג" },
+              ],
+            },
+            {
+              id: "class",
+              label: "כיתה",
+              value: classId,
+              onChange: setClassId,
+              options: (clData?.items ?? []).map((it) => ({ value: it.id, label: it.name })),
+            },
+            {
+              id: "track",
+              label: "מסלול",
+              value: trackId,
+              onChange: setTrackId,
+              options: (trData?.items ?? []).map((it) => ({ value: it.id, label: it.name })),
+            },
+            {
+              id: "spec",
+              label: "התמחות",
+              value: specializationId,
+              onChange: setSpecializationId,
+              options: (spData?.items ?? []).map((it) => ({ value: it.id, label: it.name })),
+            },
+            {
+              id: "psychology",
+              label: "פסיכולוגיה",
+              value: psychology,
+              onChange: setPsychology,
+              options: [
+                { value: "1", label: "כן" },
+                { value: "0", label: "לא" },
+              ],
+            },
+            {
+              id: "teaching-type",
+              label: "סוג הוראה",
+              value: teachingType,
+              onChange: setTeachingType,
+              options: [
+                { value: "full", label: "מלא" },
+                { value: "short", label: "מקוצר" },
+              ],
+            },
+          ]}
+          isAnyActive={Boolean(
+            q || gradeLevel || classId || trackId || specializationId || psychology || teachingType,
+          )}
+          onClearAll={() => {
+            setQ("");
+            setGradeLevel("");
+            setClassId("");
+            setSpecializationId("");
+            setTrackId("");
+            setPsychology("");
+            setTeachingType("");
+          }}
+        />
       </ListDataCard>
 
       <ListDataCard enterDelay={0.09}>

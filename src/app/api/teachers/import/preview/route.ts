@@ -20,8 +20,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const REQUIRED_HEADER_LABELS = [
-  TEACHER_FIELD_ALIASES.first_name[0],
-  TEACHER_FIELD_ALIASES.last_name[0],
+  `${TEACHER_FIELD_ALIASES.first_name[0]} או ${TEACHER_FIELD_ALIASES.last_name[0]} (לפחות אחד)`,
 ];
 
 export async function POST(request: Request) {

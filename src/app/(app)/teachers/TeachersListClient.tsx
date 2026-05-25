@@ -12,6 +12,7 @@ import {
   LIST_ROW_DELETE_CLASS,
   LIST_ROW_LINK_CLASS,
 } from "@/components/ui/ListPage";
+import { ListFilterBar, matchesNameQuery, normalizeSearchText } from "@/components/ui/ListFilterBar";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -25,16 +26,39 @@ import { apiFetcher } from "@/lib/api/fetcher";
 export function TeachersListClient() {
   const { viewingYear } = useAcademicYear();
   const [q, setQ] = useState("");
+  const [hasEmailFilter, setHasEmailFilter] = useState("");
+  const [hasTzFilter, setHasTzFilter] = useState("");
   const deferred = useDeferredValue(q.trim());
   const url = useMemo(() => {
-    const p = new URLSearchParams();
-    if (deferred) p.set("q", deferred);
-    const qs = p.toString();
-    return withYearQuery(`/api/teachers${qs ? `?${qs}` : ""}`, viewingYear?.id);
-  }, [deferred, viewingYear?.id]);
+    return withYearQuery(`/api/teachers`, viewingYear?.id);
+  }, [viewingYear?.id]);
 
   const { data, error, isLoading, mutate } = useSWR<{ teachers: Teacher[] }>(url, apiFetcher);
-  const count = data?.teachers?.length ?? 0;
+  const allTeachers = data?.teachers ?? [];
+
+  const filteredTeachers = useMemo(() => {
+    return allTeachers.filter((t) => {
+      if (deferred) {
+        const matches = matchesNameQuery(deferred, [
+          t.first_name,
+          t.last_name,
+          (t as { full_name_generated?: string }).full_name_generated,
+          t.tz,
+          t.email,
+        ]);
+        if (!matches) return false;
+      }
+      if (hasEmailFilter === "1" && !normalizeSearchText(t.email ?? "")) return false;
+      if (hasEmailFilter === "0" && normalizeSearchText(t.email ?? "")) return false;
+      if (hasTzFilter === "1" && !normalizeSearchText(t.tz ?? "")) return false;
+      if (hasTzFilter === "0" && normalizeSearchText(t.tz ?? "")) return false;
+      return true;
+    });
+  }, [allTeachers, deferred, hasEmailFilter, hasTzFilter]);
+
+  const count = filteredTeachers.length;
+  const totalCount = allTeachers.length;
+  const isFiltering = Boolean(deferred || hasEmailFilter || hasTzFilter);
 
   async function removeTeacher(id: string) {
     if (!confirm("למחוק מורה? השיבוצים והמבחנים הקיימים יישארו — המורה תוסתר מהרשימה.")) return;
@@ -76,26 +100,57 @@ export function TeachersListClient() {
       />
 
       <ListDataCard>
+        <ListFilterBar
+          searchValue={q}
+          onSearchChange={setQ}
+          searchLabel="חיפוש מורה"
+          searchPlaceholder="למשל: שרה כהן · כהן שרה · ת״ז · מייל…"
+          searchHint="ניתן לחפש שם פרטי + שם משפחה גם בסדר הפוך"
+          filters={[
+            {
+              id: "has-email",
+              label: "מייל",
+              value: hasEmailFilter,
+              onChange: setHasEmailFilter,
+              options: [
+                { value: "1", label: "יש מייל" },
+                { value: "0", label: "ללא מייל" },
+              ],
+            },
+            {
+              id: "has-tz",
+              label: "ת״ז",
+              value: hasTzFilter,
+              onChange: setHasTzFilter,
+              options: [
+                { value: "1", label: "יש ת״ז" },
+                { value: "0", label: "ללא ת״ז" },
+              ],
+            },
+          ]}
+          isAnyActive={isFiltering}
+          onClearAll={() => {
+            setQ("");
+            setHasEmailFilter("");
+            setHasTzFilter("");
+          }}
+        />
+      </ListDataCard>
+
+      <ListDataCard enterDelay={0.09}>
         <ListTableToolbar>
-          <input
-            type="search"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="חיפוש: שם, ת״ז, מייל…"
-            className="w-full max-w-md rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm shadow-sm outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-blue-500/25 dark:border-zinc-600 dark:bg-zinc-950/40"
-          />
-          <div className="mt-3">
-            {isLoading ? (
-              <span className="inline-flex items-center gap-2">
-                <Spinner className="size-4" />
-                טוען…
-              </span>
-            ) : error ? (
-              <span className="text-red-600">{(error as Error).message}</span>
-            ) : (
-              <span>{count} מורות ברשימה</span>
-            )}
-          </div>
+          {isLoading ? (
+            <span className="inline-flex items-center gap-2">
+              <Spinner className="size-4" />
+              טוען…
+            </span>
+          ) : error ? (
+            <span className="text-red-600">{(error as Error).message}</span>
+          ) : (
+            <span>
+              {count} מורות{isFiltering && count !== totalCount ? ` · מתוך ${totalCount}` : ""}
+            </span>
+          )}
         </ListTableToolbar>
         <Table className="min-w-[640px]">
           <TableHeader>
@@ -107,8 +162,8 @@ export function TeachersListClient() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data?.teachers?.length ? (
-              data.teachers.map((t) => (
+            {filteredTeachers.length ? (
+              filteredTeachers.map((t) => (
                 <TableRow key={t.id}>
                   <TableCell className="font-medium text-slate-900 dark:text-zinc-100">
                     {teacherDisplayName(t)}
@@ -136,7 +191,7 @@ export function TeachersListClient() {
             ) : (
               <TableRow>
                 <TableCell className="py-14 text-center text-slate-500 dark:text-zinc-400" colSpan={4}>
-                  {isLoading ? "טוען…" : "אין מורות"}
+                  {isLoading ? "טוען…" : isFiltering ? "אין תוצאות תואמות לסינון" : "אין מורות"}
                 </TableCell>
               </TableRow>
             )}
@@ -144,7 +199,7 @@ export function TeachersListClient() {
         </Table>
         <TableClearFooter
           label="מורות"
-          count={count}
+          count={totalCount}
           apiPath={withYearQuery("/api/teachers/clear-all", viewingYear?.id)}
           confirmHint="כל המורות של שנת הלימודים הנבחרת יוסתרו מהרשימה (מחיקה רכה)."
           onCleared={() => void mutate()}

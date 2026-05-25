@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Pencil } from "lucide-react";
-import { useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import useSWR from "swr";
 import {
   ListDataCard,
@@ -10,6 +10,7 @@ import {
   ListTableToolbar,
   LIST_ROW_LINK_CLASS,
 } from "@/components/ui/ListPage";
+import { ListFilterBar, matchesNameQuery } from "@/components/ui/ListFilterBar";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -78,7 +79,38 @@ export function TrackingClient() {
     fetcher,
   );
   const [editingId, setEditingId] = useState<string | null>(null);
-  const count = data?.tracking?.length ?? 0;
+  const [searchTerm, setSearchTerm] = useState("");
+  const [stageFilter, setStageFilter] = useState("");
+  const deferredSearch = useDeferredValue(searchTerm);
+
+  const allRows = data?.tracking ?? [];
+  const filteredRows = useMemo(() => {
+    return allRows.filter((row) => {
+      if (stageFilter) {
+        const isDone =
+          row.transferred_to_system && row.grades_approved && row.grades_submitted;
+        if (stageFilter === "done" && !isDone) return false;
+        if (stageFilter === "open" && isDone) return false;
+        if (stageFilter === "not-submitted" && row.submitted_exam) return false;
+        if (stageFilter === "submitted" && !row.submitted_exam) return false;
+        if (stageFilter === "approved" && !row.approved_by_coordinator) return false;
+        if (stageFilter === "pending-grades" && (row.grades_submitted || !row.submitted_exam))
+          return false;
+      }
+      if (deferredSearch.trim()) {
+        const matches = matchesNameQuery(deferredSearch, [
+          row.exam?.teacher_name,
+          row.exam?.subject,
+        ]);
+        if (!matches) return false;
+      }
+      return true;
+    });
+  }, [allRows, deferredSearch, stageFilter]);
+
+  const totalCount = allRows.length;
+  const count = filteredRows.length;
+  const isFiltering = Boolean(deferredSearch.trim() || stageFilter);
 
   async function saveRow(
     id: string,
@@ -146,7 +178,39 @@ export function TrackingClient() {
       {tab === "makeups" ? <MakeupTrackingTab /> : null}
 
       {tab === "exams" ? (
+        <>
         <ListDataCard>
+          <ListFilterBar
+            searchValue={searchTerm}
+            onSearchChange={setSearchTerm}
+            searchLabel="חיפוש מבחן במעקב"
+            searchPlaceholder="למשל: שרה כהן · גרפיקה…"
+            searchHint="חיפוש לפי שם מורה (פרטי + משפחה) · מקצוע"
+            filters={[
+              {
+                id: "stage",
+                label: "שלב",
+                value: stageFilter,
+                onChange: setStageFilter,
+                options: [
+                  { value: "open", label: "פתוח (טרם הסתיים)" },
+                  { value: "done", label: "הסתיים (הועבר למערכת)" },
+                  { value: "not-submitted", label: "מבחן לא הוגש" },
+                  { value: "submitted", label: "מבחן הוגש" },
+                  { value: "approved", label: "אושר ע״י רכזת" },
+                  { value: "pending-grades", label: "ממתין לציונים" },
+                ],
+              },
+            ]}
+            isAnyActive={isFiltering}
+            onClearAll={() => {
+              setSearchTerm("");
+              setStageFilter("");
+            }}
+          />
+        </ListDataCard>
+
+        <ListDataCard enterDelay={0.09}>
           <ListTableToolbar>
             {isLoading ? (
               <span className="inline-flex items-center gap-2">
@@ -156,7 +220,9 @@ export function TrackingClient() {
             ) : error ? (
               <span className="text-red-600">{(error as Error).message}</span>
             ) : (
-              <span>{count} שורות</span>
+              <span>
+                {count} שורות{isFiltering && count !== totalCount ? ` · מתוך ${totalCount}` : ""}
+              </span>
             )}
           </ListTableToolbar>
           <Table className="min-w-[1320px] text-xs">
@@ -178,8 +244,8 @@ export function TrackingClient() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data?.tracking?.length ? (
-                data.tracking.map((row) => (
+              {filteredRows.length ? (
+                filteredRows.map((row) => (
                   <TableRow key={row.id} className="align-top">
                     <TableCell className="font-medium">{row.exam?.teacher_name ?? "—"}</TableCell>
                     <TableCell>{row.exam?.subject ?? "—"}</TableCell>
@@ -238,7 +304,7 @@ export function TrackingClient() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={13} className="py-14 text-center text-zinc-500">
-                    {isLoading ? "טוען…" : "אין נתוני מעקב"}
+                    {isLoading ? "טוען…" : isFiltering ? "אין תוצאות תואמות לסינון" : "אין נתוני מעקב"}
                   </TableCell>
                 </TableRow>
               )}
@@ -247,12 +313,13 @@ export function TrackingClient() {
           {!readOnly ? (
             <TableClearFooter
               label="שורות מעקב"
-              count={count}
+              count={totalCount}
               apiPath={withYearQuery("/api/tracking/clear-all", yearId)}
               onCleared={() => void mutate()}
             />
           ) : null}
         </ListDataCard>
+        </>
       ) : null}
     </div>
   );

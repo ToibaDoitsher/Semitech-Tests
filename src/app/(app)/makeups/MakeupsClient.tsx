@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { BookOpen, CheckCircle2, Pencil, UserRound } from "lucide-react";
-import { useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import useSWR from "swr";
 import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
 import { CompleteMakeupDialog } from "@/components/makeup/CompleteMakeupDialog";
 import { ListDataCard, ListPageHeader, ListTableToolbar, LIST_ROW_LINK_CLASS } from "@/components/ui/ListPage";
+import { ListFilterBar, matchesNameQuery } from "@/components/ui/ListFilterBar";
 import { MakeupStatusBadge } from "@/components/ui/StatusBadge";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
@@ -27,7 +28,12 @@ type Row = {
   created_at: string;
   completed_at: string | null;
   grade: number | null;
-  student: { first_name: string; last_name: string; tz: string } | null;
+  student: {
+    first_name: string;
+    last_name: string;
+    tz: string;
+    grade_level?: string | null;
+  } | null;
   exam: { subject: string; exam_date: string; teacher_name: string | null } | null;
 };
 
@@ -56,7 +62,34 @@ export function MakeupsClient() {
   const [editGradeId, setEditGradeId] = useState<string | null>(null);
   const [editGradeValue, setEditGradeValue] = useState("");
   const [editGradeBusy, setEditGradeBusy] = useState(false);
-  const count = data?.makeups?.length ?? 0;
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("open");
+  const [gradeFilter, setGradeFilter] = useState("");
+  const deferredSearch = useDeferredValue(searchTerm);
+
+  const allRows = data?.makeups ?? [];
+  const filteredRows = useMemo(() => {
+    return allRows.filter((m) => {
+      if (statusFilter && m.status !== statusFilter) return false;
+      if (gradeFilter && (m.student?.grade_level ?? "") !== gradeFilter) return false;
+      if (deferredSearch.trim()) {
+        const matches = matchesNameQuery(deferredSearch, [
+          m.student?.first_name,
+          m.student?.last_name,
+          m.student?.tz,
+          m.exam?.subject,
+          m.exam?.teacher_name,
+        ]);
+        if (!matches) return false;
+      }
+      return true;
+    });
+  }, [allRows, deferredSearch, statusFilter, gradeFilter]);
+
+  const totalCount = allRows.length;
+  const count = filteredRows.length;
+  const isFiltering = Boolean(deferredSearch.trim() || statusFilter !== "open" || gradeFilter);
 
   async function completeSave(payload: { completed_at: string; notes: string }) {
     if (!completeId) return;
@@ -94,6 +127,45 @@ export function MakeupsClient() {
       />
 
       <ListDataCard>
+        <ListFilterBar
+          searchValue={searchTerm}
+          onSearchChange={setSearchTerm}
+          searchLabel="חיפוש השלמה"
+          searchPlaceholder="למשל: יעל כהן · כהן יעל · ת״ז · מקצוע · שם מורה…"
+          searchHint="חיפוש לפי שם תלמידה (פרטי + משפחה גם בסדר הפוך) · ת״ז · מקצוע · מורה"
+          filters={[
+            {
+              id: "status",
+              label: "סטטוס",
+              value: statusFilter,
+              onChange: setStatusFilter,
+              options: [
+                { value: "open", label: "פתוח" },
+                { value: "completed", label: "הושלם" },
+              ],
+            },
+            {
+              id: "grade",
+              label: "שכבה",
+              value: gradeFilter,
+              onChange: setGradeFilter,
+              options: [
+                { value: "א", label: "א" },
+                { value: "ב", label: "ב" },
+                { value: "ג", label: "ג" },
+              ],
+            },
+          ]}
+          isAnyActive={isFiltering}
+          onClearAll={() => {
+            setSearchTerm("");
+            setStatusFilter("open");
+            setGradeFilter("");
+          }}
+        />
+      </ListDataCard>
+
+      <ListDataCard enterDelay={0.09}>
         <ListTableToolbar>
           {isLoading ? (
             <span className="inline-flex items-center gap-2">
@@ -103,7 +175,9 @@ export function MakeupsClient() {
           ) : error ? (
             <span className="text-red-600">{(error as Error).message}</span>
           ) : (
-            <span>{count} רשומות</span>
+            <span>
+              {count} רשומות{isFiltering && count !== totalCount ? ` · מתוך ${totalCount}` : ""}
+            </span>
           )}
         </ListTableToolbar>
         <Table className="min-w-[900px]">
@@ -120,8 +194,8 @@ export function MakeupsClient() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data?.makeups?.length ? (
-              data.makeups.map((m) => (
+            {filteredRows.length ? (
+              filteredRows.map((m) => (
                 <TableRow key={m.id}>
                   <TableCell className="font-medium">
                     {m.student ? `${m.student.last_name} ${m.student.first_name}` : "—"}
@@ -176,7 +250,7 @@ export function MakeupsClient() {
             ) : (
               <TableRow>
                 <TableCell colSpan={8} className="py-14 text-center text-zinc-500">
-                  {isLoading ? "טוען…" : "אין השלמות פתוחות"}
+                  {isLoading ? "טוען…" : isFiltering ? "אין תוצאות תואמות לסינון" : "אין השלמות פתוחות"}
                 </TableCell>
               </TableRow>
             )}
@@ -185,7 +259,7 @@ export function MakeupsClient() {
         {!readOnly ? (
           <TableClearFooter
             label="השלמות"
-            count={count}
+            count={totalCount}
             apiPath={withYearQuery("/api/makeups/clear-all", yearId)}
             onCleared={() => void mutate()}
           />

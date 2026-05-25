@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import useSWR from "swr";
 import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
+import { ExamEditDialog, type SaveSummary } from "@/components/exams/ExamEditDialog";
 import { ConfirmDangerDialog } from "@/components/ui/ConfirmDangerDialog";
 import { ExamStudentStatusBadge } from "@/components/ui/StatusBadge";
 import { Spinner } from "@/components/ui/Spinner";
@@ -19,7 +21,12 @@ import { psychologyLabel } from "@/lib/students/display";
 import { teachingTrackTypeLabel } from "@/lib/students/fields";
 import { formatHebrewDateFromYmd } from "@/lib/hebrewDate";
 import { teacherEmbedDisplayName } from "@/lib/teachers/display";
-import type { ExamStudentStatus, Teacher } from "@/lib/types/db";
+import type {
+  AssignmentCategory,
+  ExamStudentStatus,
+  Teacher,
+  TeachingTrackType,
+} from "@/lib/types/db";
 
 const fetcher = (url: string) => fetch(url).then((r) => {
   if (!r.ok) throw new Error("שגיאת טעינה");
@@ -49,6 +56,14 @@ type Exam = {
   exam_date: string;
   target_label?: string;
   makeup_locked_at?: string | null;
+  assignment_category: AssignmentCategory;
+  grade_levels?: string[];
+  class_ids?: string[];
+  track_ids?: string[];
+  specialization_ids?: string[];
+  psychology_enabled?: boolean;
+  applies_to_all_in_grade?: boolean;
+  teaching_track_type?: TeachingTrackType | null;
   teachers: Teacher | null;
 };
 
@@ -83,6 +98,7 @@ export function ExamEditClient({ id }: { id: string }) {
   const yearId = viewingYear?.id;
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const { data, error, isLoading, mutate } = useSWR<{
     exam: Exam;
     exam_students: Line[];
@@ -202,6 +218,16 @@ export function ExamEditClient({ id }: { id: string }) {
           {!readOnly ? (
             <button
               type="button"
+              onClick={() => setEditOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-900 hover:bg-sky-100 dark:border-sky-700/40 dark:bg-sky-950/30 dark:text-sky-100"
+            >
+              <Pencil className="size-3.5" strokeWidth={2} />
+              עריכת תאריך / יעד
+            </button>
+          ) : null}
+          {!readOnly ? (
+            <button
+              type="button"
               onClick={() => void finishMakeups()}
               disabled={locked}
               className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50 disabled:opacity-50"
@@ -223,6 +249,37 @@ export function ExamEditClient({ id }: { id: string }) {
           </Link>
         </div>
       </div>
+
+      {editOpen ? (
+        <ExamEditDialog
+          examId={id}
+          locked={locked}
+          onClose={() => setEditOpen(false)}
+          onSaved={(summary: SaveSummary | null) => {
+            setEditOpen(false);
+            if (summary) {
+              const parts: string[] = [];
+              if (summary.added) parts.push(`נוספו ${summary.added} תלמידות`);
+              if (summary.removedExamStudents) parts.push(`הוסרו ${summary.removedExamStudents}`);
+              if (summary.removedMakeups) parts.push(`נמחקו ${summary.removedMakeups} השלמות`);
+              if (summary.removedTracking) parts.push(`נמחקו ${summary.removedTracking} רשומות מעקב`);
+              if (parts.length) alert(`המבחן עודכן: ${parts.join(" · ")}`);
+            }
+            void mutate();
+          }}
+          initial={{
+            exam_date: e.exam_date,
+            assignment_category: e.assignment_category,
+            grade_levels: e.grade_levels ?? [],
+            class_ids: e.class_ids ?? [],
+            track_ids: e.track_ids ?? [],
+            specialization_ids: e.specialization_ids ?? [],
+            psychology_enabled: Boolean(e.psychology_enabled),
+            applies_to_all_in_grade: Boolean(e.applies_to_all_in_grade),
+            teaching_track_type: e.teaching_track_type ?? null,
+          }}
+        />
+      ) : null}
 
       <ConfirmDangerDialog
         open={deleteOpen}

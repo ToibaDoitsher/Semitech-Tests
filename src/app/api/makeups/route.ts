@@ -19,7 +19,6 @@ export async function GET(request: Request) {
   const { data: rows, error } = await supabase
     .from("makeup_exams")
     .select("id, status, created_at, completed_at, grade, student_id, exam_id")
-    .eq("status", "open")
     .eq("academic_year_id", scope.year.id)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
@@ -29,20 +28,30 @@ export async function GET(request: Request) {
   const studentIds = [...new Set((rows ?? []).map((r) => r.student_id))];
   const examIds = [...new Set((rows ?? []).map((r) => r.exam_id))];
 
-  let studentsBy: Record<string, { first_name: string; last_name: string; tz: string }> = {};
-  let examsBy: Record<string, { subject: string; exam_date: string; teacher_name: string | null }> = {};
+  const studentsBy: Record<
+    string,
+    { first_name: string; last_name: string; tz: string; grade_level: string | null }
+  > = {};
+  const examsBy: Record<string, { subject: string; exam_date: string; teacher_name: string | null }> = {};
 
   if (studentIds.length) {
     const { data: studs } = await supabase
       .from("students")
-      .select("id, first_name, last_name, tz")
+      .select("id, first_name, last_name, tz, grade_level")
       .in("id", studentIds);
     for (const s of studs ?? []) {
-      const row = s as { id: string; first_name: string; last_name: string; tz: string };
+      const row = s as {
+        id: string;
+        first_name: string;
+        last_name: string;
+        tz: string;
+        grade_level: string | null;
+      };
       studentsBy[row.id] = {
         first_name: row.first_name,
         last_name: row.last_name,
         tz: row.tz,
+        grade_level: row.grade_level,
       };
     }
   }
