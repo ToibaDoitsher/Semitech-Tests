@@ -20,7 +20,7 @@ export type CreateOneExamParams = {
   subject: string;
   examDate: string;
   assignmentId: string;
-  teachingTrackType: TeachingTrackType | null;
+  teachingTrackType: TeachingTrackType | "both" | null;
   auditUserId: string | null;
 };
 
@@ -71,9 +71,14 @@ export async function createOneExam(
     return { error: "כבר קיים מבחן לאותו שיבוץ באותו תאריך" };
   }
 
-  let teaching_track_type = teachingTrackTypeIn;
   const assignmentTeachingMode = (ta.teaching_mode as "full" | "short" | null) ?? null;
-  if (assignmentTeachingMode && !teaching_track_type) {
+
+  let teaching_track_type: TeachingTrackType | null = null;
+  if (teachingTrackTypeIn === "full" || teachingTrackTypeIn === "short") {
+    teaching_track_type = teachingTrackTypeIn;
+  } else if (teachingTrackTypeIn === "both") {
+    teaching_track_type = null;
+  } else if (assignmentTeachingMode) {
     teaching_track_type = assignmentTeachingMode;
   }
 
@@ -82,7 +87,11 @@ export async function createOneExam(
       multiTarget.track_ids.map((id) => isTeachingTrackId(supabase, id)),
     );
     const hasTeachingTrack = checks.some(Boolean);
-    if (hasTeachingTrack && !teaching_track_type) {
+    const teachingChosen =
+      teachingTrackTypeIn === "both" ||
+      teaching_track_type !== null ||
+      assignmentTeachingMode !== null;
+    if (hasTeachingTrack && !teachingChosen) {
       return { error: "במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)" };
     }
     if (!hasTeachingTrack) teaching_track_type = null;

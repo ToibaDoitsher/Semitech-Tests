@@ -14,9 +14,13 @@ import { InlineNotice } from "@/components/ui/InlineNotice";
 import { Spinner } from "@/components/ui/Spinner";
 import { clampHebrewParts, hebrewPartsToGregorianYmd, todayHebrewParts } from "@/lib/hebrewDate";
 import { TeacherSearchCombobox } from "@/components/teachers/TeacherSearchCombobox";
+import {
+  TeachingModePickerDialog,
+  type TeachingModeSelection,
+} from "@/components/assignments/TeachingModePickerDialog";
 import { TEACHING_TRACK_NAME } from "@/lib/students/fields";
-import { teachingModeLabel } from "@/lib/teachers/display";
-import type { AssignmentCategory, TeachingMode, TeachingTrackType } from "@/lib/types/db";
+import { teachingModeLabel, teachingModeSelectionLabel } from "@/lib/teachers/display";
+import type { AssignmentCategory, TeachingMode } from "@/lib/types/db";
 
 const fetcher = (url: string) => fetch(url).then((r) => {
   if (!r.ok) throw new Error("שגיאת טעינה");
@@ -88,7 +92,8 @@ export function NewExamClient() {
     const ymd = hebrewPartsToGregorianYmd(clampHebrewParts(todayHebrewParts()));
     return ymd ?? "";
   });
-  const [teachingTrackType, setTeachingTrackType] = useState<TeachingTrackType | "">("");
+  const [teachingTrackType, setTeachingTrackType] = useState<TeachingModeSelection>("");
+  const [teachingDialogOpen, setTeachingDialogOpen] = useState(false);
 
   const [newSubject, setNewSubject] = useState("");
   const [newLessonName, setNewLessonName] = useState("");
@@ -116,8 +121,14 @@ export function NewExamClient() {
   }, [teacherId]);
 
   useEffect(() => {
-    if (assignmentMode === "existing" && selected?.teaching_mode) {
-      setTeachingTrackType(selected.teaching_mode);
+    if (assignmentMode === "existing" && selected) {
+      if (!isTeachingTarget) {
+        setTeachingTrackType("");
+      } else if (selected.teaching_mode) {
+        setTeachingTrackType(selected.teaching_mode);
+      } else {
+        setTeachingTrackType("both");
+      }
     } else if (assignmentMode === "existing" && !isTeachingTarget) {
       setTeachingTrackType("");
     }
@@ -174,7 +185,7 @@ export function NewExamClient() {
         alert("בחרי יעד: כיתות, מסלולים, פסיכולוגיה, או «כל השכבה»");
         return;
       }
-      if (isTeachingTarget && !teachingTrackType) {
+      if (isTeachingTarget && !newTarget.teachingMode) {
         alert("במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)");
         return;
       }
@@ -189,12 +200,12 @@ export function NewExamClient() {
               subject: selected!.subject,
               exam_date: examDate,
               teacher_assignment_id: selected!.id,
-              teaching_track_type: isTeachingTarget ? teachingTrackType : null,
+              teaching_track_type: isTeachingTarget ? teachingTrackType || null : null,
             }
           : {
               teacher_id: teacherId,
               exam_date: examDate,
-              teaching_track_type: isTeachingTarget ? teachingTrackType : null,
+              teaching_track_type: isTeachingTarget ? newTarget.teachingMode || null : null,
               new_assignment: {
                 subject: newSubject,
                 lesson_name: newLessonName.trim() || null,
@@ -409,20 +420,23 @@ export function NewExamClient() {
 
         <section className="space-y-2">
           <h2 className="text-sm font-semibold text-zinc-800">שלב 3 — תאריך</h2>
-          {isTeachingTarget ? (
-            <label className="block">
-              <span className="text-sm font-medium text-zinc-700">סוג הוראה במבחן *</span>
-              <select
-                className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm"
-                value={teachingTrackType}
-                onChange={(e) => setTeachingTrackType(e.target.value as TeachingTrackType | "")}
+          {isTeachingTarget && assignmentMode === "existing" ? (
+            <div className="rounded-lg border border-sky-200 bg-sky-50/80 px-3 py-2 text-sm">
+              <span className="font-medium text-zinc-800">סוג הוראה במבחן: </span>
+              {teachingTrackType ? (
+                <span>{teachingModeSelectionLabel(teachingTrackType)}</span>
+              ) : (
+                <span className="text-amber-800">לא נבחר — חובה</span>
+              )}
+              <button
+                type="button"
                 disabled={detailsLocked}
+                className="ms-2 text-sky-800 underline hover:no-underline"
+                onClick={() => setTeachingDialogOpen(true)}
               >
-                <option value="">— בחרי —</option>
-                <option value="full">מלא</option>
-                <option value="short">מקוצר</option>
-              </select>
-            </label>
+                {teachingTrackType ? "שינוי" : "בחירה"}
+              </button>
+            </div>
           ) : null}
 
           <HebrewDatePicker
@@ -447,6 +461,16 @@ export function NewExamClient() {
           </button>
         </div>
       </form>
+
+      <TeachingModePickerDialog
+        open={teachingDialogOpen}
+        initial={teachingTrackType}
+        onConfirm={(selection) => {
+          setTeachingTrackType(selection);
+          setTeachingDialogOpen(false);
+        }}
+        onCancel={() => setTeachingDialogOpen(false)}
+      />
     </div>
   );
 }

@@ -24,6 +24,7 @@ import {
 } from "@/components/assignments/AssignmentTargetForm";
 import { TeacherSearchCombobox } from "@/components/teachers/TeacherSearchCombobox";
 import { teacherEmbedDisplayName, teachingModeLabel } from "@/lib/teachers/display";
+import { TEACHING_TRACK_NAME } from "@/lib/students/fields";
 import type { AssignmentCategory, Teacher, TeachingMode } from "@/lib/types/db";
 
 const fetcher = (url: string) => fetch(url).then((r) => {
@@ -110,6 +111,20 @@ export function AssignmentsClient() {
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
   const [editSaving, setEditSaving] = useState(false);
 
+  const teachingTrackId = useMemo(
+    () => (trData?.items ?? []).find((t) => t.name === TEACHING_TRACK_NAME)?.id ?? "",
+    [trData],
+  );
+
+  function needsTeachingMode(form: AssignmentTargetFormValue): boolean {
+    return (
+      form.category === "חובה" &&
+      form.trackIds.length === 1 &&
+      form.trackIds[0] === teachingTrackId &&
+      Boolean(teachingTrackId)
+    );
+  }
+
   async function addAssignment(e: React.FormEvent) {
     e.preventDefault();
     if (readOnly) return alert("שנה בארכיון — צפייה בלבד");
@@ -130,6 +145,9 @@ export function AssignmentsClient() {
       !targetForm.psychologyEnabled
     ) {
       return alert("בחרי יעד: כיתות, מסלולים, פסיכולוגיה, או «כל השכבה»");
+    }
+    if (needsTeachingMode(targetForm) && !targetForm.teachingMode) {
+      return alert("במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)");
     }
     setSaving(true);
     setFormNotice(null);
@@ -170,6 +188,8 @@ export function AssignmentsClient() {
   }
 
   function startEdit(a: AssignmentRow) {
+    const isTeaching =
+      a.track_ids.length === 1 && a.track_ids[0] === teachingTrackId && Boolean(teachingTrackId);
     setEditingId(a.id);
     setEditDraft({
       subject: a.subject,
@@ -181,7 +201,7 @@ export function AssignmentsClient() {
       psychologyEnabled: a.psychology_enabled,
       appliesToAllInGrade: a.applies_to_all_in_grade,
       category: a.assignment_category,
-      teachingMode: a.teaching_mode ?? "",
+      teachingMode: a.teaching_mode ?? (isTeaching ? "both" : ""),
     });
   }
 
@@ -207,6 +227,9 @@ export function AssignmentsClient() {
       !editDraft.psychologyEnabled
     ) {
       return alert("בחרי יעד: כיתות, מסלולים, פסיכולוגיה, או «כל השכבה»");
+    }
+    if (needsTeachingMode(editDraft) && !editDraft.teachingMode) {
+      return alert("במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)");
     }
     setEditSaving(true);
     try {

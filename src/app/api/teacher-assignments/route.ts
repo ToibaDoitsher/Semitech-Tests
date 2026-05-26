@@ -20,6 +20,8 @@ import {
 } from "@/lib/academicYears/scope";
 import { ASSIGNMENT_WITH_LOOKUPS } from "@/lib/db/assignmentSelect";
 import { resolveAssignmentTeachingMode } from "@/lib/teachers/assignments";
+import { dedupeTeachersByName, teacherIdsWithSameName } from "@/lib/teachers/dedupe";
+import { TEACHER_COLUMNS } from "@/lib/teachers/db";
 import type { AssignmentCategory, GradeLevel } from "@/lib/types/db";
 import { notDeleted } from "@/lib/db/softDelete";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -41,7 +43,12 @@ export async function GET(request: Request) {
   let q = notDeleted(supabase.from("teacher_assignments").select(ASSIGNMENT_WITH_LOOKUPS))
     .eq("academic_year_id", scope.year.id)
     .order("subject");
-  if (teacherId) q = q.eq("teacher_id", teacherId);
+  if (teacherId) {
+    const { data: allTeachers } = await notDeleted(supabase.from("teachers").select(TEACHER_COLUMNS))
+      .eq("academic_year_id", scope.year.id);
+    const teacherIds = teacherIdsWithSameName(allTeachers ?? [], teacherId);
+    q = q.in("teacher_id", teacherIds);
+  }
   if (categoryParam === "חובה" || categoryParam === "התמחות") {
     q = q.eq("assignment_category", categoryParam);
   }

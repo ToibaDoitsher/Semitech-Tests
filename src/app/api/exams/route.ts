@@ -100,7 +100,7 @@ export async function POST(request: Request) {
     exam_date?: string;
     teacher_assignment_id?: string;
     new_assignment?: NewAssignmentBody;
-    teaching_track_type?: TeachingTrackType | null;
+    teaching_track_type?: TeachingTrackType | "both" | null;
   };
 
   const teacher_id = body.teacher_id?.trim();
@@ -129,10 +129,9 @@ export async function POST(request: Request) {
     return NextResponse.json(readOnlyResponse(), { status: 403 });
   }
 
-  const teaching_track_type: TeachingTrackType | null =
-    body.teaching_track_type === "full" || body.teaching_track_type === "short"
-      ? body.teaching_track_type
-      : null;
+  const rawTeaching = body.teaching_track_type;
+  const teaching_track_type: TeachingTrackType | "both" | null =
+    rawTeaching === "full" || rawTeaching === "short" || rawTeaching === "both" ? rawTeaching : null;
 
   const user = await getCurrentUser(supabase);
   let assignmentId = teacher_assignment_id;

@@ -1,12 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import useSWR from "swr";
 import { HebrewDatePicker } from "@/components/ui/HebrewDatePicker";
 import { InlineNotice } from "@/components/ui/InlineNotice";
 import { Spinner } from "@/components/ui/Spinner";
 import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
 import { TEACHING_TRACK_NAME } from "@/lib/students/fields";
+import { teachingModeSelectionLabel } from "@/lib/teachers/display";
+import {
+  TeachingModePickerDialog,
+  type TeachingModeSelection,
+} from "@/components/assignments/TeachingModePickerDialog";
 import type { AssignmentCategory, TeachingTrackType } from "@/lib/types/db";
 
 type LookupItem = { id: string; name: string };
@@ -72,9 +77,26 @@ export function ExamEditDialog({ examId, onClose, onSaved, initial, locked }: Pr
   const [specIds, setSpecIds] = useState<string[]>(initial.specialization_ids);
   const [psychology, setPsychology] = useState(initial.psychology_enabled);
   const [appliesAll, setAppliesAll] = useState(initial.applies_to_all_in_grade);
-  const [teachingMode, setTeachingMode] = useState<TeachingTrackType | "">(
-    initial.teaching_track_type ?? "",
-  );
+  const [teachingMode, setTeachingMode] = useState<TeachingModeSelection>(() => {
+    if (initial.teaching_track_type === "full" || initial.teaching_track_type === "short") {
+      return initial.teaching_track_type;
+    }
+    return "";
+  });
+  const [teachingDialogOpen, setTeachingDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (initial.teaching_track_type === "full" || initial.teaching_track_type === "short") {
+      setTeachingMode(initial.teaching_track_type);
+      return;
+    }
+    const teachingId = (trData?.items ?? []).find((t) => t.name === TEACHING_TRACK_NAME)?.id;
+    const hasTeachingOnly =
+      initial.track_ids.length === 1 && initial.track_ids[0] === teachingId && Boolean(teachingId);
+    if (hasTeachingOnly && !initial.teaching_track_type) {
+      setTeachingMode("both");
+    }
+  }, [initial.teaching_track_type, initial.track_ids, trData]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -102,7 +124,7 @@ export function ExamEditDialog({ examId, onClose, onSaved, initial, locked }: Pr
           specialization_ids: locked ? undefined : specIds,
           psychology_enabled: locked ? undefined : psychology,
           applies_to_all_in_grade: locked ? undefined : appliesAll,
-          teaching_track_type: locked ? undefined : (teachingMode || null),
+          teaching_track_type: locked ? undefined : teachingMode || null,
         }),
       });
       const j = (await r.json().catch(() => ({}))) as {
@@ -218,7 +240,20 @@ export function ExamEditDialog({ examId, onClose, onSaved, initial, locked }: Pr
                                 type="checkbox"
                                 checked={trackIds.includes(o.id)}
                                 disabled={busy}
-                                onChange={() => setTrackIds(toggleId(trackIds, o.id))}
+                                onChange={() => {
+                                const next = toggleId(trackIds, o.id);
+                                setTrackIds(next);
+                                const teachingId = (trData?.items ?? []).find(
+                                  (t) => t.name === TEACHING_TRACK_NAME,
+                                )?.id;
+                                const onlyTeaching =
+                                  next.length === 1 && next[0] === teachingId && Boolean(teachingId);
+                                if (onlyTeaching && !trackIds.includes(o.id)) {
+                                  setTeachingDialogOpen(true);
+                                } else if (!onlyTeaching) {
+                                  setTeachingMode("");
+                                }
+                              }}
                               />
                               {o.name}
                             </label>
@@ -237,23 +272,24 @@ export function ExamEditDialog({ examId, onClose, onSaved, initial, locked }: Pr
                       </label>
 
                       {showTeachingMode ? (
-                        <label className="block">
-                          <span className="text-sm font-semibold text-slate-700 dark:text-zinc-300">
-                            סוג הוראה
+                        <div className="rounded-lg border border-sky-200 bg-sky-50/80 px-3 py-2 text-sm">
+                          <span className="font-semibold text-slate-700 dark:text-zinc-300">
+                            סוג הוראה:{" "}
                           </span>
-                          <select
-                            value={teachingMode}
+                          {teachingMode ? (
+                            <span>{teachingModeSelectionLabel(teachingMode)}</span>
+                          ) : (
+                            <span className="text-amber-800">לא נבחר — חובה</span>
+                          )}
+                          <button
+                            type="button"
                             disabled={busy}
-                            onChange={(e) =>
-                              setTeachingMode((e.target.value as TeachingTrackType) || "")
-                            }
-                            className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800"
+                            className="ms-2 text-sky-800 underline hover:no-underline"
+                            onClick={() => setTeachingDialogOpen(true)}
                           >
-                            <option value="">— ללא סינון —</option>
-                            <option value="full">מלא</option>
-                            <option value="short">מקוצר</option>
-                          </select>
-                        </label>
+                            {teachingMode ? "שינוי" : "בחירה"}
+                          </button>
+                        </div>
                       ) : null}
                     </>
                   ) : null}
@@ -306,6 +342,24 @@ export function ExamEditDialog({ examId, onClose, onSaved, initial, locked }: Pr
           </button>
         </div>
       </div>
+
+      <TeachingModePickerDialog
+        open={teachingDialogOpen}
+        initial={teachingMode}
+        onConfirm={(selection) => {
+          setTeachingMode(selection);
+          setTeachingDialogOpen(false);
+        }}
+        onCancel={() => {
+          setTeachingDialogOpen(false);
+          if (!teachingMode && trackIds.length === 1) {
+            const teachingId = (trData?.items ?? []).find((t) => t.name === TEACHING_TRACK_NAME)?.id;
+            if (teachingId && trackIds[0] === teachingId) {
+              setTrackIds([]);
+            }
+          }
+        }}
+      />
     </div>
   );
 }

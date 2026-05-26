@@ -7,8 +7,9 @@ export async function resolveAssignmentTeachingMode(
   trackId: string | null | undefined,
   teachingMode: string | null | undefined,
 ): Promise<{ teaching_mode: TeachingMode | null; error: string | null }> {
-  const mode = (teachingMode ?? "").trim() as TeachingMode | "";
+  const mode = (teachingMode ?? "").trim();
   if (!mode) return { teaching_mode: null, error: null };
+  if (mode === "both") return { teaching_mode: null, error: null };
 
   if (mode !== "full" && mode !== "short") {
     return { teaching_mode: null, error: "סוג הוראה לא תקין" };
@@ -23,5 +24,5 @@ export async function resolveAssignmentTeachingMode(
     return { teaching_mode: null, error: "סוג הוראה מותר רק במסלול הוראה" };
   }
 
-  return { teaching_mode: mode, error: null };
+  return { teaching_mode: mode as TeachingMode, error: null };
 }

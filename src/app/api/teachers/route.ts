@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { resolveAcademicYearScope, readOnlyResponse, scopeFromSearchParams } from "@/lib/academicYears/scope";
 import { dbSchemaHint } from "@/lib/db/schemaHint";
 import { TEACHER_COLUMNS } from "@/lib/teachers/db";
+import { dedupeTeachersByName } from "@/lib/teachers/dedupe";
 import { parseTeacherBody } from "@/lib/teachers/validation";
 import { notDeleted } from "@/lib/db/softDelete";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -33,7 +34,8 @@ export async function GET(request: Request) {
 
     const { data, error } = await query;
     if (error) return NextResponse.json({ error: dbSchemaHint(error.message) }, { status: 500 });
-    return NextResponse.json({ teachers: data ?? [] });
+    const teachers = dedupeTeachersByName(data ?? []);
+    return NextResponse.json({ teachers });
   } catch (e) {
     return NextResponse.json({ error: dbSchemaHint((e as Error).message), teachers: [] }, { status: 500 });
   }

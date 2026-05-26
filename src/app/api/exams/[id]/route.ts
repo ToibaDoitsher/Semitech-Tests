@@ -106,7 +106,7 @@ type PatchBody = {
   specialization_ids?: string[];
   psychology_enabled?: boolean;
   applies_to_all_in_grade?: boolean;
-  teaching_track_type?: TeachingTrackType | null | "";
+  teaching_track_type?: TeachingTrackType | "both" | null | "";
 };
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -193,13 +193,16 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
         newTarget.track_ids.map((tid) => isTeachingTrackId(supabase, tid)),
       );
       const hasTeachingTrack = checks.some(Boolean);
-      if (hasTeachingTrack && !newTeachingTrackType) {
+      const explicitBoth = body.teaching_track_type === "both";
+      const teachingChosen = explicitBoth || newTeachingTrackType !== null;
+      if (hasTeachingTrack && !teachingChosen) {
         return NextResponse.json(
           { error: "במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)" },
           { status: 400 },
         );
       }
       if (!hasTeachingTrack) newTeachingTrackType = null;
+      else if (explicitBoth) newTeachingTrackType = null;
     } else {
       newTeachingTrackType = null;
     }

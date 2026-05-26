@@ -1,9 +1,15 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import type { GradeLevel } from "@/lib/academicYears/types";
 import { GradeLevelCheckboxes } from "@/components/gradeLevels/GradeLevelCheckboxes";
 import { TEACHING_TRACK_NAME } from "@/lib/students/fields";
 import type { AssignmentCategory, TeachingMode } from "@/lib/types/db";
+import { teachingModeSelectionLabel } from "@/lib/teachers/display";
+import {
+  TeachingModePickerDialog,
+  type TeachingModeSelection,
+} from "@/components/assignments/TeachingModePickerDialog";
 
 type LookupItem = { id: string; name: string };
 
@@ -15,7 +21,7 @@ export type AssignmentTargetFormValue = {
   psychologyEnabled: boolean;
   appliesToAllInGrade: boolean;
   category: "" | AssignmentCategory;
-  teachingMode: TeachingMode | "";
+  teachingMode: TeachingModeSelection;
 };
 
 type Props = {
@@ -39,17 +45,65 @@ export function AssignmentTargetForm({
   specializations,
   disabled,
 }: Props) {
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  const teachingTrackId = useMemo(
+    () => tracks.find((t) => t.name === TEACHING_TRACK_NAME)?.id ?? "",
+    [tracks],
+  );
+
   const showMandatory = value.category === "חובה";
   const showSpec = value.category === "התמחות";
-  const selectedTrackName =
-    value.trackIds.length === 1
-      ? (tracks.find((t) => t.id === value.trackIds[0])?.name ?? "")
-      : "";
   const showTeachingMode =
-    showMandatory && value.trackIds.length === 1 && selectedTrackName === TEACHING_TRACK_NAME;
+    showMandatory &&
+    value.trackIds.length === 1 &&
+    value.trackIds[0] === teachingTrackId &&
+    Boolean(teachingTrackId);
 
   function patch(partial: Partial<AssignmentTargetFormValue>) {
     onChange({ ...value, ...partial });
+  }
+
+  function openTeachingDialog() {
+    if (!disabled) setDialogOpen(true);
+  }
+
+  function onTrackToggle(trackId: string) {
+    const nextIds = toggleId(value.trackIds, trackId);
+    const wasOnlyTeaching =
+      value.trackIds.length === 1 && value.trackIds[0] === teachingTrackId;
+    const willBeOnlyTeaching =
+      nextIds.length === 1 && nextIds[0] === teachingTrackId && Boolean(teachingTrackId);
+
+    if (!wasOnlyTeaching && willBeOnlyTeaching) {
+      patch({ trackIds: nextIds, teachingMode: "" });
+      openTeachingDialog();
+      return;
+    }
+
+    if (wasOnlyTeaching && !nextIds.includes(teachingTrackId)) {
+      patch({ trackIds: nextIds, teachingMode: "" });
+      return;
+    }
+
+    if (nextIds.length !== 1 || nextIds[0] !== teachingTrackId) {
+      patch({ trackIds: nextIds, teachingMode: "" });
+      return;
+    }
+
+    patch({ trackIds: nextIds });
+  }
+
+  function onTeachingConfirm(selection: TeachingModeSelection) {
+    patch({ teachingMode: selection });
+    setDialogOpen(false);
+  }
+
+  function onTeachingCancel() {
+    setDialogOpen(false);
+    if (!value.teachingMode && value.trackIds.length === 1 && value.trackIds[0] === teachingTrackId) {
+      patch({ trackIds: [], teachingMode: "" });
+    }
   }
 
   return (
@@ -104,6 +158,7 @@ export function AssignmentTargetForm({
                   classIds: on ? [] : value.classIds,
                   trackIds: on ? [] : value.trackIds,
                   psychologyEnabled: on ? false : value.psychologyEnabled,
+                  teachingMode: on ? "" : value.teachingMode,
                 });
               }}
             />
@@ -147,7 +202,7 @@ export function AssignmentTargetForm({
                         type="checkbox"
                         disabled={disabled}
                         checked={value.trackIds.includes(o.id)}
-                        onChange={() => patch({ trackIds: toggleId(value.trackIds, o.id) })}
+                        onChange={() => onTrackToggle(o.id)}
                       />
                       {o.name}
                     </label>
@@ -164,6 +219,25 @@ export function AssignmentTargetForm({
                 />
                 מיועד לפסיכולוגיה
               </label>
+
+              {showTeachingMode ? (
+                <div className="rounded-lg border border-sky-200 bg-sky-50/80 px-3 py-2 text-sm">
+                  <span className="font-medium text-zinc-800">סוג הוראה: </span>
+                  {value.teachingMode ? (
+                    <span>{teachingModeSelectionLabel(value.teachingMode)}</span>
+                  ) : (
+                    <span className="text-amber-800">לא נבחר — חובה</span>
+                  )}
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    className="ms-2 text-sky-800 underline hover:no-underline"
+                    onClick={openTeachingDialog}
+                  >
+                    {value.teachingMode ? "שינוי" : "בחירה"}
+                  </button>
+                </div>
+              ) : null}
             </>
           ) : null}
         </>
@@ -193,21 +267,12 @@ export function AssignmentTargetForm({
         </fieldset>
       ) : null}
 
-      {showTeachingMode ? (
-        <label className="block">
-          <span className="text-sm font-medium text-zinc-700">סוג הוראה</span>
-          <select
-            className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm"
-            value={value.teachingMode}
-            disabled={disabled}
-            onChange={(e) => patch({ teachingMode: e.target.value as TeachingMode | "" })}
-          >
-            <option value="">— ללא סינון —</option>
-            <option value="full">מלא</option>
-            <option value="short">מקוצר</option>
-          </select>
-        </label>
-      ) : null}
+      <TeachingModePickerDialog
+        open={dialogOpen}
+        initial={value.teachingMode}
+        onConfirm={onTeachingConfirm}
+        onCancel={onTeachingCancel}
+      />
     </div>
   );
 }
