@@ -4,12 +4,10 @@ import { useMemo, useState } from "react";
 import type { GradeLevel } from "@/lib/academicYears/types";
 import { GradeLevelCheckboxes } from "@/components/gradeLevels/GradeLevelCheckboxes";
 import { TEACHING_TRACK_NAME } from "@/lib/students/fields";
-import type { AssignmentCategory, TeachingMode } from "@/lib/types/db";
+import type { AssignmentCategory } from "@/lib/types/db";
 import { teachingModeSelectionLabel } from "@/lib/teachers/display";
-import {
-  TeachingModePickerDialog,
-  type TeachingModeSelection,
-} from "@/components/assignments/TeachingModePickerDialog";
+import type { TeachingModeSelection } from "@/lib/teachers/teachingMode";
+import { TeachingModePickerDialog } from "@/components/assignments/TeachingModePickerDialog";
 
 type LookupItem = { id: string; name: string };
 

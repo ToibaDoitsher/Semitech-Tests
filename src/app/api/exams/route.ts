@@ -12,7 +12,9 @@ import { createOneExam } from "@/lib/exams/createOneExam";
 import { resolveExamTargetLabels } from "@/lib/exams/resolveTargetNames";
 import { resolveGradeLevelsFromRequest } from "@/lib/gradeLevels/options";
 import { resolveAssignmentTeachingMode } from "@/lib/teachers/assignments";
-import type { AssignmentCategory, GradeLevel, TeachingTrackType } from "@/lib/types/db";
+import { isTeachingModeSelection, isTeachingModeValue, isTeachingSelectionComplete, teachingModeToExamDb } from "@/lib/teachers/teachingMode";
+import { isTeachingTrackName } from "@/lib/students/fields";
+import type { AssignmentCategory, GradeLevel, TeachingMode, TeachingTrackType } from "@/lib/types/db";
 import { notDeleted } from "@/lib/db/softDelete";
 import { formatGradeLevelsLabel } from "@/lib/assignments/multiTarget";
 import {
@@ -100,7 +102,9 @@ export async function POST(request: Request) {
     exam_date?: string;
     teacher_assignment_id?: string;
     new_assignment?: NewAssignmentBody;
-    teaching_track_type?: TeachingTrackType | "both" | null;
+    teaching_mode?: TeachingMode | null;
+    /** @deprecated — שלחי teaching_mode */
+    teaching_track_type?: TeachingMode | TeachingTrackType | null;
   };
 
   const teacher_id = body.teacher_id?.trim();
@@ -129,9 +133,8 @@ export async function POST(request: Request) {
     return NextResponse.json(readOnlyResponse(), { status: 403 });
   }
 
-  const rawTeaching = body.teaching_track_type;
-  const teaching_track_type: TeachingTrackType | "both" | null =
-    rawTeaching === "full" || rawTeaching === "short" || rawTeaching === "both" ? rawTeaching : null;
+  const rawTeaching = body.teaching_mode ?? body.teaching_track_type;
+  const teachingMode: TeachingMode | null = isTeachingModeValue(rawTeaching) ? rawTeaching : null;
 
   const user = await getCurrentUser(supabase);
   let assignmentId = teacher_assignment_id;
@@ -183,6 +186,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: teaching.error }, { status: 400 });
     }
 
+    if (category === "חובה" && multiTarget.track_ids.length === 1) {
+      const { data: trackRow } = await supabase
+        .from("tracks")
+        .select("name")
+        .eq("id", multiTarget.track_ids[0])
+        .maybeSingle();
+      if (isTeachingTrackName((trackRow?.name as string) ?? "")) {
+        const raw = String(newAssignmentRaw.teaching_mode ?? "").trim();
+        if (!isTeachingModeSelection(raw)) {
+          return NextResponse.json(
+            { error: "במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)" },
+            { status: 400 },
+          );
+        }
+      }
+    }
+
     subject = subjectLesson.subject;
 
     const resolved = await findOrCreateAssignment(supabase, yearScope.year.id, {
@@ -220,7 +240,7 @@ export async function POST(request: Request) {
     subject,
     examDate: exam_date,
     assignmentId,
-    teachingTrackType: teaching_track_type,
+    teachingMode,
     auditUserId: user?.id ?? null,
   });
 

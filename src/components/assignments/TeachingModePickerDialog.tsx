@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { TeachingMode } from "@/lib/types/db";
+import type { TeachingModeSelection } from "@/lib/teachers/teachingMode";
 import { teachingModeSelectionLabel } from "@/lib/teachers/display";
 
-export type TeachingModeSelection = TeachingMode | "both" | "";
+export type { TeachingModeSelection } from "@/lib/teachers/teachingMode";
 
 type Props = {
   open: boolean;

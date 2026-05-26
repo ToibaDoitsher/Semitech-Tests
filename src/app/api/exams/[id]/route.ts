@@ -20,7 +20,13 @@ import {
   scopeFromSearchParams,
 } from "@/lib/academicYears/scope";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import type { TeachingTrackType } from "@/lib/types/db";
+import type { TeachingMode, TeachingTrackType } from "@/lib/types/db";
+import {
+  isTeachingModeValue,
+  isTeachingSelectionComplete,
+  teachingModeToExamDb,
+  type TeachingModeSelection,
+} from "@/lib/teachers/teachingMode";
 
 export const dynamic = "force-dynamic";
 
@@ -106,7 +112,7 @@ type PatchBody = {
   specialization_ids?: string[];
   psychology_enabled?: boolean;
   applies_to_all_in_grade?: boolean;
-  teaching_track_type?: TeachingTrackType | "both" | null | "";
+  teaching_track_type?: TeachingMode | TeachingTrackType | null | "";
 };
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -185,24 +191,33 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 
     if (body.teaching_track_type !== undefined) {
       const v = body.teaching_track_type;
-      newTeachingTrackType = v === "full" || v === "short" ? v : null;
-    }
+      const selection: TeachingModeSelection = isTeachingModeValue(v) ? v : "";
 
-    if (newTarget.track_ids.length) {
+      if (newTarget.track_ids.length) {
+        const checks = await Promise.all(
+          newTarget.track_ids.map((tid) => isTeachingTrackId(supabase, tid)),
+        );
+        const hasTeachingTrack = checks.some(Boolean);
+        if (hasTeachingTrack && !isTeachingSelectionComplete(selection)) {
+          return NextResponse.json(
+            { error: "במסלול הוראה — בחרi סוג הוראה (מלא / מקוצר)" },
+            { status: 400 },
+          );
+        }
+        if (!hasTeachingTrack) {
+          newTeachingTrackType = null;
+        } else {
+          newTeachingTrackType = teachingModeToExamDb(selection);
+        }
+      } else {
+        newTeachingTrackType = null;
+      }
+    } else if (newTarget.track_ids.length) {
       const checks = await Promise.all(
         newTarget.track_ids.map((tid) => isTeachingTrackId(supabase, tid)),
       );
       const hasTeachingTrack = checks.some(Boolean);
-      const explicitBoth = body.teaching_track_type === "both";
-      const teachingChosen = explicitBoth || newTeachingTrackType !== null;
-      if (hasTeachingTrack && !teachingChosen) {
-        return NextResponse.json(
-          { error: "במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)" },
-          { status: 400 },
-        );
-      }
       if (!hasTeachingTrack) newTeachingTrackType = null;
-      else if (explicitBoth) newTeachingTrackType = null;
     } else {
       newTeachingTrackType = null;
     }

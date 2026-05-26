@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchStudentIdsForMultiTarget, rowToMultiTarget } from "@/lib/assignments/multiTarget";
 import { resolveExamTargetLabels } from "@/lib/exams/resolveTargetNames";
 import { buildExamStudentRows } from "@/lib/exams/snapshots";
+import { isTeachingTrackId } from "@/lib/exams/logic";
 import {
   fetchTeachingTrackIds,
   studentMatchesExamTarget,
@@ -9,6 +10,7 @@ import {
   type StudentForMatch,
 } from "@/lib/exams/studentMatch";
 import { teacherEmbedDisplayName } from "@/lib/teachers/display";
+import { teachingModeForExamStudentFilter } from "@/lib/teachers/teachingMode";
 import type { AssignmentCategory, TeachingTrackType } from "@/lib/types/db";
 
 type ExamMatchRow = ExamTargetForMatch & {
@@ -58,12 +60,23 @@ export async function syncExamStudentsToTarget(
 
   const multiTarget = rowToMultiTarget(exam);
 
+  let hasTeachingTrack = false;
+  if (multiTarget.track_ids.length) {
+    const checks = await Promise.all(
+      multiTarget.track_ids.map((id) => isTeachingTrackId(supabase, id)),
+    );
+    hasTeachingTrack = checks.some(Boolean);
+  }
+
   const { ids: desiredIds, error: mtErr } = await fetchStudentIdsForMultiTarget(
     supabase,
     multiTarget,
     { academic_year_id: examRow.academic_year_id },
     {
-      teachingTrackType: examRow.teaching_track_type,
+      teachingMode: teachingModeForExamStudentFilter(
+        examRow.teaching_track_type,
+        hasTeachingTrack,
+      ),
       category: examRow.assignment_category,
     },
   );

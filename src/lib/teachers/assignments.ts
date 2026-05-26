@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isTeachingTrackName } from "@/lib/students/fields";
+import { isTeachingModeValue } from "@/lib/teachers/teachingMode";
 import type { TeachingMode } from "@/lib/types/db";
 
 export async function resolveAssignmentTeachingMode(
@@ -9,9 +10,8 @@ export async function resolveAssignmentTeachingMode(
 ): Promise<{ teaching_mode: TeachingMode | null; error: string | null }> {
   const mode = (teachingMode ?? "").trim();
   if (!mode) return { teaching_mode: null, error: null };
-  if (mode === "both") return { teaching_mode: null, error: null };
 
-  if (mode !== "full" && mode !== "short") {
+  if (!isTeachingModeValue(mode)) {
     return { teaching_mode: null, error: "סוג הוראה לא תקין" };
   }
 
@@ -24,5 +24,5 @@ export async function resolveAssignmentTeachingMode(
     return { teaching_mode: null, error: "סוג הוראה מותר רק במסלול הוראה" };
   }
 
-  return { teaching_mode: mode as TeachingMode, error: null };
+  return { teaching_mode: mode, error: null };
 }

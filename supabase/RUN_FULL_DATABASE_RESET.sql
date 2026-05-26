@@ -226,7 +226,7 @@ alter table public.teacher_assignments add constraint teacher_assignments_catego
   check (assignment_category in ('חובה', 'התמחות'));
 
 alter table public.teacher_assignments add constraint teacher_assignments_teaching_mode_check
-  check (teaching_mode is null or teaching_mode in ('full', 'short'));
+  check (teaching_mode is null or teaching_mode in ('full', 'short', 'both'));
 
 alter table public.teacher_assignments add constraint teacher_assignments_grade_levels_check
   check (
@@ -302,7 +302,7 @@ alter table public.exams add constraint exams_category_check
   check (assignment_category in ('חובה', 'התמחות'));
 
 alter table public.exams add constraint exams_teaching_track_type_check
-  check (teaching_track_type is null or teaching_track_type in ('full', 'short'));
+  check (teaching_track_type is null or teaching_track_type in ('full', 'short', 'both'));
 
 alter table public.exams add constraint exams_grade_levels_check
   check (

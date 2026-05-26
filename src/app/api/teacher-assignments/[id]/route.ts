@@ -15,7 +15,9 @@ import {
 import { normalizeSubjectLessonFields } from "@/lib/assignments/excelImport";
 import { ASSIGNMENT_WITH_LOOKUPS } from "@/lib/db/assignmentSelect";
 import { notDeleted } from "@/lib/db/softDelete";
+import { isTeachingTrackName } from "@/lib/students/fields";
 import { resolveAssignmentTeachingMode } from "@/lib/teachers/assignments";
+import { isTeachingModeSelection } from "@/lib/teachers/teachingMode";
 import type { AssignmentCategory } from "@/lib/types/db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -118,6 +120,22 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
       : null;
 
   if (body.teaching_mode !== undefined) {
+    if (trackIdForTeaching) {
+      const { data: trackRow } = await supabase
+        .from("tracks")
+        .select("name")
+        .eq("id", trackIdForTeaching)
+        .maybeSingle();
+      if (isTeachingTrackName((trackRow?.name as string) ?? "")) {
+        const raw = String(body.teaching_mode ?? "").trim();
+        if (!isTeachingModeSelection(raw)) {
+          return NextResponse.json(
+            { error: "במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)" },
+            { status: 400 },
+          );
+        }
+      }
+    }
     const teaching = await resolveAssignmentTeachingMode(
       supabase,
       trackIdForTeaching,

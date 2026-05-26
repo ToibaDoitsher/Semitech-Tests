@@ -14,7 +14,7 @@ import { ASSIGNMENT_EXCEL_HEADERS } from "@/lib/assignments/excelTemplate";
 import {
   isTeachingTrackName,
   parsePsychologyCell,
-  parseTeachingTrackTypeCell,
+  parseTeachingModeCell,
 } from "@/lib/students/fields";
 import { teacherDisplayName } from "@/lib/teachers/display";
 import type { TeachingMode } from "@/lib/types/db";
@@ -399,8 +399,8 @@ export function validateAssignmentImportRows(
         if (!isTeachingTrackName(trackName)) {
           errors.push("סוג הוראה מותר רק במסלול «הוראה»");
         } else {
-          teaching_mode = parseTeachingTrackTypeCell(r.teaching_mode_raw);
-          if (!teaching_mode) errors.push("סוג הוראה לא תקין (מלא/מקוצר)");
+          teaching_mode = parseTeachingModeCell(r.teaching_mode_raw);
+          if (!teaching_mode) errors.push("סוג הוראה לא תקין (מלא/מקוצר/מלא + מקוצר)");
         }
       }
     }

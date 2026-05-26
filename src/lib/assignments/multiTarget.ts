@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatGradeLabel } from "@/lib/academicYears/labels";
 import { GRADE_LEVELS, type GradeLevel } from "@/lib/academicYears/types";
 import { notDeleted } from "@/lib/db/softDelete";
-import { isTeachingTrackName, type TeachingTrackType } from "@/lib/students/fields";
+import { isTeachingTrackName } from "@/lib/students/fields";
 import type { AssignmentCategory, TeachingMode } from "@/lib/types/db";
 
 export type AssignmentMultiTarget = {
@@ -207,7 +207,7 @@ async function studentIdsForGradeAndSlice(
     AssignmentMultiTarget,
     "class_ids" | "track_ids" | "specialization_ids" | "psychology_enabled" | "applies_to_all_in_grade"
   >,
-  options?: { teachingTrackType?: TeachingTrackType | null; category?: AssignmentCategory },
+  options?: { teachingMode?: TeachingMode | null; category?: AssignmentCategory },
 ): Promise<{ ids: string[]; error: string | null }> {
   const ids = new Set<string>();
 
@@ -252,8 +252,12 @@ async function studentIdsForGradeAndSlice(
       .eq("academic_year_id", academicYearId)
       .eq("grade_level", gradeLevel)
       .eq("track_id", trackId);
-    if (isTeachingTrackName((trackRow?.name as string) ?? "") && options?.teachingTrackType) {
-      q = q.eq("teaching_track_type", options.teachingTrackType);
+    if (
+      isTeachingTrackName((trackRow?.name as string) ?? "") &&
+      options?.teachingMode &&
+      options.teachingMode !== "both"
+    ) {
+      q = q.eq("teaching_track_type", options.teachingMode);
     }
     const { data, error } = await q;
     if (error) return { ids: [], error: error.message };
@@ -293,7 +297,7 @@ export async function fetchStudentIdsForMultiTarget(
   supabase: SupabaseClient,
   target: AssignmentMultiTarget,
   scope: MultiTargetScope,
-  options?: { teachingTrackType?: TeachingTrackType | null; category?: AssignmentCategory },
+  options?: { teachingMode?: TeachingMode | null; category?: AssignmentCategory },
 ): Promise<{ ids: string[]; error: string | null }> {
   const err = validateMultiTarget(options?.category ?? "חובה", target);
   if (err && options?.category) return { ids: [], error: err };

@@ -14,12 +14,15 @@ import { InlineNotice } from "@/components/ui/InlineNotice";
 import { Spinner } from "@/components/ui/Spinner";
 import { clampHebrewParts, hebrewPartsToGregorianYmd, todayHebrewParts } from "@/lib/hebrewDate";
 import { TeacherSearchCombobox } from "@/components/teachers/TeacherSearchCombobox";
+import { TeachingModePickerDialog } from "@/components/assignments/TeachingModePickerDialog";
+import { teachingModeSelectionLabel } from "@/lib/teachers/display";
 import {
-  TeachingModePickerDialog,
+  examTeachingModeForSubmit,
+  examTeachingTypeFromAssignment,
+  findTeachingTrackId,
+  isTeachingTrackIdMatch,
   type TeachingModeSelection,
-} from "@/components/assignments/TeachingModePickerDialog";
-import { TEACHING_TRACK_NAME } from "@/lib/students/fields";
-import { teachingModeLabel, teachingModeSelectionLabel } from "@/lib/teachers/display";
+} from "@/lib/teachers/teachingMode";
 import type { AssignmentCategory, TeachingMode } from "@/lib/types/db";
 
 const fetcher = (url: string) => fetch(url).then((r) => {
@@ -73,16 +76,21 @@ export function NewExamClient() {
 
   const needLookups = assignmentMode === "new";
   const { data: clData } = useSWR<{ items: LookupItem[] }>(
-    needLookups ? withYearQuery("/api/lookups/classes", viewingYear?.id) : null,
+    assignmentMode === "new" ? withYearQuery("/api/lookups/classes", viewingYear?.id) : null,
     fetcher,
   );
   const { data: spData } = useSWR<{ items: LookupItem[] }>(
-    needLookups ? withYearQuery("/api/lookups/specializations", viewingYear?.id) : null,
+    assignmentMode === "new" ? withYearQuery("/api/lookups/specializations", viewingYear?.id) : null,
     fetcher,
   );
   const { data: trData } = useSWR<{ items: LookupItem[] }>(
-    needLookups ? withYearQuery("/api/lookups/tracks", viewingYear?.id) : null,
+    withYearQuery("/api/lookups/tracks", viewingYear?.id),
     fetcher,
+  );
+
+  const teachingTrackId = useMemo(
+    () => findTeachingTrackId(trData?.items ?? []),
+    [trData],
   );
 
   const allAssignments = aData?.assignments ?? [];
@@ -92,14 +100,13 @@ export function NewExamClient() {
     const ymd = hebrewPartsToGregorianYmd(clampHebrewParts(todayHebrewParts()));
     return ymd ?? "";
   });
-  const [teachingTrackType, setTeachingTrackType] = useState<TeachingModeSelection>("");
-  const [teachingDialogOpen, setTeachingDialogOpen] = useState(false);
 
   const [newSubject, setNewSubject] = useState("");
   const [newLessonName, setNewLessonName] = useState("");
   const [newTarget, setNewTarget] = useState<AssignmentTargetFormValue>(emptyNewTarget);
 
   const [saving, setSaving] = useState(false);
+  const [newTeachingDialogOpen, setNewTeachingDialogOpen] = useState(false);
 
   const selected = useMemo(
     () => allAssignments.find((a) => a.id === assignmentId),
@@ -108,31 +115,28 @@ export function NewExamClient() {
 
   const isTeachingTarget =
     assignmentMode === "existing"
-      ? selected?.track_ids.length === 1 &&
-        (selected?.target_label === TEACHING_TRACK_NAME ||
-          selected?.target_label?.includes(TEACHING_TRACK_NAME))
-      : newTarget.trackIds.length === 1 &&
-        (trData?.items.find((t) => t.id === newTarget.trackIds[0])?.name ?? "") ===
-          TEACHING_TRACK_NAME;
+      ? Boolean(selected && isTeachingTrackIdMatch(selected.track_ids, teachingTrackId))
+      : isTeachingTrackIdMatch(newTarget.trackIds, teachingTrackId);
+
+  const inheritedTeachingType = useMemo(() => {
+    if (assignmentMode !== "existing" || !selected) return null;
+    return examTeachingTypeFromAssignment(selected.teaching_mode, isTeachingTarget);
+  }, [assignmentMode, selected, isTeachingTarget]);
+
+  function assignmentTeachingLabel(a: AssignmentRow): string {
+    if (!isTeachingTrackIdMatch(a.track_ids, teachingTrackId)) return "";
+    return teachingModeSelectionLabel(examTeachingTypeFromAssignment(a.teaching_mode, true) ?? "");
+  }
 
   useEffect(() => {
     setAssignmentId("");
     setNewTarget(emptyNewTarget());
-  }, [teacherId]);
-
-  useEffect(() => {
-    if (assignmentMode === "existing" && selected) {
-      if (!isTeachingTarget) {
-        setTeachingTrackType("");
-      } else if (selected.teaching_mode) {
-        setTeachingTrackType(selected.teaching_mode);
-      } else {
-        setTeachingTrackType("both");
-      }
-    } else if (assignmentMode === "existing" && !isTeachingTarget) {
-      setTeachingTrackType("");
+    if (allAssignments.length > 0) {
+      setAssignmentMode("existing");
+    } else {
+      setAssignmentMode("new");
     }
-  }, [assignmentMode, selected?.id, selected?.teaching_mode, isTeachingTarget]);
+  }, [teacherId, allAssignments.length]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -152,10 +156,6 @@ export function NewExamClient() {
     if (assignmentMode === "existing") {
       if (!selected) {
         alert("בחרי שיבוץ מהרשימה (שדה «שיבוץ»)");
-        return;
-      }
-      if (isTeachingTarget && !teachingTrackType) {
-        alert("במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)");
         return;
       }
     } else {
@@ -200,12 +200,16 @@ export function NewExamClient() {
               subject: selected!.subject,
               exam_date: examDate,
               teacher_assignment_id: selected!.id,
-              teaching_track_type: isTeachingTarget ? teachingTrackType || null : null,
+              teaching_mode: isTeachingTarget
+                ? examTeachingModeForSubmit(inheritedTeachingType)
+                : null,
             }
           : {
               teacher_id: teacherId,
               exam_date: examDate,
-              teaching_track_type: isTeachingTarget ? newTarget.teachingMode || null : null,
+              teaching_mode: isTeachingTarget
+                ? examTeachingModeForSubmit(newTarget.teachingMode || null)
+                : null,
               new_assignment: {
                 subject: newSubject,
                 lesson_name: newLessonName.trim() || null,
@@ -216,7 +220,7 @@ export function NewExamClient() {
                 specialization_ids: newTarget.specializationIds,
                 psychology_enabled: newTarget.psychologyEnabled,
                 applies_to_all_in_grade: newTarget.appliesToAllInGrade,
-                teaching_mode: newTarget.teachingMode || null,
+                teaching_mode: examTeachingModeForSubmit(newTarget.teachingMode || null),
               },
             };
 
@@ -343,10 +347,7 @@ export function NewExamClient() {
                 <select
                   className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-400 disabled:bg-zinc-50"
                   value={assignmentId}
-                  onChange={(e) => {
-                    setAssignmentId(e.target.value);
-                    setTeachingTrackType("");
-                  }}
+                  onChange={(e) => setAssignmentId(e.target.value)}
                 >
                   <option value="">— בחרי —</option>
                   {allAssignments.map((a) => (
@@ -354,7 +355,7 @@ export function NewExamClient() {
                       {a.year_label ? `${a.year_label} · ` : ""}
                       {a.subject}
                       {a.lesson_name ? ` · ${a.lesson_name}` : ""}
-                      {a.teaching_mode ? ` · ${teachingModeLabel(a.teaching_mode)}` : ""}
+                      {assignmentTeachingLabel(a) ? ` · ${assignmentTeachingLabel(a)}` : ""}
                       {" · "}
                       {a.target_type_label ? `${a.target_type_label}: ` : ""}
                       {a.target_label ?? "—"}
@@ -375,6 +376,12 @@ export function NewExamClient() {
                 ) : selected ? (
                   <p className="mt-1 text-xs text-zinc-600">
                     יעדי השיבוץ: {selected.target_label ?? "—"}
+                    {inheritedTeachingType ? (
+                      <>
+                        {" · "}
+                        סוג הוראה: {teachingModeSelectionLabel(inheritedTeachingType)}
+                      </>
+                    ) : null}
                   </p>
                 ) : null}
               </label>
@@ -420,11 +427,18 @@ export function NewExamClient() {
 
         <section className="space-y-2">
           <h2 className="text-sm font-semibold text-zinc-800">שלב 3 — תאריך</h2>
-          {isTeachingTarget && assignmentMode === "existing" ? (
+          {isTeachingTarget && assignmentMode === "existing" && inheritedTeachingType ? (
+            <p className="text-sm text-zinc-700">
+              סוג הוראה מהשיבוץ:{" "}
+              <span className="font-medium">{teachingModeSelectionLabel(inheritedTeachingType)}</span>
+            </p>
+          ) : null}
+
+          {isTeachingTarget && assignmentMode === "new" ? (
             <div className="rounded-lg border border-sky-200 bg-sky-50/80 px-3 py-2 text-sm">
               <span className="font-medium text-zinc-800">סוג הוראה במבחן: </span>
-              {teachingTrackType ? (
-                <span>{teachingModeSelectionLabel(teachingTrackType)}</span>
+              {newTarget.teachingMode ? (
+                <span>{teachingModeSelectionLabel(newTarget.teachingMode)}</span>
               ) : (
                 <span className="text-amber-800">לא נבחר — חובה</span>
               )}
@@ -432,9 +446,9 @@ export function NewExamClient() {
                 type="button"
                 disabled={detailsLocked}
                 className="ms-2 text-sky-800 underline hover:no-underline"
-                onClick={() => setTeachingDialogOpen(true)}
+                onClick={() => setNewTeachingDialogOpen(true)}
               >
-                {teachingTrackType ? "שינוי" : "בחירה"}
+                {newTarget.teachingMode ? "שינוי" : "בחירה"}
               </button>
             </div>
           ) : null}
@@ -463,13 +477,13 @@ export function NewExamClient() {
       </form>
 
       <TeachingModePickerDialog
-        open={teachingDialogOpen}
-        initial={teachingTrackType}
-        onConfirm={(selection) => {
-          setTeachingTrackType(selection);
-          setTeachingDialogOpen(false);
+        open={newTeachingDialogOpen}
+        initial={newTarget.teachingMode}
+        onConfirm={(selection: TeachingModeSelection) => {
+          setNewTarget((prev) => ({ ...prev, teachingMode: selection }));
+          setNewTeachingDialogOpen(false);
         }}
-        onCancel={() => setTeachingDialogOpen(false)}
+        onCancel={() => setNewTeachingDialogOpen(false)}
       />
     </div>
   );

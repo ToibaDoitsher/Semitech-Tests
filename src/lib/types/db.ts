@@ -1,7 +1,11 @@
 import type { GradeLevel } from "@/lib/academicYears/types";
 
 export type { GradeLevel };
+/** סוג הוראה על תלמידה / teaching_track_type במבחן — full או short בלבד */
 export type TeachingTrackType = "full" | "short";
+
+/** סוג הוראה בשיבוץ — כולל «מלא + מקוצר» */
+export type TeachingMode = "full" | "short" | "both";
 
 export type AssignmentTargetFields = {
   class_id: string | null;
@@ -50,8 +54,6 @@ export type Teacher = {
   notes?: string | null;
   created_at: string;
 };
-
-export type TeachingMode = "full" | "short";
 
 export type AssignmentCategory = "חובה" | "התמחות";
 

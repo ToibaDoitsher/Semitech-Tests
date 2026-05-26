@@ -19,7 +19,9 @@ import {
   scopeFromSearchParams,
 } from "@/lib/academicYears/scope";
 import { ASSIGNMENT_WITH_LOOKUPS } from "@/lib/db/assignmentSelect";
+import { isTeachingTrackName } from "@/lib/students/fields";
 import { resolveAssignmentTeachingMode } from "@/lib/teachers/assignments";
+import { isTeachingModeSelection } from "@/lib/teachers/teachingMode";
 import { dedupeTeachersByName, teacherIdsWithSameName } from "@/lib/teachers/dedupe";
 import { TEACHER_COLUMNS } from "@/lib/teachers/db";
 import type { AssignmentCategory, GradeLevel } from "@/lib/types/db";
@@ -179,6 +181,23 @@ export async function POST(request: Request) {
     );
     if (teaching.error) {
       return NextResponse.json({ error: teaching.error }, { status: 400 });
+    }
+
+    if (category === "חובה" && multiTarget.track_ids.length === 1) {
+      const { data: trackRow } = await supabase
+        .from("tracks")
+        .select("name")
+        .eq("id", multiTarget.track_ids[0])
+        .maybeSingle();
+      if (isTeachingTrackName((trackRow?.name as string) ?? "")) {
+        const raw = String(body.teaching_mode ?? "").trim();
+        if (!isTeachingModeSelection(raw)) {
+          return NextResponse.json(
+            { error: "במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)" },
+            { status: 400 },
+          );
+        }
+      }
     }
 
     const fingerprint = computeTargetsFingerprint(multiTarget);

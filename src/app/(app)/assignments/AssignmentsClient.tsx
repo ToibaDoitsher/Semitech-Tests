@@ -23,8 +23,13 @@ import {
   type AssignmentTargetFormValue,
 } from "@/components/assignments/AssignmentTargetForm";
 import { TeacherSearchCombobox } from "@/components/teachers/TeacherSearchCombobox";
-import { teacherEmbedDisplayName, teachingModeLabel } from "@/lib/teachers/display";
-import { TEACHING_TRACK_NAME } from "@/lib/students/fields";
+import { teacherEmbedDisplayName, teachingModeSelectionLabel } from "@/lib/teachers/display";
+import {
+  examTeachingTypeFromAssignment,
+  findTeachingTrackId,
+  isTeachingTrackIdMatch,
+  teachingModeToAssignmentDb,
+} from "@/lib/teachers/teachingMode";
 import type { AssignmentCategory, Teacher, TeachingMode } from "@/lib/types/db";
 
 const fetcher = (url: string) => fetch(url).then((r) => {
@@ -112,9 +117,15 @@ export function AssignmentsClient() {
   const [editSaving, setEditSaving] = useState(false);
 
   const teachingTrackId = useMemo(
-    () => (trData?.items ?? []).find((t) => t.name === TEACHING_TRACK_NAME)?.id ?? "",
+    () => findTeachingTrackId(trData?.items ?? []),
     [trData],
   );
+
+  function assignmentTeachingLabel(a: AssignmentRow): string {
+    if (!isTeachingTrackIdMatch(a.track_ids, teachingTrackId)) return "";
+    const sel = examTeachingTypeFromAssignment(a.teaching_mode, true);
+    return sel ? teachingModeSelectionLabel(sel) : "";
+  }
 
   function needsTeachingMode(form: AssignmentTargetFormValue): boolean {
     return (
@@ -166,7 +177,7 @@ export function AssignmentsClient() {
           specialization_ids: targetForm.specializationIds,
           psychology_enabled: targetForm.psychologyEnabled,
           applies_to_all_in_grade: targetForm.appliesToAllInGrade,
-          teaching_mode: targetForm.teachingMode || null,
+          teaching_mode: teachingModeToAssignmentDb(targetForm.teachingMode),
         }),
       });
       const j = (await r.json().catch(() => ({}))) as {
@@ -188,8 +199,7 @@ export function AssignmentsClient() {
   }
 
   function startEdit(a: AssignmentRow) {
-    const isTeaching =
-      a.track_ids.length === 1 && a.track_ids[0] === teachingTrackId && Boolean(teachingTrackId);
+    const isTeaching = isTeachingTrackIdMatch(a.track_ids, teachingTrackId);
     setEditingId(a.id);
     setEditDraft({
       subject: a.subject,
@@ -201,7 +211,11 @@ export function AssignmentsClient() {
       psychologyEnabled: a.psychology_enabled,
       appliesToAllInGrade: a.applies_to_all_in_grade,
       category: a.assignment_category,
-      teachingMode: a.teaching_mode ?? (isTeaching ? "both" : ""),
+      teachingMode: a.teaching_mode && (a.teaching_mode === "full" || a.teaching_mode === "short" || a.teaching_mode === "both")
+        ? a.teaching_mode
+        : isTeaching
+          ? ""
+          : "",
     });
   }
 
@@ -246,7 +260,7 @@ export function AssignmentsClient() {
           specialization_ids: editDraft.specializationIds,
           psychology_enabled: editDraft.psychologyEnabled,
           applies_to_all_in_grade: editDraft.appliesToAllInGrade,
-          teaching_mode: editDraft.teachingMode || null,
+          teaching_mode: teachingModeToAssignmentDb(editDraft.teachingMode),
         }),
       });
       const j = await r.json().catch(() => ({}));
@@ -493,6 +507,7 @@ export function AssignmentsClient() {
               options: [
                 { value: "full", label: "מלא" },
                 { value: "short", label: "מקוצר" },
+                { value: "both", label: "מלא + מקוצר" },
               ],
             },
           ]}
@@ -583,14 +598,19 @@ export function AssignmentsClient() {
                         specializations={spData?.items ?? []}
                       />
                     ) : (
-                      a.target_label ?? "—"
+                      <>
+                        {a.target_label ?? "—"}
+                        {assignmentTeachingLabel(a) ? (
+                          <span className="text-sky-800"> · {assignmentTeachingLabel(a)}</span>
+                        ) : null}
+                      </>
                     )}
                   </TableCell>
                   {isEditing ? null : (
                   <TableCell>
                       <>
                         {a.year_label ?? a.grade_levels.join(", ")}
-                        {a.teaching_mode ? ` · ${teachingModeLabel(a.teaching_mode)}` : ""}
+                        {assignmentTeachingLabel(a) ? ` · ${assignmentTeachingLabel(a)}` : ""}
                       </>
                   </TableCell>
                   )}

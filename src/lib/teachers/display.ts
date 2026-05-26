@@ -36,8 +36,3 @@ export function teachingModeSelectionLabel(mode: string | null | undefined): str
   if (mode === "both") return "מלא + מקוצר";
   return "—";
 }
-
-export function teachingModeToDb(mode: string | null | undefined): "full" | "short" | null {
-  if (mode === "full" || mode === "short") return mode;
-  return null;
-}

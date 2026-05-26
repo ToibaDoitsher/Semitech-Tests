@@ -8,6 +8,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
 import { TEACHING_TRACK_NAME } from "@/lib/students/fields";
 import { teachingModeSelectionLabel } from "@/lib/teachers/display";
+import { teachingModeFromExamDb } from "@/lib/teachers/teachingMode";
 import {
   TeachingModePickerDialog,
   type TeachingModeSelection,
@@ -77,26 +78,18 @@ export function ExamEditDialog({ examId, onClose, onSaved, initial, locked }: Pr
   const [specIds, setSpecIds] = useState<string[]>(initial.specialization_ids);
   const [psychology, setPsychology] = useState(initial.psychology_enabled);
   const [appliesAll, setAppliesAll] = useState(initial.applies_to_all_in_grade);
-  const [teachingMode, setTeachingMode] = useState<TeachingModeSelection>(() => {
-    if (initial.teaching_track_type === "full" || initial.teaching_track_type === "short") {
-      return initial.teaching_track_type;
-    }
-    return "";
-  });
+  const [teachingMode, setTeachingMode] = useState<TeachingModeSelection>("");
   const [teachingDialogOpen, setTeachingDialogOpen] = useState(false);
 
   useEffect(() => {
-    if (initial.teaching_track_type === "full" || initial.teaching_track_type === "short") {
-      setTeachingMode(initial.teaching_track_type);
-      return;
-    }
     const teachingId = (trData?.items ?? []).find((t) => t.name === TEACHING_TRACK_NAME)?.id;
-    const hasTeachingOnly =
-      initial.track_ids.length === 1 && initial.track_ids[0] === teachingId && Boolean(teachingId);
-    if (hasTeachingOnly && !initial.teaching_track_type) {
-      setTeachingMode("both");
-    }
-  }, [initial.teaching_track_type, initial.track_ids, trData]);
+    const isTeaching =
+      initial.assignment_category === "חובה" &&
+      initial.track_ids.length === 1 &&
+      initial.track_ids[0] === teachingId &&
+      Boolean(teachingId);
+    setTeachingMode(teachingModeFromExamDb(initial.teaching_track_type, isTeaching));
+  }, [initial.assignment_category, initial.teaching_track_type, initial.track_ids, trData]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

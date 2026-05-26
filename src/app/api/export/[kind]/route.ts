@@ -33,10 +33,10 @@ function joinNames(ids: string[], byId: Map<string, string>): string {
     .join(", ");
 }
 
+import { teachingModeSelectionLabel } from "@/lib/teachers/display";
+
 function teachingModeForExport(mode: string | null | undefined): string {
-  if (mode === "full") return "מלא";
-  if (mode === "short") return "מקוצר";
-  return "";
+  return teachingModeSelectionLabel(mode);
 }
 
 function hebrewYmd(ymd: string | null | undefined): string {

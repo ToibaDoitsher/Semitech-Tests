@@ -8,8 +8,14 @@ import {
 import { isTeachingTrackId } from "@/lib/exams/logic";
 import { resolveExamTargetLabels } from "@/lib/exams/resolveTargetNames";
 import { buildExamStudentRows } from "@/lib/exams/snapshots";
-import type { AssignmentCategory, TeachingTrackType } from "@/lib/types/db";
+import type { AssignmentCategory, TeachingMode, TeachingTrackType } from "@/lib/types/db";
 import { teacherEmbedDisplayName } from "@/lib/teachers/display";
+import {
+  isTeachingModeValue,
+  isTeachingSelectionComplete,
+  teachingModeToExamDb,
+  type TeachingModeSelection,
+} from "@/lib/teachers/teachingMode";
 import { notDeleted } from "@/lib/db/softDelete";
 
 export type CreateOneExamParams = {
@@ -20,9 +26,18 @@ export type CreateOneExamParams = {
   subject: string;
   examDate: string;
   assignmentId: string;
-  teachingTrackType: TeachingTrackType | "both" | null;
+  teachingMode: TeachingMode | null;
   auditUserId: string | null;
 };
+
+function resolveTeachingSelection(
+  fromRequest: TeachingMode | null,
+  fromAssignment: TeachingMode | null,
+): TeachingMode | null {
+  if (isTeachingModeValue(fromRequest)) return fromRequest;
+  if (isTeachingModeValue(fromAssignment)) return fromAssignment;
+  return null;
+}
 
 export async function createOneExam(
   params: CreateOneExamParams,
@@ -35,7 +50,7 @@ export async function createOneExam(
     subject,
     examDate,
     assignmentId,
-    teachingTrackType: teachingTrackTypeIn,
+    teachingMode: teachingModeIn,
     auditUserId,
   } = params;
 
@@ -71,39 +86,31 @@ export async function createOneExam(
     return { error: "כבר קיים מבחן לאותו שיבוץ באותו תאריך" };
   }
 
-  const assignmentTeachingMode = (ta.teaching_mode as "full" | "short" | null) ?? null;
+  const assignmentTeachingMode = (ta.teaching_mode as TeachingMode | null) ?? null;
+  const teachingSelection = resolveTeachingSelection(teachingModeIn, assignmentTeachingMode);
+  const teaching_track_type: TeachingTrackType | null = teachingSelection
+    ? teachingModeToExamDb(teachingSelection as TeachingModeSelection)
+    : null;
 
-  let teaching_track_type: TeachingTrackType | null = null;
-  if (teachingTrackTypeIn === "full" || teachingTrackTypeIn === "short") {
-    teaching_track_type = teachingTrackTypeIn;
-  } else if (teachingTrackTypeIn === "both") {
-    teaching_track_type = null;
-  } else if (assignmentTeachingMode) {
-    teaching_track_type = assignmentTeachingMode;
-  }
-
+  let hasTeachingTrack = false;
   if (multiTarget.track_ids.length) {
     const checks = await Promise.all(
       multiTarget.track_ids.map((id) => isTeachingTrackId(supabase, id)),
     );
-    const hasTeachingTrack = checks.some(Boolean);
-    const teachingChosen =
-      teachingTrackTypeIn === "both" ||
-      teaching_track_type !== null ||
-      assignmentTeachingMode !== null;
-    if (hasTeachingTrack && !teachingChosen) {
+    hasTeachingTrack = checks.some(Boolean);
+    if (hasTeachingTrack && !isTeachingSelectionComplete(teachingSelection)) {
       return { error: "במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)" };
     }
-    if (!hasTeachingTrack) teaching_track_type = null;
-  } else {
-    teaching_track_type = null;
   }
 
   const { ids: studentIds, error: stErr } = await fetchStudentIdsForMultiTarget(
     supabase,
     multiTarget,
     { academic_year_id: academicYearId },
-    { teachingTrackType: teaching_track_type, category: examCategory },
+    {
+      teachingMode: hasTeachingTrack ? teachingSelection : null,
+      category: examCategory,
+    },
   );
   if (stErr) return { error: stErr };
   if (!studentIds.length) {
@@ -189,6 +196,7 @@ export async function createOneExam(
       exam_date: examDate,
       ...multiTarget,
       teacher_assignment_id: assignmentId,
+      teaching_mode: teachingSelection,
     },
   });
 
