@@ -184,7 +184,7 @@ export function ImportAssignmentsClient() {
     <div className="space-y-8">
       <ListPageHeader
         title="ייבוא שיבוצים מאקסל"
-        subtitle="עמודות: כיתה / התמחות / מסלול / פסיכולוגיה — רק יעד אחד בכל שורה."
+        subtitle="כל מורה חייבת להיות קיימת ברשימת המורות לפני הייבוא (מספיק שם פרטי או שם משפחה). בשיבוצים אותה מורה יכולה להופיע בכמה שורות."
         actions={
           <>
             <a href="/api/teacher-assignments/import/template" className={LIST_SECONDARY_LINK_CLASS}>

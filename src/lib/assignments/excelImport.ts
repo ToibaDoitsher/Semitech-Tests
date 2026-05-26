@@ -45,6 +45,7 @@ export type ParsedAssignmentRow = {
 export type ValidatedAssignmentRow = ParsedAssignmentRow & {
   rowNumber: number;
   errors: string[];
+  warnings: string[];
   resolved?: AssignmentMultiSpec;
 };
 
@@ -268,7 +269,7 @@ function resolveTeacherId(
 
   if (firstTrim && !lastTrim) {
     const ids = maps.byFirst.get(normalizeNameKey(firstTrim)) ?? [];
-    if (!ids.length) return { err: `מורה "${firstTrim}" לא נמצאה — הוסיפי אותה במסך מורות` };
+    if (!ids.length) return { err: `מורה "${firstTrim}" לא נמצאה — הוסיפי אותה תחילה ברשימת המורות` };
     if (ids.length > 1) {
       return { err: `כמה מורות עם השם "${firstTrim}" — הוסיפי גם שם משפחה` };
     }
@@ -277,7 +278,7 @@ function resolveTeacherId(
 
   if (lastTrim && !firstTrim) {
     const ids = maps.byLast.get(normalizeNameKey(lastTrim)) ?? [];
-    if (!ids.length) return { err: `מורה "${lastTrim}" לא נמצאה — הוסיפי אותה במסך מורות` };
+    if (!ids.length) return { err: `מורה "${lastTrim}" לא נמצאה — הוסיפי אותה תחילה ברשימת המורות` };
     if (ids.length > 1) {
       return { err: `כמה מורות עם שם משפחה "${lastTrim}" — הוסיפי גם שם פרטי` };
     }
@@ -285,7 +286,7 @@ function resolveTeacherId(
   }
 
   return {
-    err: `מורה "${firstTrim} ${lastTrim}" לא נמצאה — הוסיפי אותה במסך מורות`,
+    err: `מורה "${firstTrim} ${lastTrim}" לא נמצאה — הוסיפי אותה תחילה ברשימת המורות`,
   };
 }
 
@@ -356,6 +357,7 @@ export function validateAssignmentImportRows(
   return rows.map((r, idx) => {
     const rowNumber = r.rowNumber ?? idx + 1;
     const errors: string[] = [];
+    const warnings: string[] = [];
 
     if (!r.teacher_first_name.trim() && !r.teacher_last_name.trim()) {
       errors.push("חובה להזין שם פרטי או שם משפחה של מורה (לפחות אחד)");
@@ -368,11 +370,7 @@ export function validateAssignmentImportRows(
     if (!category) errors.push('סוג שיבוץ חסר או לא תקין (חובה / התמחות)');
 
     const teacher = resolveTeacherId(maps.teacherMaps, r.teacher_first_name, r.teacher_last_name);
-    if (teacher.err) {
-    errors.push(
-      `${teacher.err} (ודאי שהמורה קיימת בשנה הנבחרת ושהשם תואם בדיוק לרשימת המורות)`,
-    );
-  }
+    if (teacher.err) errors.push(teacher.err);
 
     const grade_levels = parseGradeLevelsCell(r.grade_level);
     if (!grade_levels.length) errors.push("שכבה לא תקינה (א/ב/ג — אפשר כמה מופרדות בפסיק)");
@@ -420,6 +418,6 @@ export function validateAssignmentImportRows(
           }
         : undefined;
 
-    return { ...r, rowNumber, errors, resolved };
+    return { ...r, rowNumber, errors, warnings, resolved };
   });
 }

@@ -10,6 +10,7 @@ import {
   ListTableToolbar,
   LIST_ROW_LINK_CLASS,
 } from "@/components/ui/ListPage";
+import { HebrewDateTimePicker } from "@/components/ui/HebrewDateTimePicker";
 import { ListFilterBar, matchesNameQuery } from "@/components/ui/ListFilterBar";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
@@ -20,6 +21,7 @@ import { formatHebrewDateFromYmd } from "@/lib/hebrewDate";
 import {
   examTrackingDueDate,
   EXAM_SUBMISSION_DUE_OFFSET,
+  formatTrackingDateTime,
   GRADES_SUBMISSION_DUE_OFFSET,
 } from "@/lib/tracking/dates";
 import { MakeupTrackingTab } from "./MakeupTrackingTab";
@@ -41,25 +43,8 @@ type Row = {
   exam: { subject: string; exam_date: string; teacher_name: string | null } | null;
 };
 
-function toLocalInput(iso: string | null) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
 function formatSubmittedDisplay(iso: string | null) {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString("he-IL", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatTrackingDateTime(iso);
 }
 
 function BoolCell({ value }: { value: boolean }) {
@@ -284,6 +269,7 @@ export function TrackingClient() {
                     <TableCell>
                       {editingId === row.id ? (
                         <TrackingRowForm
+                          key={row.id}
                           row={row}
                           onCancel={() => setEditingId(null)}
                           onSave={(payload) => void saveRow(row.id, payload)}
@@ -341,7 +327,7 @@ function TrackingRowForm({
     transferred_to_system: boolean;
   }) => void;
 }) {
-  const [submittedLocal, setSubmittedLocal] = useState(toLocalInput(row.submitted_exam));
+  const [submittedIso, setSubmittedIso] = useState<string | null>(row.submitted_exam);
   const [approved, setApproved] = useState(row.approved_by_coordinator);
   const [sent, setSent] = useState(row.sent_for_review);
   const [gradesIn, setGradesIn] = useState(row.grades_submitted);
@@ -349,16 +335,12 @@ function TrackingRowForm({
   const [transferred, setTransferred] = useState(row.transferred_to_system);
 
   return (
-    <div className="flex min-w-[280px] flex-col gap-2 rounded-lg border border-zinc-200 bg-zinc-50 p-2">
-      <label className="block text-[11px] text-zinc-700">
-        הוגש מבחן
-        <input
-          type="datetime-local"
-          value={submittedLocal}
-          onChange={(e) => setSubmittedLocal(e.target.value)}
-          className="mt-0.5 w-full rounded border border-zinc-200 bg-white px-1 py-1"
-        />
-      </label>
+    <div className="flex min-w-[300px] flex-col gap-2 rounded-lg border border-zinc-200 bg-zinc-50 p-2">
+      <HebrewDateTimePicker
+        label="הוגש מבחן"
+        value={submittedIso}
+        onChange={setSubmittedIso}
+      />
       <label className="inline-flex items-center gap-2 text-[11px]">
         <input type="checkbox" checked={approved} onChange={(e) => setApproved(e.target.checked)} />
         אישור רכזת
@@ -384,9 +366,8 @@ function TrackingRowForm({
           type="button"
           className="rounded-md border border-zinc-900 bg-zinc-900 px-2 py-1 text-[11px] text-white"
           onClick={() => {
-            const iso = submittedLocal ? new Date(submittedLocal).toISOString() : null;
             onSave({
-              submitted_exam: iso,
+              submitted_exam: submittedIso,
               approved_by_coordinator: approved,
               sent_for_review: sent,
               grades_submitted: gradesIn,

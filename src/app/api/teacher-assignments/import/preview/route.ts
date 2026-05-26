@@ -100,12 +100,17 @@ export async function POST(request: Request) {
   const parsed = sheetRowsToAssignmentObjects(raw);
   const validated = validateAssignmentImportRows(parsed, ctx);
 
-  const rows: (ValidatedAssignmentRow & { warnings?: string[] })[] = validated.map((row) => {
-    const warnings: string[] = [];
+  const seenInBatch = new Set<string>();
+  const rows: ValidatedAssignmentRow[] = validated.map((row) => {
+    const warnings = [...row.warnings];
     if (row.resolved) {
       const key = assignmentImportKey(ctx.academicYearId, row.resolved);
       if (ctx.existingKeys.has(key)) {
         warnings.push("שיבוץ זהה כבר קיים — השורה תידלג בייבוא");
+      } else if (seenInBatch.has(key)) {
+        warnings.push("שיבוץ זהה מופיע פעמיים בקובץ — השורה תידלג בייבוא");
+      } else {
+        seenInBatch.add(key);
       }
     }
     return { ...row, warnings };

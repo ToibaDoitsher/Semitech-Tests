@@ -7,6 +7,7 @@ import { ListDataCard, ListTableToolbar } from "@/components/ui/ListPage";
 import { Spinner } from "@/components/ui/Spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatHebrewDateFromYmd } from "@/lib/hebrewDate";
+import { formatTrackingDateTime } from "@/lib/tracking/dates";
 
 const fetcher = async (url: string) => {
   const r = await fetch(url);
@@ -38,9 +39,7 @@ type DetailItem = {
 };
 
 function fmtDt(iso: string | null) {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString("he-IL");
+  return formatTrackingDateTime(iso);
 }
 
 function GradeEditor({

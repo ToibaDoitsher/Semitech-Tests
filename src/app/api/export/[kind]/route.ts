@@ -16,7 +16,7 @@ import { pickLookupName } from "@/lib/lookups/display";
 import { TEACHER_EMBED_IN_EXAM } from "@/lib/teachers/db";
 import { teacherDisplayName, teacherEmbedDisplayName } from "@/lib/teachers/display";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { examTrackingDueDate } from "@/lib/tracking/dates";
+import { examTrackingDueDate, formatTrackingDateTime } from "@/lib/tracking/dates";
 
 function namesByIdMap(
   rows: { id: string; name: string }[] | null | undefined,
@@ -383,7 +383,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
           תאריך: hebrewYmd(examDate),
           הגשת_ציונים: examTrackingDueDate(examDate, 7),
           מורה: ex ? teacherNameCell(ex.teachers) : "",
-          הוגש_מבחן: row.submitted_exam ? row.submitted_exam.slice(0, 19) : "",
+          הוגש_מבחן: row.submitted_exam ? formatTrackingDateTime(row.submitted_exam) : "",
           אושר_על_ידי_רכזת: row.approved_by_coordinator ? "כן" : "לא",
           נשלח_לבדיקה: row.sent_for_review ? "כן" : "לא",
           ציונים_הוגשו: row.grades_submitted ? "כן" : "לא",
