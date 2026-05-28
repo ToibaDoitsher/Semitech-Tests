@@ -32,10 +32,12 @@ export type CreateOneExamParams = {
 
 function resolveTeachingSelection(
   fromRequest: TeachingMode | null,
-  fromAssignment: TeachingMode | null,
+  fromAssignment: TeachingTrackType | null,
+  hasTeachingTrack: boolean,
 ): TeachingMode | null {
   if (isTeachingModeValue(fromRequest)) return fromRequest;
-  if (isTeachingModeValue(fromAssignment)) return fromAssignment;
+  if (fromAssignment === "full" || fromAssignment === "short") return fromAssignment;
+  if (hasTeachingTrack && fromAssignment == null) return "both";
   return null;
 }
 
@@ -86,11 +88,7 @@ export async function createOneExam(
     return { error: "כבר קיים מבחן לאותו שיבוץ באותו תאריך" };
   }
 
-  const assignmentTeachingMode = (ta.teaching_mode as TeachingMode | null) ?? null;
-  const teachingSelection = resolveTeachingSelection(teachingModeIn, assignmentTeachingMode);
-  const teaching_track_type: TeachingTrackType | null = teachingSelection
-    ? teachingModeToExamDb(teachingSelection as TeachingModeSelection)
-    : null;
+  const assignmentTeachingMode = (ta.teaching_mode as TeachingTrackType | null) ?? null;
 
   let hasTeachingTrack = false;
   if (multiTarget.track_ids.length) {
@@ -98,9 +96,19 @@ export async function createOneExam(
       multiTarget.track_ids.map((id) => isTeachingTrackId(supabase, id)),
     );
     hasTeachingTrack = checks.some(Boolean);
-    if (hasTeachingTrack && !isTeachingSelectionComplete(teachingSelection)) {
-      return { error: "במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)" };
-    }
+  }
+
+  const teachingSelection = resolveTeachingSelection(
+    teachingModeIn,
+    assignmentTeachingMode,
+    hasTeachingTrack,
+  );
+  const teaching_track_type: TeachingTrackType | null = teachingSelection
+    ? teachingModeToExamDb(teachingSelection as TeachingModeSelection)
+    : null;
+
+  if (hasTeachingTrack && !isTeachingSelectionComplete(teachingSelection)) {
+    return { error: "במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)" };
   }
 
   const { ids: studentIds, error: stErr } = await fetchStudentIdsForMultiTarget(
@@ -114,6 +122,36 @@ export async function createOneExam(
   );
   if (stErr) return { error: stErr };
   if (!studentIds.length) {
+    // הודעה ממוקדת — במיוחד כשמדובר במסלול הוראה + כיתה, כי הסינון
+    // הוא חיתוך והפער בנתונים יכול להפתיע
+    if (hasTeachingTrack && multiTarget.class_ids.length) {
+      const { count: classInGradeCount } = await supabase
+        .from("students")
+        .select("id", { count: "exact", head: true })
+        .in("class_id", multiTarget.class_ids)
+        .in("grade_level", multiTarget.grade_levels)
+        .is("deleted_at", null);
+      const { count: teachingInGradeCount } = await supabase
+        .from("students")
+        .select("id", { count: "exact", head: true })
+        .in("track_id", multiTarget.track_ids)
+        .in("grade_level", multiTarget.grade_levels)
+        .is("deleted_at", null);
+      const gradeLabel = multiTarget.grade_levels.join(", ");
+      if (!classInGradeCount) {
+        return {
+          error: `הכיתה שנבחרה ריקה בשכבה ${gradeLabel}. הסירי את הכיתה (כדי לקבל את כל תלמידות מסלול הוראה בשכבה) או בחרי כיתה אחרת.`,
+        };
+      }
+      if (!teachingInGradeCount) {
+        return {
+          error: `אין תלמידות במסלול הוראה בשכבה ${gradeLabel}. הסירי את מסלול ההוראה או הוסיפי תלמידות למסלול בכרטיסי התלמידות.`,
+        };
+      }
+      return {
+        error: `אין תלמידות מסלול הוראה בכיתה שנבחרה בשכבה ${gradeLabel}. תלמידות מסלול הוראה בשכבה זו נמצאות בכיתות אחרות — שני את הכיתה או הסירי אותה.`,
+      };
+    }
     return { error: "לא נמצאו תלמידות לפי היעד והשכבות" };
   }
 
@@ -131,7 +169,7 @@ export async function createOneExam(
     applies_to_all_in_grade: multiTarget.applies_to_all_in_grade,
     teacher_assignment_id: assignmentId,
   };
-  if (teaching_track_type) insertRow.teaching_track_type = teaching_track_type;
+  if (hasTeachingTrack) insertRow.teaching_track_type = teaching_track_type;
 
   const { data: exam, error: eErr } = await supabase.from("exams").insert(insertRow).select("*").single();
   if (eErr || !exam) return { error: eErr?.message ?? "שגיאה ביצירת מבחן" };

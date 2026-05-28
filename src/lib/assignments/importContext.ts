@@ -8,7 +8,7 @@ import {
 import { notDeleted } from "@/lib/db/softDelete";
 import { TEACHER_COLUMNS } from "@/lib/teachers/db";
 import { rowToMultiTarget } from "@/lib/assignments/multiTarget";
-import type { AssignmentCategory, TeachingMode } from "@/lib/types/db";
+import type { AssignmentCategory, TeachingTrackType } from "@/lib/types/db";
 
 export type AssignmentImportContext = AssignmentImportMaps & {
   academicYearId: string;
@@ -65,7 +65,7 @@ export async function loadAssignmentImportContext(
         teacher_id: a.teacher_id,
         subject: a.subject.trim(),
         lesson_name: (a.lesson_name as string | null) ?? null,
-        teaching_mode: (a.teaching_mode as TeachingMode | null) ?? null,
+        teaching_mode: (a.teaching_mode as TeachingTrackType | null) ?? null,
         assignment_category: a.assignment_category as AssignmentCategory,
         ...rowToMultiTarget(a as Parameters<typeof rowToMultiTarget>[0]),
       }),

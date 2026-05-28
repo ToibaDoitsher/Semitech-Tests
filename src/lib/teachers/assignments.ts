@@ -1,13 +1,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isTeachingTrackName } from "@/lib/students/fields";
-import { isTeachingModeValue } from "@/lib/teachers/teachingMode";
-import type { TeachingMode } from "@/lib/types/db";
+import {
+  isTeachingModeValue,
+  teachingModeToAssignmentDb,
+  type TeachingModeSelection,
+} from "@/lib/teachers/teachingMode";
+import type { TeachingTrackType } from "@/lib/types/db";
 
 export async function resolveAssignmentTeachingMode(
   supabase: SupabaseClient,
   trackId: string | null | undefined,
   teachingMode: string | null | undefined,
-): Promise<{ teaching_mode: TeachingMode | null; error: string | null }> {
+): Promise<{ teaching_mode: TeachingTrackType | null; error: string | null }> {
   const mode = (teachingMode ?? "").trim();
   if (!mode) return { teaching_mode: null, error: null };
 
@@ -24,5 +28,8 @@ export async function resolveAssignmentTeachingMode(
     return { teaching_mode: null, error: "סוג הוראה מותר רק במסלול הוראה" };
   }
 
-  return { teaching_mode: mode, error: null };
+  return {
+    teaching_mode: teachingModeToAssignmentDb(mode as TeachingModeSelection),
+    error: null,
+  };
 }

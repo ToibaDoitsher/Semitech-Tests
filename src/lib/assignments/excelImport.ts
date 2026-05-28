@@ -17,7 +17,8 @@ import {
   parseTeachingModeCell,
 } from "@/lib/students/fields";
 import { teacherDisplayName } from "@/lib/teachers/display";
-import type { TeachingMode } from "@/lib/types/db";
+import { teachingModeToAssignmentDb } from "@/lib/teachers/teachingMode";
+import type { TeachingTrackType } from "@/lib/types/db";
 import { filterDataRows } from "@/lib/students/excelImport";
 
 export { filterDataRows };
@@ -390,7 +391,7 @@ export function validateAssignmentImportRows(
         };
     errors.push(...targetErrors);
 
-    let teaching_mode: TeachingMode | null = null;
+    let teaching_mode: TeachingTrackType | null = null;
     if (r.teaching_mode_raw.trim()) {
       if (target.track_ids.length !== 1) {
         errors.push("סוג הוראה מותר רק כשמולא מסלול אחד");
@@ -399,8 +400,9 @@ export function validateAssignmentImportRows(
         if (!isTeachingTrackName(trackName)) {
           errors.push("סוג הוראה מותר רק במסלול «הוראה»");
         } else {
-          teaching_mode = parseTeachingModeCell(r.teaching_mode_raw);
-          if (!teaching_mode) errors.push("סוג הוראה לא תקין (מלא/מקוצר/מלא + מקוצר)");
+          const parsed = parseTeachingModeCell(r.teaching_mode_raw);
+          if (!parsed) errors.push("סוג הוראה לא תקין (מלא/מקוצר/מלא + מקוצר)");
+          else teaching_mode = teachingModeToAssignmentDb(parsed);
         }
       }
     }

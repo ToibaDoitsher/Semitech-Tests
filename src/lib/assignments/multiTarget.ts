@@ -4,7 +4,8 @@ import { formatGradeLabel } from "@/lib/academicYears/labels";
 import { GRADE_LEVELS, type GradeLevel } from "@/lib/academicYears/types";
 import { notDeleted } from "@/lib/db/softDelete";
 import { isTeachingTrackName } from "@/lib/students/fields";
-import type { AssignmentCategory, TeachingMode } from "@/lib/types/db";
+import { studentTeachingTypeMatches } from "@/lib/teachers/teachingMode";
+import type { AssignmentCategory, TeachingMode, TeachingTrackType } from "@/lib/types/db";
 
 export type AssignmentMultiTarget = {
   grade_levels: GradeLevel[];
@@ -220,6 +221,40 @@ async function studentIdsForGradeAndSlice(
     return { ids: [...ids], error: null };
   }
 
+  // מסלול הוראה הוא מסנן חוצה (intersection), לא יעד נוסף (union):
+  // אם נבחר מסלול הוראה + סוג הוראה — התלמידות שיוחזרו חייבות להיות
+  // על מסלול הוראה ולפי הסוג שנבחר. אם נבחרה גם כיתה — זה צמצום נוסף
+  // (חיתוך), לא יעד שמתווסף לאוסף.
+  if (options?.teachingMode && slice.track_ids.length === 1) {
+    const { data: onlyTrack } = await supabase
+      .from("tracks")
+      .select("name")
+      .eq("id", slice.track_ids[0])
+      .maybeSingle();
+    if (isTeachingTrackName((onlyTrack?.name as string) ?? "")) {
+      let q = notDeleted(supabase.from("students").select("id"))
+        .eq("academic_year_id", academicYearId)
+        .eq("grade_level", gradeLevel)
+        .eq("track_id", slice.track_ids[0]);
+      const mode = options.teachingMode;
+      if (mode === "full" || mode === "short") {
+        q = q.eq("teaching_track_type", mode);
+      } else if (mode === "both") {
+        q = q.in("teaching_track_type", ["full", "short"]);
+      }
+      if (slice.class_ids.length) {
+        q = q.in("class_id", slice.class_ids);
+      }
+      if (slice.psychology_enabled) {
+        q = q.eq("is_psychology", true);
+      }
+      const { data, error } = await q;
+      if (error) return { ids: [], error: error.message };
+      for (const row of data ?? []) ids.add(row.id as string);
+      return { ids: [...ids], error: null };
+    }
+  }
+
   const hasClassOrTrack = slice.class_ids.length > 0 || slice.track_ids.length > 0;
 
   // פסיכולוגיה לבד (בלי כיתה/מסלול) — מחזיר את כל תלמידות הפסיכולוגיה בשכבה
@@ -252,12 +287,12 @@ async function studentIdsForGradeAndSlice(
       .eq("academic_year_id", academicYearId)
       .eq("grade_level", gradeLevel)
       .eq("track_id", trackId);
-    if (
-      isTeachingTrackName((trackRow?.name as string) ?? "") &&
-      options?.teachingMode &&
-      options.teachingMode !== "both"
-    ) {
-      q = q.eq("teaching_track_type", options.teachingMode);
+    if (isTeachingTrackName((trackRow?.name as string) ?? "") && options?.teachingMode) {
+      if (options.teachingMode === "full" || options.teachingMode === "short") {
+        q = q.eq("teaching_track_type", options.teachingMode);
+      } else if (options.teachingMode === "both") {
+        q = q.in("teaching_track_type", ["full", "short"]);
+      }
     }
     const { data, error } = await q;
     if (error) return { ids: [], error: error.message };
@@ -323,7 +358,7 @@ export type AssignmentMultiSpec = {
   subject: string;
   lesson_name: string | null;
   assignment_category: AssignmentCategory;
-  teaching_mode: TeachingMode | null;
+  teaching_mode: TeachingTrackType | null;
 } & AssignmentMultiTarget;
 
 export function rowToMultiTarget(row: {

@@ -95,6 +95,11 @@ export async function GET(request: Request) {
   return NextResponse.json({ exams: enriched, readOnly: scope.readOnly, academicYear: scope.year });
 }
 
+function badRequest(error: string, ctx: Record<string, unknown> = {}): NextResponse {
+  console.error("[POST /api/exams] 400:", error, ctx);
+  return NextResponse.json({ error }, { status: 400 });
+}
+
 export async function POST(request: Request) {
   const body = (await request.json()) as {
     teacher_id?: string;
@@ -113,15 +118,15 @@ export async function POST(request: Request) {
   const newAssignmentRaw = body.new_assignment;
 
   if (!teacher_id || !exam_date) {
-    return NextResponse.json({ error: "מורה ותאריך חובה" }, { status: 400 });
+    return badRequest("מורה ותאריך חובה", { teacher_id, exam_date });
   }
 
   const useNewAssignment = Boolean(newAssignmentRaw);
   if (!useNewAssignment && !teacher_assignment_id) {
-    return NextResponse.json({ error: "בחרי שיבוץ קיים או מלאי פרטי שיבוץ חדש" }, { status: 400 });
+    return badRequest("בחרי שיבוץ קיים או מלאי פרטי שיבוץ חדש");
   }
   if (useNewAssignment && teacher_assignment_id) {
-    return NextResponse.json({ error: "לא ניתן לשלוח גם שיבוץ קיים וגם שיבוץ חדש" }, { status: 400 });
+    return badRequest("לא ניתן לשלוח גם שיבוץ קיים וגם שיבוץ חדש");
   }
 
   const supabase = createSupabaseAdminClient();
@@ -147,12 +152,14 @@ export async function POST(request: Request) {
       newAssignmentRaw.lesson_name ?? "",
     );
     if (subjectLesson.error) {
-      return NextResponse.json({ error: subjectLesson.error }, { status: 400 });
+      return badRequest(subjectLesson.error);
     }
 
     const parsedCategory = parseAssignmentCategory(newAssignmentRaw.assignment_category ?? "");
     if (!parsedCategory) {
-      return NextResponse.json({ error: "בחרי סוג שיבוץ: חובה או התמחות" }, { status: 400 });
+      return badRequest("בחרי סוג שיבוץ: חובה או התמחות", {
+        raw: newAssignmentRaw.assignment_category,
+      });
     }
     const category: AssignmentCategory = parsedCategory;
 
@@ -160,7 +167,7 @@ export async function POST(request: Request) {
       grade_levels: newAssignmentRaw.grade_levels,
     });
     if ("error" in gradeResolved) {
-      return NextResponse.json({ error: gradeResolved.error }, { status: 400 });
+      return badRequest(gradeResolved.error);
     }
 
     const multiTarget = normalizeMultiTargetInput({
@@ -173,7 +180,7 @@ export async function POST(request: Request) {
     });
 
     const targetErr = validateMultiTarget(category, multiTarget);
-    if (targetErr) return NextResponse.json({ error: targetErr }, { status: 400 });
+    if (targetErr) return badRequest(targetErr, { multiTarget });
 
     const teaching = await resolveAssignmentTeachingMode(
       supabase,
@@ -183,7 +190,7 @@ export async function POST(request: Request) {
       newAssignmentRaw.teaching_mode,
     );
     if (teaching.error) {
-      return NextResponse.json({ error: teaching.error }, { status: 400 });
+      return badRequest(teaching.error, { teaching_mode: newAssignmentRaw.teaching_mode });
     }
 
     if (category === "חובה" && multiTarget.track_ids.length === 1) {
@@ -195,10 +202,9 @@ export async function POST(request: Request) {
       if (isTeachingTrackName((trackRow?.name as string) ?? "")) {
         const raw = String(newAssignmentRaw.teaching_mode ?? "").trim();
         if (!isTeachingModeSelection(raw)) {
-          return NextResponse.json(
-            { error: "במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)" },
-            { status: 400 },
-          );
+          return badRequest("במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)", {
+            received: newAssignmentRaw.teaching_mode,
+          });
         }
       }
     }
@@ -214,7 +220,7 @@ export async function POST(request: Request) {
       ...multiTarget,
     });
     if ("error" in resolved) {
-      return NextResponse.json({ error: resolved.error }, { status: 400 });
+      return badRequest(resolved.error);
     }
     assignmentId = resolved.id;
     if (resolved.created) assignmentsCreated = 1;
@@ -228,7 +234,7 @@ export async function POST(request: Request) {
       subject = (ta?.subject as string) ?? "";
     }
     if (!subject) {
-      return NextResponse.json({ error: "מקצוע חובה" }, { status: 400 });
+      return badRequest("מקצוע חובה");
     }
   }
 
@@ -245,7 +251,13 @@ export async function POST(request: Request) {
   });
 
   if ("error" in result) {
-    return NextResponse.json({ error: result.error }, { status: 400 });
+    return badRequest(result.error, {
+      teacher_id,
+      assignmentId,
+      exam_date,
+      teachingMode,
+      useNewAssignment,
+    });
   }
 
   return NextResponse.json({

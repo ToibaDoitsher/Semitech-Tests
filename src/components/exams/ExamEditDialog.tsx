@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import useSWR from "swr";
 import { HebrewDatePicker } from "@/components/ui/HebrewDatePicker";
 import { InlineNotice } from "@/components/ui/InlineNotice";
@@ -8,7 +8,12 @@ import { Spinner } from "@/components/ui/Spinner";
 import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
 import { TEACHING_TRACK_NAME } from "@/lib/students/fields";
 import { teachingModeSelectionLabel } from "@/lib/teachers/display";
-import { teachingModeFromExamDb } from "@/lib/teachers/teachingMode";
+import {
+  findTeachingTrackId,
+  isTeachingSelectionComplete,
+  isTeachingTrackIdMatch,
+  teachingModeFromExamDb,
+} from "@/lib/teachers/teachingMode";
 import {
   TeachingModePickerDialog,
   type TeachingModeSelection,
@@ -78,18 +83,21 @@ export function ExamEditDialog({ examId, onClose, onSaved, initial, locked }: Pr
   const [specIds, setSpecIds] = useState<string[]>(initial.specialization_ids);
   const [psychology, setPsychology] = useState(initial.psychology_enabled);
   const [appliesAll, setAppliesAll] = useState(initial.applies_to_all_in_grade);
-  const [teachingMode, setTeachingMode] = useState<TeachingModeSelection>("");
+  const [teachingMode, setTeachingMode] = useState<TeachingModeSelection>(() => {
+    if (initial.teaching_track_type === "full" || initial.teaching_track_type === "short") {
+      return initial.teaching_track_type;
+    }
+    return "";
+  });
   const [teachingDialogOpen, setTeachingDialogOpen] = useState(false);
+  const teachingModeTouchedRef = useRef(false);
 
   useEffect(() => {
-    const teachingId = (trData?.items ?? []).find((t) => t.name === TEACHING_TRACK_NAME)?.id;
-    const isTeaching =
-      initial.assignment_category === "חובה" &&
-      initial.track_ids.length === 1 &&
-      initial.track_ids[0] === teachingId &&
-      Boolean(teachingId);
+    if (teachingModeTouchedRef.current) return;
+    const teachingId = findTeachingTrackId(trData?.items ?? []);
+    const isTeaching = isTeachingTrackIdMatch(initial.track_ids, teachingId);
     setTeachingMode(teachingModeFromExamDb(initial.teaching_track_type, isTeaching));
-  }, [initial.assignment_category, initial.teaching_track_type, initial.track_ids, trData]);
+  }, [initial.teaching_track_type, initial.track_ids, trData]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -102,7 +110,18 @@ export function ExamEditDialog({ examId, onClose, onSaved, initial, locked }: Pr
   }, [trackIds, trData]);
   const showTeachingMode = showMandatory && selectedTrackName === TEACHING_TRACK_NAME;
 
+  const effectiveTeachingMode = useMemo((): TeachingModeSelection => {
+    if (isTeachingSelectionComplete(teachingMode)) return teachingMode;
+    const teachingId = findTeachingTrackId(trData?.items ?? []);
+    if (!isTeachingTrackIdMatch(trackIds, teachingId)) return "";
+    return teachingModeFromExamDb(initial.teaching_track_type, true);
+  }, [teachingMode, trData, trackIds, initial.teaching_track_type]);
+
   async function save() {
+    if (showTeachingMode && !isTeachingSelectionComplete(effectiveTeachingMode)) {
+      setError("במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -117,7 +136,10 @@ export function ExamEditDialog({ examId, onClose, onSaved, initial, locked }: Pr
           specialization_ids: locked ? undefined : specIds,
           psychology_enabled: locked ? undefined : psychology,
           applies_to_all_in_grade: locked ? undefined : appliesAll,
-          teaching_track_type: locked ? undefined : teachingMode || null,
+          teaching_track_type:
+            locked || !showTeachingMode
+              ? undefined
+              : effectiveTeachingMode,
         }),
       });
       const j = (await r.json().catch(() => ({}))) as {
@@ -269,8 +291,8 @@ export function ExamEditDialog({ examId, onClose, onSaved, initial, locked }: Pr
                           <span className="font-semibold text-slate-700 dark:text-zinc-300">
                             סוג הוראה:{" "}
                           </span>
-                          {teachingMode ? (
-                            <span>{teachingModeSelectionLabel(teachingMode)}</span>
+                          {effectiveTeachingMode ? (
+                            <span>{teachingModeSelectionLabel(effectiveTeachingMode)}</span>
                           ) : (
                             <span className="text-amber-800">לא נבחר — חובה</span>
                           )}
@@ -280,7 +302,7 @@ export function ExamEditDialog({ examId, onClose, onSaved, initial, locked }: Pr
                             className="ms-2 text-sky-800 underline hover:no-underline"
                             onClick={() => setTeachingDialogOpen(true)}
                           >
-                            {teachingMode ? "שינוי" : "בחירה"}
+                            {effectiveTeachingMode ? "שינוי" : "בחירה"}
                           </button>
                         </div>
                       ) : null}
@@ -340,6 +362,7 @@ export function ExamEditDialog({ examId, onClose, onSaved, initial, locked }: Pr
         open={teachingDialogOpen}
         initial={teachingMode}
         onConfirm={(selection) => {
+          teachingModeTouchedRef.current = true;
           setTeachingMode(selection);
           setTeachingDialogOpen(false);
         }}

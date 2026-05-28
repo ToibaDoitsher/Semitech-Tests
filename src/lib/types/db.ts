@@ -70,7 +70,7 @@ export type TeacherAssignment = {
   specialization_ids: string[];
   psychology_enabled: boolean;
   applies_to_all_in_grade: boolean;
-  teaching_mode?: TeachingMode | null;
+  teaching_mode?: TeachingTrackType | null;
   teachers?: Teacher | null;
 };
 

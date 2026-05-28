@@ -200,7 +200,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
         const hasTeachingTrack = checks.some(Boolean);
         if (hasTeachingTrack && !isTeachingSelectionComplete(selection)) {
           return NextResponse.json(
-            { error: "במסלול הוראה — בחרi סוג הוראה (מלא / מקוצר)" },
+            { error: "במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)" },
             { status: 400 },
           );
         }

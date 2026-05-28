@@ -13,7 +13,6 @@ import {
 import { InlineNotice } from "@/components/ui/InlineNotice";
 import { ListFilterBar, matchesNameQuery } from "@/components/ui/ListFilterBar";
 import { Spinner } from "@/components/ui/Spinner";
-import type { GradeLevel } from "@/lib/academicYears/types";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TableClearFooter } from "@/components/ui/TableClearFooter";
@@ -27,10 +26,11 @@ import { teacherEmbedDisplayName, teachingModeSelectionLabel } from "@/lib/teach
 import {
   examTeachingTypeFromAssignment,
   findTeachingTrackId,
+  isTeachingSelectionComplete,
   isTeachingTrackIdMatch,
-  teachingModeToAssignmentDb,
+  teachingModeFromAssignmentDb,
 } from "@/lib/teachers/teachingMode";
-import type { AssignmentCategory, Teacher, TeachingMode } from "@/lib/types/db";
+import type { AssignmentCategory, GradeLevel, Teacher, TeachingTrackType } from "@/lib/types/db";
 
 const fetcher = (url: string) => fetch(url).then((r) => {
   if (!r.ok) throw new Error("שגיאת טעינה");
@@ -44,7 +44,7 @@ type AssignmentRow = {
   teacher_id: string;
   subject: string;
   lesson_name?: string | null;
-  teaching_mode?: TeachingMode | null;
+  teaching_mode?: TeachingTrackType | null;
   grade_levels: string[];
   year_label?: string;
   class_ids: string[];
@@ -157,7 +157,7 @@ export function AssignmentsClient() {
     ) {
       return alert("בחרי יעד: כיתות, מסלולים, פסיכולוגיה, או «כל השכבה»");
     }
-    if (needsTeachingMode(targetForm) && !targetForm.teachingMode) {
+    if (needsTeachingMode(targetForm) && !isTeachingSelectionComplete(targetForm.teachingMode)) {
       return alert("במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)");
     }
     setSaving(true);
@@ -177,7 +177,7 @@ export function AssignmentsClient() {
           specialization_ids: targetForm.specializationIds,
           psychology_enabled: targetForm.psychologyEnabled,
           applies_to_all_in_grade: targetForm.appliesToAllInGrade,
-          teaching_mode: teachingModeToAssignmentDb(targetForm.teachingMode),
+          teaching_mode: needsTeachingMode(targetForm) ? targetForm.teachingMode || null : null,
         }),
       });
       const j = (await r.json().catch(() => ({}))) as {
@@ -211,11 +211,7 @@ export function AssignmentsClient() {
       psychologyEnabled: a.psychology_enabled,
       appliesToAllInGrade: a.applies_to_all_in_grade,
       category: a.assignment_category,
-      teachingMode: a.teaching_mode && (a.teaching_mode === "full" || a.teaching_mode === "short" || a.teaching_mode === "both")
-        ? a.teaching_mode
-        : isTeaching
-          ? ""
-          : "",
+      teachingMode: isTeaching ? teachingModeFromAssignmentDb(a.teaching_mode, true) : "",
     });
   }
 
@@ -242,7 +238,7 @@ export function AssignmentsClient() {
     ) {
       return alert("בחרי יעד: כיתות, מסלולים, פסיכולוגיה, או «כל השכבה»");
     }
-    if (needsTeachingMode(editDraft) && !editDraft.teachingMode) {
+    if (needsTeachingMode(editDraft) && !isTeachingSelectionComplete(editDraft.teachingMode)) {
       return alert("במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)");
     }
     setEditSaving(true);
@@ -260,7 +256,7 @@ export function AssignmentsClient() {
           specialization_ids: editDraft.specializationIds,
           psychology_enabled: editDraft.psychologyEnabled,
           applies_to_all_in_grade: editDraft.appliesToAllInGrade,
-          teaching_mode: teachingModeToAssignmentDb(editDraft.teachingMode),
+          teaching_mode: needsTeachingMode(editDraft) ? editDraft.teachingMode || null : null,
         }),
       });
       const j = await r.json().catch(() => ({}));
@@ -297,7 +293,11 @@ export function AssignmentsClient() {
       if (classFilter && !a.class_ids.includes(classFilter)) return false;
       if (trackFilter && !a.track_ids.includes(trackFilter)) return false;
       if (specFilter && !a.specialization_ids.includes(specFilter)) return false;
-      if (teachingModeFilter && (a.teaching_mode ?? "") !== teachingModeFilter) return false;
+      if (teachingModeFilter) {
+        const isTeaching = isTeachingTrackIdMatch(a.track_ids, teachingTrackId);
+        const mode = isTeaching ? teachingModeFromAssignmentDb(a.teaching_mode, true) : "";
+        if (mode !== teachingModeFilter) return false;
+      }
       if (psychologyFilter === "1" && !a.psychology_enabled) return false;
       if (psychologyFilter === "0" && a.psychology_enabled) return false;
       if (deferredSearch.trim()) {

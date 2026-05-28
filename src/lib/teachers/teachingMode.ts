@@ -33,11 +33,12 @@ export function isTeachingModeSelection(raw: string | null | undefined): raw is 
   return isTeachingModeValue(raw);
 }
 
-/** שיבוץ — teaching_mode: full / short / both */
+/** שיבוץ — teaching_mode במסד: full / short / null (null = מלא+מקוצר) */
 export function teachingModeToAssignmentDb(
   selection: TeachingModeSelection,
-): TeachingMode | null {
-  if (isTeachingModeValue(selection)) return selection;
+): TeachingTrackType | null {
+  if (selection === "full" || selection === "short") return selection;
+  if (selection === "both") return null;
   return null;
 }
 
@@ -53,11 +54,11 @@ export function teachingModeToExamDb(
 }
 
 export function teachingModeFromAssignmentDb(
-  mode: TeachingMode | null | undefined,
+  mode: TeachingTrackType | null | undefined,
   isTeachingTrack: boolean,
 ): TeachingModeSelection {
-  if (isTeachingModeValue(mode)) return mode;
-  if (isTeachingTrack) return "";
+  if (mode === "full" || mode === "short") return mode;
+  if (isTeachingTrack && mode == null) return "both";
   return "";
 }
 
@@ -74,7 +75,7 @@ export function teachingModeFromExamDb(
 }
 
 export function examTeachingTypeFromAssignment(
-  teachingMode: TeachingMode | null | undefined,
+  teachingMode: TeachingTrackType | null | undefined,
   isTeachingTrack: boolean,
 ): TeachingModeSelection | null {
   if (!isTeachingTrack) return null;
@@ -83,14 +84,14 @@ export function examTeachingTypeFromAssignment(
 
 /** @deprecated use teachingModeToExamDb / teachingModeToAssignmentDb */
 export function teachingModeFromDb(
-  mode: TeachingMode | null | undefined,
+  mode: TeachingTrackType | null | undefined,
   isTeachingTrack: boolean,
 ): TeachingModeSelection {
   return teachingModeFromAssignmentDb(mode, isTeachingTrack);
 }
 
 /** @deprecated use teachingModeToExamDb / teachingModeToAssignmentDb */
-export function teachingModeToDb(selection: TeachingModeSelection): TeachingMode | null {
+export function teachingModeToDb(selection: TeachingModeSelection): TeachingTrackType | null {
   return teachingModeToAssignmentDb(selection);
 }
 
@@ -103,7 +104,8 @@ export function examTeachingTypeForSubmit(
 export function examTeachingModeForSubmit(
   selection: TeachingModeSelection | null,
 ): TeachingMode | null {
-  return teachingModeToAssignmentDb(selection ?? "");
+  if (isTeachingModeValue(selection)) return selection;
+  return null;
 }
 
 /** לסינון תלמידות בעת סנכרון מבחן — null במסד על מסלול הוראה = both */
@@ -114,4 +116,15 @@ export function teachingModeForExamStudentFilter(
   if (examType === "full" || examType === "short") return examType;
   if (hasTeachingTrack && examType == null) return "both";
   return null;
+}
+
+/** האם סוג ההוראה של תלמידה מתאים לסינון (מלא / מקוצר / שניהם) */
+export function studentTeachingTypeMatches(
+  mode: TeachingMode,
+  studentType: TeachingTrackType | null | undefined,
+): boolean {
+  if (mode === "full") return studentType === "full";
+  if (mode === "short") return studentType === "short";
+  if (mode === "both") return studentType === "full" || studentType === "short";
+  return false;
 }

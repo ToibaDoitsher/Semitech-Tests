@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isTeachingTrackName } from "@/lib/students/fields";
+import {
+  studentTeachingTypeMatches,
+  teachingModeForExamStudentFilter,
+} from "@/lib/teachers/teachingMode";
 import type { AssignmentCategory, TeachingTrackType } from "@/lib/types/db";
 
 export type StudentForMatch = {
@@ -35,11 +39,53 @@ export async function fetchTeachingTrackIds(supabase: SupabaseClient): Promise<S
   return out;
 }
 
+function examTeachingTrackIds(exam: ExamTargetForMatch, teachingTrackIds: Set<string>): string[] {
+  return exam.track_ids.filter((id) => teachingTrackIds.has(id));
+}
+
+/** סינון סוג הוראה — רלוונטי כשביעד יש מסלול הוראה */
+function passesTeachingTypeFilter(
+  student: StudentForMatch,
+  exam: ExamTargetForMatch,
+  teachingTrackIds: Set<string>,
+): boolean {
+  const teachingTracks = examTeachingTrackIds(exam, teachingTrackIds);
+  if (!teachingTracks.length) return true;
+
+  const filter = teachingModeForExamStudentFilter(exam.teaching_track_type, true);
+  if (!filter) return true;
+
+  const onTeachingTrack =
+    Boolean(student.track_id) && teachingTracks.includes(student.track_id as string);
+
+  const trackOnlyTarget =
+    teachingTracks.length === exam.track_ids.length &&
+    !exam.class_ids.length &&
+    !exam.applies_to_all_in_grade;
+
+  if (trackOnlyTarget) {
+    return onTeachingTrack && studentTeachingTypeMatches(filter, student.teaching_track_type);
+  }
+
+  const hasNonTeachingTracks = exam.track_ids.some((id) => !teachingTrackIds.has(id));
+  if (!hasNonTeachingTracks && exam.class_ids.length > 0) {
+    return onTeachingTrack && studentTeachingTypeMatches(filter, student.teaching_track_type);
+  }
+
+  if (onTeachingTrack) {
+    return studentTeachingTypeMatches(filter, student.teaching_track_type);
+  }
+
+  return true;
+}
+
 /**
  * בודק האם תלמידה מתאימה ליעד של מבחן.
  * - שכבה: חובה להיות בתוך grade_levels
  * - התמחות: התאמה לפי specialization_id או secondary_specialization_id
- * - חובה: איחוד (OR) על כיתות/מסלולים; פסיכולוגיה משמשת כסינון:
+ * - מסלול הוראה (כשהוא היחיד שנבחר) הוא מסנן חוצה (AND):
+ *   חייבת להיות עליו, להתאים לסוג ההוראה, ואם נבחרה גם כיתה — להיות בכיתה.
+ * - חובה (במקרים אחרים): איחוד (OR) על כיתות/מסלולים; פסיכולוגיה משמשת כסינון:
  *   • אם נבחרה רק פסיכולוגיה (בלי כיתה/מסלול) — רק תלמידות פסיכולוגיה
  *   • אם נבחרו גם כיתה/מסלול וגם פסיכולוגיה — רק תלמידות פסיכולוגיה
  *     מתוך אלו שמתאימות לכיתה/מסלול שנבחרו (AND)
@@ -67,6 +113,22 @@ export function studentMatchesExamTarget(
 
   if (exam.applies_to_all_in_grade) return true;
 
+  // מסלול הוראה הוא מסנן חוצה (intersection) ולא יעד נוסף (union):
+  // כאשר נבחר רק מסלול הוראה — תלמידה חייבת להיות עליו, להתאים לסוג ההוראה,
+  // ואם נבחרה גם כיתה — להיות בכיתה הזו (חיתוך, לא איחוד).
+  if (exam.track_ids.length === 1 && teachingTrackIds.has(exam.track_ids[0])) {
+    const filter = teachingModeForExamStudentFilter(exam.teaching_track_type, true);
+    if (filter) {
+      if (student.track_id !== exam.track_ids[0]) return false;
+      if (!studentTeachingTypeMatches(filter, student.teaching_track_type)) return false;
+      if (exam.class_ids.length > 0) {
+        if (!student.class_id || !exam.class_ids.includes(student.class_id)) return false;
+      }
+      if (exam.psychology_enabled && !student.is_psychology) return false;
+      return true;
+    }
+  }
+
   const hasClassOrTrack = exam.class_ids.length > 0 || exam.track_ids.length > 0;
 
   if (exam.psychology_enabled && !hasClassOrTrack) {
@@ -78,8 +140,13 @@ export function studentMatchesExamTarget(
     matches = true;
   }
   if (!matches && student.track_id && exam.track_ids.includes(student.track_id)) {
-    if (teachingTrackIds.has(student.track_id) && exam.teaching_track_type) {
-      matches = student.teaching_track_type === exam.teaching_track_type;
+    if (teachingTrackIds.has(student.track_id)) {
+      const filter = teachingModeForExamStudentFilter(exam.teaching_track_type, true);
+      if (filter) {
+        matches = studentTeachingTypeMatches(filter, student.teaching_track_type);
+      } else {
+        matches = true;
+      }
     } else {
       matches = true;
     }
@@ -89,5 +156,5 @@ export function studentMatchesExamTarget(
 
   if (exam.psychology_enabled && !student.is_psychology) return false;
 
-  return true;
+  return passesTeachingTypeFilter(student, exam, teachingTrackIds);
 }

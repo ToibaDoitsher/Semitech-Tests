@@ -20,10 +20,11 @@ import {
   examTeachingModeForSubmit,
   examTeachingTypeFromAssignment,
   findTeachingTrackId,
+  isTeachingSelectionComplete,
   isTeachingTrackIdMatch,
   type TeachingModeSelection,
 } from "@/lib/teachers/teachingMode";
-import type { AssignmentCategory, TeachingMode } from "@/lib/types/db";
+import type { AssignmentCategory, TeachingTrackType } from "@/lib/types/db";
 
 const fetcher = (url: string) => fetch(url).then((r) => {
   if (!r.ok) throw new Error("שגיאת טעינה");
@@ -34,7 +35,7 @@ type AssignmentRow = {
   id: string;
   subject: string;
   lesson_name?: string | null;
-  teaching_mode?: TeachingMode | null;
+  teaching_mode?: TeachingTrackType | null;
   grade_levels: string[];
   class_ids: string[];
   track_ids: string[];
@@ -107,6 +108,7 @@ export function NewExamClient() {
 
   const [saving, setSaving] = useState(false);
   const [newTeachingDialogOpen, setNewTeachingDialogOpen] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const selected = useMemo(
     () => allAssignments.find((a) => a.id === assignmentId),
@@ -140,39 +142,45 @@ export function NewExamClient() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    setFormError(null);
     if (readOnly) {
-      alert("שנה בארכיון — צפייה בלבד. עברי לשנה הפעילה.");
+      setFormError("שנה בארכיון — צפייה בלבד. עברי לשנה הפעילה.");
       return;
     }
     if (!teacherId) {
-      alert("בחרי מורה מהרשימה (לא רק הקלדה — לחצי על השם ברשימה)");
+      setFormError("בחרי מורה מהרשימה (לא רק הקלדה — לחצי על השם ברשימה)");
       return;
     }
     if (!examDate) {
-      alert("בחרי תאריך מבחן");
+      setFormError("בחרי תאריך מבחן");
       return;
     }
 
     if (assignmentMode === "existing") {
       if (!selected) {
-        alert("בחרי שיבוץ מהרשימה (שדה «שיבוץ»)");
+        setFormError("בחרי שיבוץ מהרשימה (שדה «שיבוץ»)");
+        return;
+      }
+      const assignmentTeaching = examTeachingTypeFromAssignment(selected.teaching_mode, true) ?? "";
+      if (isTeachingTarget && !isTeachingSelectionComplete(assignmentTeaching)) {
+        setFormError("בשיבוץ זה חסר סוג הוראה — ערכי את השיבוץ ברשימת השיבוצים (מלא / מקוצר)");
         return;
       }
     } else {
       if (!newSubject.trim() && !newLessonName.trim()) {
-        alert("מלאי מקצוע או שם שיעור (לפחות אחד)");
+        setFormError("מלאי מקצוע או שם שיעור (לפחות אחד)");
         return;
       }
       if (!newTarget.category) {
-        alert("בחרי סוג שיבוץ: חובה או התמחות");
+        setFormError("בחרי סוג שיבוץ: חובה או התמחות");
         return;
       }
       if (!newTarget.gradeLevels.length) {
-        alert("בחרי לפחות שכבה אחת");
+        setFormError("בחרי לפחות שכבה אחת");
         return;
       }
       if (newTarget.category === "התמחות" && !newTarget.specializationIds.length) {
-        alert("בחרי לפחות התמחות אחת");
+        setFormError("בחרי לפחות התמחות אחת");
         return;
       }
       if (
@@ -182,17 +190,28 @@ export function NewExamClient() {
         !newTarget.trackIds.length &&
         !newTarget.psychologyEnabled
       ) {
-        alert("בחרי יעד: כיתות, מסלולים, פסיכולוגיה, או «כל השכבה»");
+        setFormError("בחרי יעד: כיתות, מסלולים, פסיכולוגיה, או «כל השכבה»");
         return;
       }
-      if (isTeachingTarget && !newTarget.teachingMode) {
-        alert("במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)");
+      if (isTeachingTarget && !isTeachingSelectionComplete(newTarget.teachingMode)) {
+        setFormError("במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)");
         return;
       }
     }
 
     setSaving(true);
     try {
+      const submitTeachingMode =
+        assignmentMode === "existing"
+          ? isTeachingTarget
+            ? examTeachingModeForSubmit(
+                examTeachingTypeFromAssignment(selected!.teaching_mode, true) ?? "",
+              )
+            : null
+          : isTeachingSelectionComplete(newTarget.teachingMode)
+            ? examTeachingModeForSubmit(newTarget.teachingMode)
+            : null;
+
       const body =
         assignmentMode === "existing"
           ? {
@@ -200,16 +219,12 @@ export function NewExamClient() {
               subject: selected!.subject,
               exam_date: examDate,
               teacher_assignment_id: selected!.id,
-              teaching_mode: isTeachingTarget
-                ? examTeachingModeForSubmit(inheritedTeachingType)
-                : null,
+              teaching_mode: submitTeachingMode,
             }
           : {
               teacher_id: teacherId,
               exam_date: examDate,
-              teaching_mode: isTeachingTarget
-                ? examTeachingModeForSubmit(newTarget.teachingMode || null)
-                : null,
+              teaching_mode: submitTeachingMode,
               new_assignment: {
                 subject: newSubject,
                 lesson_name: newLessonName.trim() || null,
@@ -220,7 +235,7 @@ export function NewExamClient() {
                 specialization_ids: newTarget.specializationIds,
                 psychology_enabled: newTarget.psychologyEnabled,
                 applies_to_all_in_grade: newTarget.appliesToAllInGrade,
-                teaching_mode: examTeachingModeForSubmit(newTarget.teachingMode || null),
+                teaching_mode: submitTeachingMode,
               },
             };
 
@@ -240,7 +255,7 @@ export function NewExamClient() {
       if (examId) router.push(`/exams/${examId}`);
       else router.push("/exams");
     } catch (err) {
-      alert((err as Error).message);
+      setFormError((err as Error).message);
     } finally {
       setSaving(false);
     }
@@ -460,6 +475,15 @@ export function NewExamClient() {
             disabled={readOnly}
           />
         </section>
+
+        {formError ? (
+          <InlineNotice tone="error">
+            <div className="space-y-1">
+              <p className="font-semibold">לא ניתן ליצור את המבחן</p>
+              <p className="text-sm leading-relaxed">{formError}</p>
+            </div>
+          </InlineNotice>
+        ) : null}
 
         <div className="flex justify-end pt-2">
           <button
