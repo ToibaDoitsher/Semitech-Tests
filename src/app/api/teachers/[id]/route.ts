@@ -8,6 +8,7 @@ import { TEACHER_COLUMNS } from "@/lib/teachers/db";
 import { parseTeacherBody } from "@/lib/teachers/validation";
 import { notDeleted } from "@/lib/db/softDelete";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { teacherDisplayName } from "@/lib/teachers/display";
 
 export const dynamic = "force-dynamic";
 
@@ -61,7 +62,29 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json({ teacher: data });
+
+  // עדכון אוטומטי של teacher_snapshot בכל שורות exam_students של המורה הזו —
+  // הוא היחיד במסד שמשכפל את שם המורה במקום לקרוא אותו דינמית מ-FK join.
+  const newDisplayName = teacherDisplayName(data);
+  const { data: examRows } = await supabase
+    .from("exams")
+    .select("id")
+    .eq("teacher_id", id);
+  const examIds = (examRows ?? []).map((r) => (r as { id: string }).id);
+  let snapshotsUpdated = 0;
+  if (examIds.length) {
+    const { count, error: snapErr } = await supabase
+      .from("exam_students")
+      .update({ teacher_snapshot: newDisplayName }, { count: "exact" })
+      .in("exam_id", examIds);
+    if (snapErr) {
+      console.warn("[PATCH /api/teachers/:id] לא הצלחתי לעדכן teacher_snapshot:", snapErr.message);
+    } else {
+      snapshotsUpdated = count ?? 0;
+    }
+  }
+
+  return NextResponse.json({ teacher: data, snapshots_updated: snapshotsUpdated });
 }
 
 export async function DELETE(request: Request, ctx: { params: Promise<{ id: string }> }) {

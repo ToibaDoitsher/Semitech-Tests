@@ -347,9 +347,8 @@ export function CalendarClient() {
           events={visibleEvents}
           datesSet={onDatesSet}
           dayHeaderContent={(arg) => (
-            <div className="flex flex-col items-center gap-0.5 py-0.5 leading-tight">
+            <div className="flex items-center justify-center py-1 leading-tight">
               <span>{arg.text}</span>
-              <span className="text-[10px] font-normal text-zinc-500">{formatHebrewCalendar(arg.date)}</span>
             </div>
           )}
           dayCellContent={(arg) => (

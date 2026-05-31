@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Pencil } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Pencil } from "lucide-react";
 import { useDeferredValue, useMemo, useState } from "react";
 import useSWR from "swr";
 import {
@@ -43,8 +43,61 @@ type Row = {
   exam: { subject: string; exam_date: string; teacher_name: string | null } | null;
 };
 
+type SortKey = "exam_date" | "submission_due" | "grades_due" | "submitted_exam";
+
+function addDays(ymd: string, offset: number): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
+  const d = new Date(`${ymd}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setDate(d.getDate() + offset);
+  return d.toISOString().slice(0, 10);
+}
+
+function sortValue(row: Row, key: SortKey): string | null {
+  const examDate = row.exam?.exam_date ?? null;
+  if (key === "exam_date") return examDate;
+  if (key === "submission_due") return examDate ? addDays(examDate, EXAM_SUBMISSION_DUE_OFFSET) : null;
+  if (key === "grades_due") return examDate ? addDays(examDate, GRADES_SUBMISSION_DUE_OFFSET) : null;
+  if (key === "submitted_exam") return row.submitted_exam;
+  return null;
+}
+
 function formatSubmittedDisplay(iso: string | null) {
   return formatTrackingDateTime(iso);
+}
+
+function SortButton({
+  label,
+  active,
+  dir,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  dir: "asc" | "desc";
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1 rounded px-1 py-0.5 transition hover:bg-slate-200/60 ${
+        active ? "text-zinc-900" : "text-zinc-700"
+      }`}
+      title="לחיצה למיון — לחיצה שניה להפיכה — שלישית לביטול"
+    >
+      <span>{label}</span>
+      {active ? (
+        dir === "asc" ? (
+          <ArrowUp className="size-3" strokeWidth={2.5} />
+        ) : (
+          <ArrowDown className="size-3" strokeWidth={2.5} />
+        )
+      ) : (
+        <ArrowUpDown className="size-3 opacity-40" strokeWidth={2} />
+      )}
+    </button>
+  );
 }
 
 function BoolCell({ value }: { value: boolean }) {
@@ -66,11 +119,26 @@ export function TrackingClient() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [stageFilter, setStageFilter] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey | null>("exam_date");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const deferredSearch = useDeferredValue(searchTerm);
+
+  function toggleSort(key: SortKey) {
+    if (sortKey !== key) {
+      setSortKey(key);
+      setSortDir("asc");
+      return;
+    }
+    if (sortDir === "asc") {
+      setSortDir("desc");
+      return;
+    }
+    setSortKey(null);
+  }
 
   const allRows = data?.tracking ?? [];
   const filteredRows = useMemo(() => {
-    return allRows.filter((row) => {
+    const filtered = allRows.filter((row) => {
       if (stageFilter) {
         const isDone =
           row.transferred_to_system && row.grades_approved && row.grades_submitted;
@@ -91,7 +159,17 @@ export function TrackingClient() {
       }
       return true;
     });
-  }, [allRows, deferredSearch, stageFilter]);
+    if (!sortKey) return filtered;
+    const sign = sortDir === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      const av = sortValue(a, sortKey);
+      const bv = sortValue(b, sortKey);
+      if (av === bv) return 0;
+      if (av === null) return 1; // ריקים בסוף תמיד
+      if (bv === null) return -1;
+      return av < bv ? -1 * sign : 1 * sign;
+    });
+  }, [allRows, deferredSearch, stageFilter, sortKey, sortDir]);
 
   const totalCount = allRows.length;
   const count = filteredRows.length;
@@ -210,16 +288,44 @@ export function TrackingClient() {
               </span>
             )}
           </ListTableToolbar>
-          <Table className="min-w-[1320px] text-xs">
+          <Table className="min-w-[1320px]">
             <TableHeader>
               <TableRow>
                 <TableHead>מורה</TableHead>
                 <TableHead>מקצוע</TableHead>
-                <TableHead className="whitespace-nowrap">הגשת המבחן</TableHead>
-                <TableHead>תאריך</TableHead>
-                <TableHead className="whitespace-nowrap">הגשת ציונים</TableHead>
+                <TableHead className="whitespace-nowrap">
+                  <SortButton
+                    label="הגשת המבחן"
+                    active={sortKey === "submission_due"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("submission_due")}
+                  />
+                </TableHead>
+                <TableHead>
+                  <SortButton
+                    label="תאריך"
+                    active={sortKey === "exam_date"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("exam_date")}
+                  />
+                </TableHead>
+                <TableHead className="whitespace-nowrap">
+                  <SortButton
+                    label="הגשת ציונים"
+                    active={sortKey === "grades_due"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("grades_due")}
+                  />
+                </TableHead>
                 <TableHead>מבחן</TableHead>
-                <TableHead className="whitespace-nowrap">הוגש מבחן</TableHead>
+                <TableHead className="whitespace-nowrap">
+                  <SortButton
+                    label="הוגש מבחן"
+                    active={sortKey === "submitted_exam"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("submitted_exam")}
+                  />
+                </TableHead>
                 <TableHead className="whitespace-nowrap">אישור רכזת</TableHead>
                 <TableHead className="whitespace-nowrap">נשלח לבדיקה</TableHead>
                 <TableHead className="whitespace-nowrap">ציונים הוגשו</TableHead>

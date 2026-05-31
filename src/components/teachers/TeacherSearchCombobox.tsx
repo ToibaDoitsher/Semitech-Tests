@@ -89,11 +89,13 @@ export function TeacherSearchCombobox({
 
   return (
     <div ref={wrapRef} className="relative block">
-      <span className="text-sm font-medium text-zinc-700">
-        {label}
-        {required ? " *" : ""}
-      </span>
-      <div className="relative mt-1">
+      {label ? (
+        <span className="text-sm font-medium text-zinc-700">
+          {label}
+          {required ? " *" : ""}
+        </span>
+      ) : null}
+      <div className={label ? "relative mt-1" : "relative"}>
         <input
           type="text"
           role="combobox"
@@ -156,7 +158,7 @@ export function TeacherSearchCombobox({
         </ul>
         ) : null}
       </div>
-      {!value ? (
+      {!value && label ? (
         <p className="mt-1 text-xs text-zinc-500">הקלידי לחיפוש ולחצי על שם המורה ברשימה שנפתחת</p>
       ) : null}
     </div>

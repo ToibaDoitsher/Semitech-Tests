@@ -61,6 +61,7 @@ type AssignmentRow = {
 type LookupItem = { id: string; name: string };
 
 type EditDraft = {
+  teacher_id: string;
   subject: string;
   lesson_name: string;
 } & AssignmentTargetFormValue;
@@ -202,6 +203,7 @@ export function AssignmentsClient() {
     const isTeaching = isTeachingTrackIdMatch(a.track_ids, teachingTrackId);
     setEditingId(a.id);
     setEditDraft({
+      teacher_id: a.teacher_id,
       subject: a.subject,
       lesson_name: a.lesson_name ?? "",
       gradeLevels: a.grade_levels as GradeLevel[],
@@ -222,6 +224,7 @@ export function AssignmentsClient() {
 
   async function saveEdit(id: string) {
     if (!editDraft || readOnly) return;
+    if (!editDraft.teacher_id) return alert("בחרי מורה");
     if (!editDraft.subject.trim() && !editDraft.lesson_name.trim()) {
       return alert("מלאי מקצוע או שם שיעור (לפחות אחד)");
     }
@@ -247,6 +250,7 @@ export function AssignmentsClient() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          teacher_id: editDraft.teacher_id,
           subject: editDraft.subject,
           lesson_name: editDraft.lesson_name.trim() || null,
           grade_levels: editDraft.gradeLevels,
@@ -560,7 +564,18 @@ export function AssignmentsClient() {
                 return (
                 <TableRow key={a.id}>
                   <TableCell className="font-medium text-slate-900 dark:text-zinc-100">
-                    {teacherEmbedDisplayName(a.teachers)}
+                    {isEditing ? (
+                      <div className="min-w-[12rem]">
+                        <TeacherSearchCombobox
+                          value={editDraft.teacher_id}
+                          onChange={(id) => setEditDraft({ ...editDraft, teacher_id: id })}
+                          label=""
+                          required
+                        />
+                      </div>
+                    ) : (
+                      teacherEmbedDisplayName(a.teachers)
+                    )}
                   </TableCell>
                   <TableCell>
                     {isEditing ? (

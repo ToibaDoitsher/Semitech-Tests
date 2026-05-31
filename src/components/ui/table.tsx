@@ -10,7 +10,7 @@ import { tableAccentKeyFromPathname, tableHeaderAccentClasses } from "@/lib/tabl
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
     <div className="relative w-full overflow-auto">
-      <table ref={ref} className={cn("w-full caption-bottom border-collapse text-sm", className)} {...props} />
+      <table ref={ref} className={cn("w-full caption-bottom border-collapse text-[15px]", className)} {...props} />
     </div>
   ),
 );
@@ -65,7 +65,7 @@ const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<
     <th
       ref={ref}
       className={cn(
-        "h-11 px-3 text-right align-middle text-xs font-semibold text-inherit opacity-95 [&:has([role=checkbox])]:pr-0",
+        "h-11 px-3 text-right align-middle text-[13px] font-semibold text-inherit opacity-95 [&:has([role=checkbox])]:pr-0",
         className,
       )}
       {...props}
