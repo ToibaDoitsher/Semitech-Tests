@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { AcademicYearProvider } from "@/components/academicYears/AcademicYearProvider";
 import { SwrProvider } from "@/components/providers/SwrProvider";
+import { SoundProvider } from "@/components/providers/SoundProvider";
 import { hasAppSession } from "@/lib/auth/passwordSession";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 
@@ -17,7 +18,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <SwrProvider>
       <Suspense fallback={null}>
         <AcademicYearProvider>
-          <AppShell userDisplayName={displayName}>{children}</AppShell>
+          <SoundProvider>
+            <AppShell userDisplayName={displayName}>{children}</AppShell>
+          </SoundProvider>
         </AcademicYearProvider>
       </Suspense>
     </SwrProvider>
