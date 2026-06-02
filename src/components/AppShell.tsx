@@ -23,7 +23,6 @@ import type { LucideIcon } from "lucide-react";
 import { AcademicYearBanner } from "@/components/academicYears/AcademicYearBanner";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { NotificationsBell } from "@/components/NotificationsBell";
-import { SoundToggle } from "@/components/SoundToggle";
 
 type NavItem = { href: string; label: string; icon: LucideIcon; iconClass: string };
 
@@ -210,7 +209,6 @@ export function AppShell({
           <div className="hidden w-full max-w-sm md:block md:w-72">
             <GlobalSearch />
           </div>
-          <SoundToggle />
           <NotificationsBell />
         </header>
 
