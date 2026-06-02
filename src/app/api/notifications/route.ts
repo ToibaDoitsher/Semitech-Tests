@@ -346,6 +346,8 @@ export async function GET(request: Request) {
     const m = row as {
       id: string;
       created_at: string;
+      student_id: string;
+      exam_id: string;
       students: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null;
       exams: { id: string; subject: string; exam_date: string } | { id: string; subject: string; exam_date: string }[] | null;
     };
@@ -369,7 +371,7 @@ export async function GET(request: Request) {
       icon: "clock",
       sortDate: createdYmd,
       // לפי תלמידה+מבחן — כך גם "פתוחה ותיקה" וגם "נשלחה ולא חזר ציון" יתאחדו
-      entityKey: `student-exam:${(m as { student_id: string }).student_id}:${(m as { exam_id: string }).exam_id}`,
+      entityKey: `student-exam:${m.student_id}:${m.exam_id}`,
     });
   }
 
@@ -378,6 +380,8 @@ export async function GET(request: Request) {
     const mt = row as {
       id: string;
       sent_to_teacher_at: string;
+      student_id: string;
+      exam_id: string;
       students: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null;
       exams: { id: string; subject: string; exam_date: string } | { id: string; subject: string; exam_date: string }[] | null;
     };
@@ -400,7 +404,7 @@ export async function GET(request: Request) {
       href: `/makeups`,
       icon: "send",
       sortDate: sentYmd,
-      entityKey: `student-exam:${(mt as { student_id: string }).student_id}:${(mt as { exam_id: string }).exam_id}`,
+      entityKey: `student-exam:${mt.student_id}:${mt.exam_id}`,
     });
   }
 
