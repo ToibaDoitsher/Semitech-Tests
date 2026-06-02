@@ -24,24 +24,28 @@ export function UsersAdminClient() {
   async function createUser(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setFeedback(null);
-    const fd = new FormData(e.currentTarget);
+    // חובה לתפוס את הטופס לפני ה-await — אחרי await currentTarget הופך null
+    const form = e.currentTarget;
+    const fd = new FormData(form);
     const username = String(fd.get("username") ?? "").trim();
-    const r = await fetch("/api/users", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        username: fd.get("username"),
-        password: fd.get("password"),
-      }),
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) {
-      setFeedback({ tone: "error", text: (j as { error?: string }).error ?? "שגיאה" });
-      return;
+    const password = String(fd.get("password") ?? "");
+    try {
+      const r = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setFeedback({ tone: "error", text: (j as { error?: string }).error ?? "שגיאה" });
+        return;
+      }
+      form.reset();
+      await mutate();
+      setFeedback({ tone: "success", text: `המשתמש «${username}» נוסף בהצלחה` });
+    } catch (err) {
+      setFeedback({ tone: "error", text: (err as Error).message ?? "שגיאת רשת" });
     }
-    e.currentTarget.reset();
-    await mutate();
-    setFeedback({ tone: "success", text: `המשתמש «${username}» נוסף בהצלחה` });
   }
 
   return (

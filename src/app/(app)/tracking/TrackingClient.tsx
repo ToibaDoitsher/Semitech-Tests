@@ -44,7 +44,7 @@ type Row = {
   exam: { subject: string; exam_date: string; teacher_name: string | null } | null;
 };
 
-type SortKey = "exam_date" | "submission_due" | "grades_due" | "submitted_exam";
+type SortKey = "exam_date" | "submission_due" | "grades_due" | "submitted_exam" | "teacher_name";
 type DateColumnKey = "exam_date" | "submission_due" | "grades_due" | "submitted_exam";
 
 function addDays(ymd: string, offset: number): string | null {
@@ -65,6 +65,10 @@ function sortValue(row: Row, key: SortKey): string | null {
   if (key === "submission_due") return examDate ? addDays(examDate, EXAM_SUBMISSION_DUE_OFFSET) : null;
   if (key === "grades_due") return examDate ? addDays(examDate, GRADES_SUBMISSION_DUE_OFFSET) : null;
   if (key === "submitted_exam") return row.submitted_exam;
+  if (key === "teacher_name") {
+    const name = (row.exam?.teacher_name ?? "").trim();
+    return name || null;
+  }
   return null;
 }
 
@@ -193,12 +197,16 @@ export function TrackingClient() {
     });
     if (!sortKey) return filtered;
     const sign = sortDir === "asc" ? 1 : -1;
+    const isNameSort = sortKey === "teacher_name";
     return [...filtered].sort((a, b) => {
       const av = sortValue(a, sortKey);
       const bv = sortValue(b, sortKey);
       if (av === bv) return 0;
       if (av === null) return 1; // ריקים בסוף תמיד
       if (bv === null) return -1;
+      if (isNameSort) {
+        return av.localeCompare(bv, "he") * sign;
+      }
       return av < bv ? -1 * sign : 1 * sign;
     });
   }, [allRows, deferredSearch, stageFilter, sortKey, sortDir, dateColumn, dateFrom, dateTo]);
@@ -372,7 +380,14 @@ export function TrackingClient() {
           <Table className="min-w-[1320px]">
             <TableHeader>
               <TableRow>
-                <TableHead>מורה</TableHead>
+                <TableHead>
+                  <SortButton
+                    label="מורה"
+                    active={sortKey === "teacher_name"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("teacher_name")}
+                  />
+                </TableHead>
                 <TableHead>מקצוע</TableHead>
                 <TableHead className="whitespace-nowrap">
                   <SortButton

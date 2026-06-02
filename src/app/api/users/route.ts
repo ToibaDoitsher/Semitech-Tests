@@ -16,6 +16,11 @@ function userErrorMessage(error: { code?: string; message?: string }): string {
   return error.message ?? "שגיאה בשמירת משתמש";
 }
 
+function badRequest(error: string, ctx: Record<string, unknown> = {}) {
+  console.error("[POST /api/users] 400:", error, ctx);
+  return NextResponse.json({ error }, { status: 400 });
+}
+
 export async function GET() {
   try {
     await requireAdmin();
@@ -46,7 +51,7 @@ export async function POST(request: Request) {
     const password = (body.password ?? "").trim();
 
     if (!username || !password) {
-      return NextResponse.json({ error: "שם משתמש וסיסמה חובה" }, { status: 400 });
+      return badRequest("שם משתמש וסיסמה חובה", { hasUsername: Boolean(username), hasPassword: Boolean(password) });
     }
 
     const supabase = createSupabaseAdminClient();
@@ -59,7 +64,7 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (findErr) {
-      return NextResponse.json({ error: userErrorMessage(findErr) }, { status: 400 });
+      return badRequest(userErrorMessage(findErr), { stage: "find", username });
     }
 
     let data;
@@ -67,7 +72,7 @@ export async function POST(request: Request) {
 
     if (existing) {
       if (!existing.deleted_at) {
-        return NextResponse.json({ error: "שם משתמש כבר קיים במערכת" }, { status: 400 });
+        return badRequest("שם משתמש כבר קיים במערכת", { username });
       }
       ({ data, error } = await supabase
         .from("users")
@@ -93,8 +98,8 @@ export async function POST(request: Request) {
         .single());
     }
 
-    if (error) return NextResponse.json({ error: userErrorMessage(error) }, { status: 400 });
-    if (!data) return NextResponse.json({ error: "שגיאה בשמירת משתמש" }, { status: 400 });
+    if (error) return badRequest(userErrorMessage(error), { stage: existing ? "restore" : "insert", username });
+    if (!data) return badRequest("שגיאה בשמירת משתמש", { username });
 
     await writeAudit(supabase, {
       userId: admin.id,
