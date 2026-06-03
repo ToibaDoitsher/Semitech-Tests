@@ -457,6 +457,6 @@ export function ExamEditDialog({
         {formBody}
         {teachingPicker}
       </div>
-    );
+    </div>
   );
 }
