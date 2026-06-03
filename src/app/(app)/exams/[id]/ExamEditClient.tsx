@@ -64,6 +64,7 @@ type Exam = {
   psychology_enabled?: boolean;
   applies_to_all_in_grade?: boolean;
   teaching_track_type?: TeachingTrackType | null;
+  teacher_id?: string;
   teachers: Teacher | null;
 };
 
@@ -287,6 +288,12 @@ export function ExamEditClient({ id }: { id: string }) {
               if (summary.removedExamStudents) parts.push(`הוסרו ${summary.removedExamStudents}`);
               if (summary.removedMakeups) parts.push(`נמחקו ${summary.removedMakeups} השלמות`);
               if (summary.removedTracking) parts.push(`נמחקו ${summary.removedTracking} רשומות מעקב`);
+              const tc = summary.teacherCascade;
+              if (tc) {
+                if (tc.assignment_updated) parts.push("השיבוץ-המקור עודכן");
+                if (tc.exams_updated) parts.push(`עודכנו ${tc.exams_updated} מבחנים אחים`);
+                if (tc.snapshots_updated) parts.push(`עודכנו ${tc.snapshots_updated} שורות תלמידות`);
+              }
               if (parts.length) alert(`המבחן עודכן: ${parts.join(" · ")}`);
             }
             void mutate();
@@ -301,6 +308,7 @@ export function ExamEditClient({ id }: { id: string }) {
             psychology_enabled: Boolean(e.psychology_enabled),
             applies_to_all_in_grade: Boolean(e.applies_to_all_in_grade),
             teaching_track_type: e.teaching_track_type ?? null,
+            teacher_id: e.teacher_id ?? "",
           }}
         />
       ) : null}

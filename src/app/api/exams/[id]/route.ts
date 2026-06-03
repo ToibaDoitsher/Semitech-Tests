@@ -20,6 +20,7 @@ import {
   scopeFromSearchParams,
 } from "@/lib/academicYears/scope";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { cascadeTeacherForAssignment } from "@/lib/teachers/cascadeTeacherChange";
 import type { TeachingMode, TeachingTrackType } from "@/lib/types/db";
 import {
   isTeachingModeValue,
@@ -113,6 +114,7 @@ type PatchBody = {
   psychology_enabled?: boolean;
   applies_to_all_in_grade?: boolean;
   teaching_track_type?: TeachingMode | TeachingTrackType | null | "";
+  teacher_id?: string;
 };
 
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -129,7 +131,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   const { data: examBefore, error: loadErr } = await supabase
     .from("exams")
     .select(
-      "id, academic_year_id, teacher_id, subject, exam_date, assignment_category, grade_levels, class_ids, track_ids, specialization_ids, psychology_enabled, applies_to_all_in_grade, teaching_track_type, makeup_locked_at",
+      "id, academic_year_id, teacher_id, teacher_assignment_id, subject, exam_date, assignment_category, grade_levels, class_ids, track_ids, specialization_ids, psychology_enabled, applies_to_all_in_grade, teaching_track_type, makeup_locked_at",
     )
     .eq("id", id)
     .is("deleted_at", null)
@@ -164,6 +166,31 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
       return NextResponse.json({ error: "תאריך לא תקין (YYYY-MM-DD)" }, { status: 400 });
     }
     update.exam_date = v;
+  }
+
+  let teacherChanged = false;
+  if (body.teacher_id !== undefined) {
+    const newTeacherId = (body.teacher_id ?? "").trim();
+    if (!newTeacherId) {
+      return NextResponse.json({ error: "מורה חובה" }, { status: 400 });
+    }
+    const { data: teacherCheck, error: tErr } = await supabase
+      .from("teachers")
+      .select("id, academic_year_id")
+      .eq("id", newTeacherId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (tErr) return NextResponse.json({ error: tErr.message }, { status: 500 });
+    if (!teacherCheck) {
+      return NextResponse.json({ error: "מורה לא נמצאה" }, { status: 400 });
+    }
+    if ((teacherCheck as { academic_year_id: string }).academic_year_id !== scope.year.id) {
+      return NextResponse.json({ error: "מורה לא שייכת לשנה הנוכחית" }, { status: 400 });
+    }
+    if (newTeacherId !== (examBefore as { teacher_id: string }).teacher_id) {
+      update.teacher_id = newTeacherId;
+      teacherChanged = true;
+    }
   }
 
   let newTarget = rowToMultiTarget(examBefore);
@@ -251,6 +278,59 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     }
   }
 
+  // Cascade: שינוי מורה במבחן מעדכן גם את השיבוץ-המקור וגם את כל המבחנים האחים
+  // (שנוצרו מאותו teacher_assignment_id) + ה-teacher_snapshot ב-exam_students.
+  let teacherCascade: {
+    assignment_updated: boolean;
+    exams_updated: number;
+    snapshots_updated: number;
+  } | null = null;
+  if (teacherChanged) {
+    const assignmentId = (examBefore as { teacher_assignment_id: string | null })
+      .teacher_assignment_id;
+    if (assignmentId) {
+      const { error: asgErr } = await supabase
+        .from("teacher_assignments")
+        .update({ teacher_id: update.teacher_id as string })
+        .eq("id", assignmentId);
+      if (asgErr) {
+        console.warn(
+          "[PATCH /api/exams/:id] לא הצלחתי לעדכן את השיבוץ הקשור:",
+          asgErr.message,
+        );
+      }
+
+      const cascadeResult = await cascadeTeacherForAssignment(
+        supabase,
+        assignmentId,
+        update.teacher_id as string,
+      );
+      if ("error" in cascadeResult) {
+        console.warn(
+          "[PATCH /api/exams/:id] cascade נכשל:",
+          cascadeResult.error,
+        );
+        teacherCascade = {
+          assignment_updated: !asgErr,
+          exams_updated: 0,
+          snapshots_updated: 0,
+        };
+      } else {
+        teacherCascade = {
+          assignment_updated: !asgErr,
+          exams_updated: cascadeResult.examsUpdated,
+          snapshots_updated: cascadeResult.snapshotsUpdated,
+        };
+      }
+    } else {
+      teacherCascade = {
+        assignment_updated: false,
+        exams_updated: 0,
+        snapshots_updated: 0,
+      };
+    }
+  }
+
   const user = await getCurrentUser(supabase);
   await writeAudit(supabase, {
     userId: user?.id ?? null,
@@ -269,6 +349,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
   return NextResponse.json({
     exam: { ...examAfter, target_label: labels[id] ?? null },
     sync: syncResult,
+    teacher_cascade: teacherCascade,
   });
 }
 

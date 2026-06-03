@@ -5,6 +5,7 @@ import useSWR from "swr";
 import { HebrewDatePicker } from "@/components/ui/HebrewDatePicker";
 import { InlineNotice } from "@/components/ui/InlineNotice";
 import { Spinner } from "@/components/ui/Spinner";
+import { TeacherSearchCombobox } from "@/components/teachers/TeacherSearchCombobox";
 import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
 import { TEACHING_TRACK_NAME } from "@/lib/students/fields";
 import { teachingModeSelectionLabel } from "@/lib/teachers/display";
@@ -36,6 +37,7 @@ type Props = {
     psychology_enabled: boolean;
     applies_to_all_in_grade: boolean;
     teaching_track_type: TeachingTrackType | null;
+    teacher_id: string;
   };
   locked: boolean;
 };
@@ -45,6 +47,11 @@ export type SaveSummary = {
   removedExamStudents: number;
   removedMakeups: number;
   removedTracking: number;
+  teacherCascade?: {
+    assignment_updated: boolean;
+    exams_updated: number;
+    snapshots_updated: number;
+  } | null;
 };
 
 const fetcher = (url: string) => fetch(url).then((r) => {
@@ -77,6 +84,8 @@ export function ExamEditDialog({ examId, onClose, onSaved, initial, locked }: Pr
   );
 
   const [examDate, setExamDate] = useState(initial.exam_date);
+  const [teacherId, setTeacherId] = useState<string>(initial.teacher_id);
+  const teacherChanged = teacherId !== initial.teacher_id;
   const [grades, setGrades] = useState<string[]>(initial.grade_levels);
   const [classIds, setClassIds] = useState<string[]>(initial.class_ids);
   const [trackIds, setTrackIds] = useState<string[]>(initial.track_ids);
@@ -122,6 +131,10 @@ export function ExamEditDialog({ examId, onClose, onSaved, initial, locked }: Pr
       setError("במסלול הוראה — בחרי סוג הוראה (מלא / מקוצר)");
       return;
     }
+    if (!teacherId) {
+      setError("חובה לבחור מורה");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -130,6 +143,7 @@ export function ExamEditDialog({ examId, onClose, onSaved, initial, locked }: Pr
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           exam_date: examDate,
+          teacher_id: teacherChanged ? teacherId : undefined,
           grade_levels: locked ? undefined : grades,
           class_ids: locked ? undefined : classIds,
           track_ids: locked ? undefined : trackIds,
@@ -145,9 +159,17 @@ export function ExamEditDialog({ examId, onClose, onSaved, initial, locked }: Pr
       const j = (await r.json().catch(() => ({}))) as {
         error?: string;
         sync?: SaveSummary | null;
+        teacher_cascade?: SaveSummary["teacherCascade"];
       };
       if (!r.ok) throw new Error(j.error ?? "שמירה נכשלה");
-      onSaved(j.sync ?? null);
+      const summary: SaveSummary = {
+        added: j.sync?.added ?? 0,
+        removedExamStudents: j.sync?.removedExamStudents ?? 0,
+        removedMakeups: j.sync?.removedMakeups ?? 0,
+        removedTracking: j.sync?.removedTracking ?? 0,
+        teacherCascade: j.teacher_cascade ?? null,
+      };
+      onSaved(summary);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -180,6 +202,23 @@ export function ExamEditDialog({ examId, onClose, onSaved, initial, locked }: Pr
 
           <div>
             <HebrewDatePicker value={examDate} onChange={setExamDate} required disabled={busy} />
+          </div>
+
+          <div className="space-y-2">
+            <TeacherSearchCombobox
+              value={teacherId}
+              onChange={(id) => setTeacherId(id)}
+              disabled={busy}
+              required
+              label="מורה אחראית"
+            />
+            {teacherChanged ? (
+              <InlineNotice tone="warning">
+                שינוי המורה יעדכן את <strong>השיבוץ-המקור</strong> ואת{" "}
+                <strong>כל המבחנים האחרים</strong> שנוצרו מאותו שיבוץ, כולל שם המורה
+                בכל שורות התלמידות. הפעולה לא הפיכה ללא ביטול ידני.
+              </InlineNotice>
+            ) : null}
           </div>
 
           {!locked ? (

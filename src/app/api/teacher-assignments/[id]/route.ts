@@ -17,6 +17,7 @@ import { ASSIGNMENT_WITH_LOOKUPS } from "@/lib/db/assignmentSelect";
 import { notDeleted } from "@/lib/db/softDelete";
 import { isTeachingTrackName } from "@/lib/students/fields";
 import { resolveAssignmentTeachingMode } from "@/lib/teachers/assignments";
+import { cascadeTeacherForAssignment } from "@/lib/teachers/cascadeTeacherChange";
 import { isTeachingModeSelection } from "@/lib/teachers/teachingMode";
 import type { AssignmentCategory } from "@/lib/types/db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -147,6 +148,10 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     patch.teaching_mode = teaching.teaching_mode;
   }
 
+  const teacherChanged =
+    body.teacher_id !== undefined &&
+    (existing as { teacher_id: string }).teacher_id !== patch.teacher_id;
+
   const { data, error } = await supabase
     .from("teacher_assignments")
     .update(patch)
@@ -155,7 +160,24 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json({ assignment: data });
+
+  let cascade: { exams_updated: number; snapshots_updated: number } | null = null;
+  if (teacherChanged) {
+    const result = await cascadeTeacherForAssignment(
+      supabase,
+      id,
+      patch.teacher_id as string,
+    );
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+    cascade = {
+      exams_updated: result.examsUpdated,
+      snapshots_updated: result.snapshotsUpdated,
+    };
+  }
+
+  return NextResponse.json({ assignment: data, cascade });
 }
 
 export async function DELETE(request: Request, ctx: { params: Promise<{ id: string }> }) {
