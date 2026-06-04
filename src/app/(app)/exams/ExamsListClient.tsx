@@ -20,6 +20,7 @@ import { TableClearFooter } from "@/components/ui/TableClearFooter";
 import { formatHebrewDateFromYmd } from "@/lib/hebrewDate";
 import { teacherEmbedDisplayName } from "@/lib/teachers/display";
 import type { Teacher } from "@/lib/types/db";
+import { interactiveCursor } from "@/lib/ui/interactiveCursor";
 
 const fetcher = (url: string) => fetch(url).then((r) => {
   if (!r.ok) throw new Error("שגיאת טעינה");
@@ -232,12 +233,18 @@ export function ExamsListClient() {
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
                     <div className="flex flex-wrap justify-end gap-1">
-                      <Link href={`/exams/${e.id}`} className={LIST_ROW_LINK_CLASS}>
+                      <Link
+                        href={`/exams/${e.id}`}
+                        className={`${LIST_ROW_LINK_CLASS} ${interactiveCursor.student}`}
+                      >
                         <Users className="size-3.5 shrink-0 opacity-80" strokeWidth={2} />
                         תלמידות
                       </Link>
                       {!readOnly ? (
-                        <Link href={`/exams/${e.id}/edit`} className={LIST_ROW_LINK_CLASS}>
+                        <Link
+                          href={`/exams/${e.id}/edit`}
+                          className={`${LIST_ROW_LINK_CLASS} ${interactiveCursor.edit}`}
+                        >
                           <PenLine className="size-3.5 shrink-0 opacity-80" strokeWidth={2} />
                           עריכת מבחן
                         </Link>

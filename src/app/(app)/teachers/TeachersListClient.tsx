@@ -19,6 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { TableClearFooter } from "@/components/ui/TableClearFooter";
 import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
 import { teacherDisplayName } from "@/lib/teachers/display";
+import { interactiveCursor } from "@/lib/ui/interactiveCursor";
 import type { Teacher } from "@/lib/types/db";
 
 import { apiFetcher } from "@/lib/api/fetcher";
@@ -172,7 +173,10 @@ export function TeachersListClient() {
                   <TableCell>{t.email ?? "—"}</TableCell>
                   <TableCell className="whitespace-nowrap">
                     <div className="flex flex-wrap justify-end gap-1">
-                      <Link href={`/teachers/${t.id}/edit`} className={LIST_ROW_LINK_CLASS}>
+                      <Link
+                        href={`/teachers/${t.id}/edit`}
+                        className={`${LIST_ROW_LINK_CLASS} ${interactiveCursor.edit}`}
+                      >
                         <Pencil className="size-3.5 shrink-0 opacity-80" strokeWidth={2} />
                         עריכה
                       </Link>

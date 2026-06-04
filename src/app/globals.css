@@ -209,3 +209,35 @@ body {
     opacity: 1;
   }
 }
+
+/* עכברים מותאמים לישויות אינטראקטיביות (נופל ל-pointer אם הדפדפן לא תומך) */
+.cursor-entity-student {
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='7' r='3.5' fill='%232563eb'/%3E%3Cpath d='M5 20c0-4 3.5-6 7-6s7 2 7 6' fill='%232563eb'/%3E%3C/svg%3E")
+      12 6,
+    pointer;
+}
+.cursor-entity-exam {
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%232563eb' d='M6 4h5v16H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm7 0h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5V4z'/%3E%3C/svg%3E")
+      10 6,
+    pointer;
+}
+.cursor-entity-note {
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%23d97706' d='M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z'/%3E%3C/svg%3E")
+      6 6,
+    help;
+}
+.cursor-entity-edit {
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%23d97706' d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z'/%3E%3C/svg%3E")
+      4 20,
+    pointer;
+}
+.cursor-entity-nav {
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%232563eb' d='M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6-6-6z'/%3E%3C/svg%3E")
+      8 6,
+    pointer;
+}

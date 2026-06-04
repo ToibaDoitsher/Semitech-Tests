@@ -9,6 +9,7 @@ import { PrintButton } from "@/components/PrintButton";
 import { Spinner } from "@/components/ui/Spinner";
 import { StudentProfileGrid } from "@/components/students/StudentProfileGrid";
 import { formatHebrewDateFromYmd } from "@/lib/hebrewDate";
+import { interactiveCursor } from "@/lib/ui/interactiveCursor";
 import type { ExamStudentStatus, MakeupExamStatus, Student } from "@/lib/types/db";
 
 const fetcher = (url: string) => fetch(url).then((r) => {
@@ -173,7 +174,10 @@ export function StudentDetailClient({ id }: { id: string }) {
                   <div className="flex items-center gap-2">
                     <ExamStudentStatusBadge status={row.status} />
                     {row.exam_id ? (
-                      <Link href={`/exams/${row.exam_id}`} className="text-xs text-sky-700 hover:underline">
+                      <Link
+                        href={`/exams/${row.exam_id}`}
+                        className={`text-xs text-sky-700 hover:underline ${interactiveCursor.exam}`}
+                      >
                         למבחן
                       </Link>
                     ) : null}

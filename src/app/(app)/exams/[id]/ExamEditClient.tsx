@@ -20,6 +20,7 @@ import { psychologyLabel } from "@/lib/students/display";
 import { teachingTrackTypeLabel } from "@/lib/students/fields";
 import { formatHebrewDateFromYmd } from "@/lib/hebrewDate";
 import { teacherEmbedDisplayName } from "@/lib/teachers/display";
+import { interactiveCursor } from "@/lib/ui/interactiveCursor";
 import type {
   AssignmentCategory,
   ExamStudentStatus,
@@ -283,11 +284,14 @@ export function ExamEditClient({
             <NotesButton entity="exams" id={id} label="הערות על המבחן" modalTitle="הערות על המבחן" />
             <Link
               href={`/exams/${id}`}
-              className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50"
+              className={`rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50 ${interactiveCursor.student}`}
             >
               תלמידות במבחן
             </Link>
-            <Link href="/exams" className="rounded-lg border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm text-white hover:bg-zinc-800">
+            <Link
+              href="/exams"
+              className={`rounded-lg border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm text-white hover:bg-zinc-800 ${interactiveCursor.nav}`}
+            >
               חזרה לרשימה
             </Link>
           </div>
@@ -319,7 +323,7 @@ export function ExamEditClient({
           {!readOnly ? (
             <Link
               href={`/exams/${id}/edit`}
-              className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50"
+              className={`rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50 ${interactiveCursor.edit}`}
             >
               עריכת מבחן
             </Link>
@@ -357,7 +361,10 @@ export function ExamEditClient({
               מחק מבחן
             </button>
           ) : null}
-          <Link href="/exams" className="rounded-lg border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm text-white hover:bg-zinc-800">
+          <Link
+            href="/exams"
+            className={`rounded-lg border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm text-white hover:bg-zinc-800 ${interactiveCursor.nav}`}
+          >
             חזרה לרשימה
           </Link>
         </div>
@@ -396,12 +403,6 @@ export function ExamEditClient({
         </p>
       ) : null}
 
-      <p className="rounded-lg border border-sky-200/80 bg-sky-50/80 px-3 py-2 text-sm text-sky-950 dark:border-sky-800/50 dark:bg-sky-950/30 dark:text-sky-100">
-        <strong>הערה לכל תלמידה:</strong> עמודת &quot;הערה&quot; בטבלה + כפתור &quot;הערה לתלמידה&quot; בכל שורה.
-        {" "}
-        <strong>הערה על המבחן כולו</strong> (נפרדת) — כפתור למעלה: &quot;הערות על המבחן&quot;.
-      </p>
-
       <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900/40">
         <Table className="min-w-[960px]">
           <TableHeader>
@@ -429,7 +430,7 @@ export function ExamEditClient({
                     {st ? (
                       <Link
                         href={`/students/${row.student_id}`}
-                        className="text-sky-800 underline-offset-2 hover:underline dark:text-sky-300"
+                        className={`text-sky-800 underline-offset-2 hover:underline dark:text-sky-300 ${interactiveCursor.student}`}
                       >
                         {st.last_name} {st.first_name}
                       </Link>
@@ -452,7 +453,7 @@ export function ExamEditClient({
                   <TableCell className="max-w-[220px]">
                     {row.notes && row.notes.trim() ? (
                       <span
-                        className="line-clamp-2 cursor-help text-xs leading-snug text-amber-900 dark:text-amber-200"
+                        className={`line-clamp-2 text-xs leading-snug text-amber-900 dark:text-amber-200 ${interactiveCursor.note}`}
                         title={row.notes}
                       >
                         {row.notes}

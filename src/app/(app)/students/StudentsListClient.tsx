@@ -20,6 +20,7 @@ import { TableClearFooter } from "@/components/ui/TableClearFooter";
 import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
 import { pickLookupName } from "@/lib/lookups/display";
 import { psychologyLabel } from "@/lib/students/display";
+import { interactiveCursor } from "@/lib/ui/interactiveCursor";
 import { teachingTrackTypeLabel } from "@/lib/students/fields";
 import type { Student } from "@/lib/types/db";
 
@@ -209,7 +210,7 @@ export function StudentsListClient() {
                   <TableCell className="font-medium">
                     <Link
                       href={`/students/${s.id}`}
-                      className="text-slate-900 underline-offset-2 hover:text-blue-800 hover:underline dark:text-zinc-100 dark:hover:text-blue-300"
+                      className={`text-slate-900 underline-offset-2 hover:text-blue-800 hover:underline dark:text-zinc-100 dark:hover:text-blue-300 ${interactiveCursor.student}`}
                     >
                       {s.last_name} {s.first_name}
                     </Link>
@@ -227,7 +228,10 @@ export function StudentsListClient() {
                   <TableCell>{psychologyLabel(s.is_psychology)}</TableCell>
                   <TableCell>{teachingTrackTypeLabel(s.teaching_track_type)}</TableCell>
                   <TableCell className="whitespace-nowrap">
-                    <Link href={`/students/${s.id}/edit`} className={LIST_ROW_LINK_CLASS}>
+                    <Link
+                      href={`/students/${s.id}/edit`}
+                      className={`${LIST_ROW_LINK_CLASS} ${interactiveCursor.edit}`}
+                    >
                       <Pencil className="size-3.5 shrink-0 opacity-80" strokeWidth={2} />
                       עריכה
                     </Link>

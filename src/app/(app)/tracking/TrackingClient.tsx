@@ -13,6 +13,7 @@ import {
 import { HebrewDatePicker } from "@/components/ui/HebrewDatePicker";
 import { HebrewDateTimePicker } from "@/components/ui/HebrewDateTimePicker";
 import { ListFilterBar, matchesNameQuery } from "@/components/ui/ListFilterBar";
+import { interactiveCursor } from "@/lib/ui/interactiveCursor";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -446,7 +447,10 @@ export function TrackingClient() {
                       {examTrackingDueDate(row.exam?.exam_date, GRADES_SUBMISSION_DUE_OFFSET)}
                     </TableCell>
                     <TableCell>
-                      <Link href={`/exams/${row.exam_id}`} className={LIST_ROW_LINK_CLASS}>
+                      <Link
+                        href={`/exams/${row.exam_id}`}
+                        className={`${LIST_ROW_LINK_CLASS} ${interactiveCursor.exam}`}
+                      >
                         פתיחת מבחן
                       </Link>
                     </TableCell>

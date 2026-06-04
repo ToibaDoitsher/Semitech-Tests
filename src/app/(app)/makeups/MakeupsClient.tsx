@@ -13,6 +13,7 @@ import { NotesButton } from "@/components/ui/NotesButton";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 import { formatHebrewDateFromYmd } from "@/lib/hebrewDate";
+import { interactiveCursor } from "@/lib/ui/interactiveCursor";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TableClearFooter } from "@/components/ui/TableClearFooter";
 
@@ -238,7 +239,7 @@ export function MakeupsClient() {
                   <TableCell className="max-w-[220px]">
                     {m.notes && m.notes.trim() ? (
                       <span
-                        className="line-clamp-2 cursor-help text-xs leading-snug text-amber-900 dark:text-amber-200"
+                        className={`line-clamp-2 text-xs leading-snug text-amber-900 dark:text-amber-200 ${interactiveCursor.note}`}
                         title={m.notes}
                       >
                         {m.notes}
@@ -249,11 +250,17 @@ export function MakeupsClient() {
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
                     <div className="flex flex-wrap justify-end gap-1">
-                      <Link href={`/students/${m.student_id}`} className={LIST_ROW_LINK_CLASS}>
+                      <Link
+                        href={`/students/${m.student_id}`}
+                        className={`${LIST_ROW_LINK_CLASS} ${interactiveCursor.student}`}
+                      >
                         <UserRound className="size-3.5 shrink-0 opacity-80" strokeWidth={2} />
                         כרטיס תלמידה
                       </Link>
-                      <Link href={`/exams/${m.exam_id}`} className={LIST_ROW_LINK_CLASS}>
+                      <Link
+                        href={`/exams/${m.exam_id}`}
+                        className={`${LIST_ROW_LINK_CLASS} ${interactiveCursor.exam}`}
+                      >
                         <BookOpen className="size-3.5 shrink-0 opacity-80" strokeWidth={2} />
                         למבחן
                       </Link>

@@ -10,6 +10,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 
 import { formatHebrewDateFromYmd } from "@/lib/hebrewDate";
+import { interactiveCursor } from "@/lib/ui/interactiveCursor";
 import { apiFetcher } from "@/lib/api/fetcher";
 
 type Item = {
@@ -227,7 +228,7 @@ export function DashboardClient() {
                   </div>
                   <Link
                     href={`/exams/${it.id}`}
-                    className="shrink-0 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-800 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50 hover:shadow-md active:scale-[0.98] dark:border-zinc-700/70 dark:bg-zinc-900/30 dark:text-zinc-100 dark:hover:bg-white/5"
+                    className={`shrink-0 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-800 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50 hover:shadow-md active:scale-[0.98] dark:border-zinc-700/70 dark:bg-zinc-900/30 dark:text-zinc-100 dark:hover:bg-white/5 ${interactiveCursor.exam}`}
                   >
                     פתיחה
                   </Link>
