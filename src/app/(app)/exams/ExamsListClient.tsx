@@ -14,6 +14,7 @@ import {
 import { ListFilterBar, matchesNameQuery } from "@/components/ui/ListFilterBar";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
+import { NotesButton } from "@/components/ui/NotesButton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TableClearFooter } from "@/components/ui/TableClearFooter";
 import { formatHebrewDateFromYmd } from "@/lib/hebrewDate";
@@ -38,6 +39,7 @@ type ExamRow = {
   psychology_enabled?: boolean;
   applies_to_all_in_grade?: boolean;
   assignment_category?: "חובה" | "התמחות";
+  notes?: string | null;
   teachers: Teacher | null;
 };
 
@@ -210,13 +212,14 @@ export function ExamsListClient() {
             </span>
           )}
         </ListTableToolbar>
-        <Table className="min-w-[560px]">
+        <Table className="min-w-[720px]">
           <TableHeader>
             <TableRow>
               <TableHead>מורה</TableHead>
               <TableHead>מקצוע</TableHead>
               <TableHead>תאריך</TableHead>
               <TableHead>יעד</TableHead>
+              <TableHead>הערה</TableHead>
               <TableHead className="w-[1%] whitespace-nowrap text-end">פעולות</TableHead>
             </TableRow>
           </TableHeader>
@@ -229,6 +232,31 @@ export function ExamsListClient() {
                   <TableCell>{formatHebrewDateFromYmd(e.exam_date)}</TableCell>
                   <TableCell className="text-slate-600 dark:text-zinc-300">
                     {e.target_label ?? "—"}
+                  </TableCell>
+                  <TableCell className="max-w-[240px]">
+                    <div className="flex flex-col gap-1.5">
+                      {e.notes && e.notes.trim() ? (
+                        <span
+                          className={`line-clamp-3 text-xs leading-snug text-amber-900 dark:text-amber-200 ${interactiveCursor.note}`}
+                          title={e.notes}
+                        >
+                          {e.notes}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-zinc-400">—</span>
+                      )}
+                      {!readOnly ? (
+                        <NotesButton
+                          entity="exams"
+                          id={e.id}
+                          compact
+                          label={e.notes?.trim() ? "עריכת הערה" : "הוספת הערה"}
+                          modalTitle={`הערה על המבחן — ${e.subject}`}
+                          hasNote={Boolean(e.notes?.trim())}
+                          onSaved={() => void mutate()}
+                        />
+                      ) : null}
+                    </div>
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
                     <div className="flex flex-wrap justify-end gap-1.5">
@@ -256,7 +284,7 @@ export function ExamsListClient() {
               ))
             ) : (
               <TableRow>
-                <TableCell className="py-14 text-center text-slate-500 dark:text-zinc-400" colSpan={5}>
+                <TableCell className="py-14 text-center text-slate-500 dark:text-zinc-400" colSpan={6}>
                   {isLoading ? "טוען…" : isFiltering ? "אין תוצאות תואמות לסינון" : "אין מבחנים"}
                 </TableCell>
               </TableRow>
