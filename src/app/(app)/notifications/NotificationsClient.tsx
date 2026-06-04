@@ -13,7 +13,6 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import useSWR from "swr";
 import { ListDataCard, ListPageHeader } from "@/components/ui/ListPage";
-import { cursorClassForHref } from "@/lib/ui/interactiveCursor";
 import { Spinner } from "@/components/ui/Spinner";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -171,7 +170,7 @@ export function NotificationsClient() {
               <li key={it.id}>
                 <Link
                   href={it.href}
-                  className={`flex items-start gap-3 bg-white px-5 py-4 transition hover:bg-zinc-50 dark:bg-transparent dark:hover:bg-white/5 ${cursorClassForHref(it.href)} ${SEVERITY_LEFT_BORDER[it.severity]}`}
+                  className={`flex items-start gap-3 bg-white px-5 py-4 transition hover:bg-zinc-50 dark:bg-transparent dark:hover:bg-white/5 ${SEVERITY_LEFT_BORDER[it.severity]}`}
                 >
                   <NotificationIcon icon={it.icon} severity={it.severity} />
                   <div className="min-w-0 flex-1">

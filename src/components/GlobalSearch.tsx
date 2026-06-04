@@ -4,8 +4,6 @@ import Link from "next/link";
 import { Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
-import { cursorClassForSearchResult } from "@/lib/ui/interactiveCursor";
-
 type Result = { type: string; id: string; label: string; href: string };
 
 export function GlobalSearch() {
@@ -101,7 +99,7 @@ export function GlobalSearch() {
               <li key={`${r.type}-${r.id}`}>
                 <Link
                   href={r.href}
-                  className={`block px-3 py-2 text-sm ${cursorClassForSearchResult(r.type, r.href)} ${
+                  className={`block px-3 py-2 text-sm ${
                     idx === activeIdx
                       ? "bg-sky-50 dark:bg-sky-950/40"
                       : "hover:bg-zinc-50 dark:hover:bg-white/5"

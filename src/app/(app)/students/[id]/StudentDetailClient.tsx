@@ -9,7 +9,6 @@ import { PrintButton } from "@/components/PrintButton";
 import { Spinner } from "@/components/ui/Spinner";
 import { StudentProfileGrid } from "@/components/students/StudentProfileGrid";
 import { formatHebrewDateFromYmd } from "@/lib/hebrewDate";
-import { interactiveCursor } from "@/lib/ui/interactiveCursor";
 import type { ExamStudentStatus, MakeupExamStatus, Student } from "@/lib/types/db";
 
 const fetcher = (url: string) => fetch(url).then((r) => {
@@ -132,14 +131,14 @@ export function StudentDetailClient({ id }: { id: string }) {
           <PrintButton />
           <Link
             href={`/students/${id}/edit`}
-            className={`rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50 ${interactiveCursor.edit}`}
+            className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50"
           >
             עריכה
           </Link>
           <button
             type="button"
             onClick={() => void handleDelete()}
-            className={`rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 hover:bg-red-100 ${interactiveCursor.delete}`}
+            className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 hover:bg-red-100"
           >
             מחיקה
           </button>
@@ -176,7 +175,7 @@ export function StudentDetailClient({ id }: { id: string }) {
                     {row.exam_id ? (
                       <Link
                         href={`/exams/${row.exam_id}`}
-                        className={`text-xs text-sky-700 hover:underline ${interactiveCursor.exam}`}
+                        className="text-xs text-sky-700 hover:underline"
                       >
                         למבחן
                       </Link>

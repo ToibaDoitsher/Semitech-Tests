@@ -12,8 +12,6 @@ import {
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
-import { cursorClassForHref } from "@/lib/ui/interactiveCursor";
-
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 type Severity = "urgent" | "warning" | "info";
@@ -163,7 +161,7 @@ export function NotificationsBell() {
                 <li key={it.id}>
                   <Link
                     href={it.href}
-                    className={`flex items-start gap-2.5 px-4 py-2.5 text-right text-sm transition ${cursorClassForHref(it.href)} ${
+                    className={`flex items-start gap-2.5 px-4 py-2.5 text-right text-sm transition ${
                       SEVERITY_ROW_BG[it.severity]
                     }`}
                     onClick={() => setOpen(false)}

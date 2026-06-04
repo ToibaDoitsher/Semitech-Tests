@@ -2,8 +2,6 @@
 
 import { MessageSquare, MessageSquareText } from "lucide-react";
 import { useCallback, useState } from "react";
-import { interactiveCursor } from "@/lib/ui/interactiveCursor";
-
 type Entity = "students" | "exams" | "makeups" | "exam-students";
 
 const EXAM_STUDENTS_PATCH_HINT =
@@ -92,14 +90,12 @@ export function NotesButton({
 
   const buttonClass = compact
     ? [
-        interactiveCursor.note,
         "relative inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition",
         showFilled
           ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
           : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50",
       ].join(" ")
     : [
-        interactiveCursor.note,
         "relative inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition",
         showFilled
           ? "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100"

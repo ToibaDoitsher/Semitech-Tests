@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { useMemo } from "react";
 
 import { cn } from "@/lib/utils";
-import { interactiveCursor } from "@/lib/ui/interactiveCursor";
 import { listToolbarAccentClasses, tableAccentKeyFromPathname } from "@/lib/tableAccent";
 
 type HeaderProps = {
@@ -78,14 +77,14 @@ export function ListTableToolbar({ children }: { children: React.ReactNode }) {
 
 /** קישור פעולה ראשית (כפתור כהה) */
 export const LIST_PRIMARY_LINK_CLASS =
-  `inline-flex items-center justify-center gap-2 rounded-2xl bg-[var(--color-primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_6px_22px_-6px_rgb(37_99_235_/_0.55)] transition hover:bg-[var(--color-primary-hover)] hover:shadow-[0_8px_28px_-6px_rgb(37_99_235_/_0.5)] active:scale-[0.98] ${interactiveCursor.add}`;
+  "inline-flex items-center justify-center gap-2 rounded-2xl bg-[var(--color-primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_6px_22px_-6px_rgb(37_99_235_/_0.55)] transition hover:bg-[var(--color-primary-hover)] hover:shadow-[0_8px_28px_-6px_rgb(37_99_235_/_0.5)] active:scale-[0.98]";
 
 /** קישור משני (מסגרת) */
 export const LIST_SECONDARY_LINK_CLASS =
   "inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:shadow-md active:scale-[0.98] dark:border-zinc-600 dark:bg-zinc-900/40 dark:text-zinc-100 dark:hover:border-zinc-500";
 
 /** קישור ייבוא / תבנית */
-export const LIST_IMPORT_LINK_CLASS = `${LIST_SECONDARY_LINK_CLASS} ${interactiveCursor.import}`;
+export const LIST_IMPORT_LINK_CLASS = LIST_SECONDARY_LINK_CLASS;
 
 /** קישור שורה — עריכה / ניווט */
 export const LIST_ROW_LINK_CLASS =
@@ -93,4 +92,4 @@ export const LIST_ROW_LINK_CLASS =
 
 /** מחיקה / סיכון — אדום עדין עד ריחוף */
 export const LIST_ROW_DELETE_CLASS =
-  `inline-flex items-center gap-1 rounded-xl px-2 py-1 text-xs font-medium text-slate-500 transition hover:bg-red-50 hover:text-red-700 dark:text-zinc-500 dark:hover:bg-red-950/35 dark:hover:text-red-400 ${interactiveCursor.delete}`;
+  "inline-flex items-center gap-1 rounded-xl px-2 py-1 text-xs font-medium text-slate-500 transition hover:bg-red-50 hover:text-red-700 dark:text-zinc-500 dark:hover:bg-red-950/35 dark:hover:text-red-400";

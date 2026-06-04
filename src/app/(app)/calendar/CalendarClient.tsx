@@ -18,7 +18,6 @@ import { useAcademicYear, withYearQuery } from "@/components/academicYears/Acade
 import type { CalendarExamProps } from "@/lib/calendar/types";
 import { formatGregorianDateLong } from "@/lib/calendar/schedulePrint";
 import { formatHebrewDateFromDate, formatHebrewDateFromYmd } from "@/lib/hebrewDate";
-import { interactiveCursor } from "@/lib/ui/interactiveCursor";
 
 function fmtLocalDate(d: Date): string {
   const y = d.getFullYear();
@@ -405,7 +404,7 @@ export function CalendarClient() {
                     <li key={String(ev.id)}>
                       <Link
                         href={`/exams/${xp.examId}`}
-                        className={`block w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 ${interactiveCursor.exam}`}
+                        className="block w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50"
                         onClick={() => setDayOpen(null)}
                       >
                         <span className="font-medium">{xp?.subject}</span>
@@ -469,7 +468,7 @@ export function CalendarClient() {
                   <div className="mt-4 flex flex-wrap gap-2">
                     <Link
                       href={`/exams/${xp.examId}`}
-                      className={`rounded-lg border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm text-white ${interactiveCursor.exam}`}
+                      className="rounded-lg border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm text-white"
                     >
                       מעבר למסך מבחן
                     </Link>

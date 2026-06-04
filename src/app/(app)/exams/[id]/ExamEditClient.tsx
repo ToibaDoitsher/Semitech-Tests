@@ -20,7 +20,6 @@ import { psychologyLabel } from "@/lib/students/display";
 import { teachingTrackTypeLabel } from "@/lib/students/fields";
 import { formatHebrewDateFromYmd } from "@/lib/hebrewDate";
 import { teacherEmbedDisplayName } from "@/lib/teachers/display";
-import { interactiveCursor } from "@/lib/ui/interactiveCursor";
 import type {
   AssignmentCategory,
   ExamStudentStatus,
@@ -284,13 +283,13 @@ export function ExamEditClient({
             <NotesButton entity="exams" id={id} label="הערות על המבחן" modalTitle="הערות על המבחן" />
             <Link
               href={`/exams/${id}`}
-              className={`rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50 ${interactiveCursor.student}`}
+              className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50"
             >
               תלמידות במבחן
             </Link>
             <Link
               href="/exams"
-              className={`rounded-lg border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm text-white hover:bg-zinc-800 ${interactiveCursor.nav}`}
+              className="rounded-lg border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm text-white hover:bg-zinc-800"
             >
               חזרה לרשימה
             </Link>
@@ -323,7 +322,7 @@ export function ExamEditClient({
           {!readOnly ? (
             <Link
               href={`/exams/${id}/edit`}
-              className={`rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50 ${interactiveCursor.edit}`}
+              className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50"
             >
               עריכת מבחן
             </Link>
@@ -356,14 +355,14 @@ export function ExamEditClient({
             <button
               type="button"
               onClick={() => setDeleteOpen(true)}
-              className={`rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-100 ${interactiveCursor.delete}`}
+              className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-100"
             >
               מחק מבחן
             </button>
           ) : null}
           <Link
             href="/exams"
-            className={`rounded-lg border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm text-white hover:bg-zinc-800 ${interactiveCursor.nav}`}
+            className="rounded-lg border border-zinc-900 bg-zinc-900 px-3 py-2 text-sm text-white hover:bg-zinc-800"
           >
             חזרה לרשימה
           </Link>
@@ -430,7 +429,7 @@ export function ExamEditClient({
                     {st ? (
                       <Link
                         href={`/students/${row.student_id}`}
-                        className={`text-sky-800 underline-offset-2 hover:underline dark:text-sky-300 ${interactiveCursor.student}`}
+                        className="text-sky-800 underline-offset-2 hover:underline dark:text-sky-300"
                       >
                         {st.last_name} {st.first_name}
                       </Link>
@@ -453,7 +452,7 @@ export function ExamEditClient({
                   <TableCell className="max-w-[220px]">
                     {row.notes && row.notes.trim() ? (
                       <span
-                        className={`line-clamp-2 text-xs leading-snug text-amber-900 dark:text-amber-200 ${interactiveCursor.note}`}
+                        className="line-clamp-2 text-xs leading-snug text-amber-900 dark:text-amber-200"
                         title={row.notes}
                       >
                         {row.notes}
@@ -483,7 +482,6 @@ export function ExamEditClient({
                               title={isTook ? "הסטטוס הנוכחי" : "סמני כנבחנה במועד"}
                               className={[
                                 baseBtn,
-                                interactiveCursor.check,
                                 "border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100",
                                 isTook ? `${activeRing} ring-emerald-400` : "",
                               ].join(" ")}
@@ -499,7 +497,6 @@ export function ExamEditClient({
                               title={isMakeupOpen ? "הסטטוס הנוכחי" : "סמני כלא נבחנה / להשלמה"}
                               className={[
                                 baseBtn,
-                                interactiveCursor.makeup,
                                 "border-red-200 bg-red-50 text-red-900 hover:bg-red-100",
                                 isMakeupOpen ? `${activeRing} ring-red-400` : "",
                               ].join(" ")}
@@ -515,7 +512,6 @@ export function ExamEditClient({
                               title={isCompleted ? "הסטטוס הנוכחי" : "סמני כהושלמה בהשלמה"}
                               className={[
                                 baseBtn,
-                                interactiveCursor.makeup,
                                 "border-sky-200 bg-sky-50 text-sky-900 hover:bg-sky-100",
                                 isCompleted ? `${activeRing} ring-sky-400` : "",
                               ].join(" ")}

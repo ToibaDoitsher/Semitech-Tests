@@ -13,7 +13,6 @@ import { NotesButton } from "@/components/ui/NotesButton";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 import { formatHebrewDateFromYmd } from "@/lib/hebrewDate";
-import { interactiveCursor } from "@/lib/ui/interactiveCursor";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TableClearFooter } from "@/components/ui/TableClearFooter";
 
@@ -239,7 +238,7 @@ export function MakeupsClient() {
                   <TableCell className="max-w-[220px]">
                     {m.notes && m.notes.trim() ? (
                       <span
-                        className={`line-clamp-2 text-xs leading-snug text-amber-900 dark:text-amber-200 ${interactiveCursor.note}`}
+                        className="line-clamp-2 text-xs leading-snug text-amber-900 dark:text-amber-200"
                         title={m.notes}
                       >
                         {m.notes}
@@ -252,14 +251,14 @@ export function MakeupsClient() {
                     <div className="flex flex-wrap justify-end gap-1">
                       <Link
                         href={`/students/${m.student_id}`}
-                        className={`${LIST_ROW_LINK_CLASS} ${interactiveCursor.student}`}
+                        className={LIST_ROW_LINK_CLASS}
                       >
                         <UserRound className="size-3.5 shrink-0 opacity-80" strokeWidth={2} />
                         כרטיס תלמידה
                       </Link>
                       <Link
                         href={`/exams/${m.exam_id}`}
-                        className={`${LIST_ROW_LINK_CLASS} ${interactiveCursor.exam}`}
+                        className={LIST_ROW_LINK_CLASS}
                       >
                         <BookOpen className="size-3.5 shrink-0 opacity-80" strokeWidth={2} />
                         למבחן
@@ -267,7 +266,7 @@ export function MakeupsClient() {
                       {!readOnly ? (
                         <button
                           type="button"
-                          className={`inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium ${interactiveCursor.edit}`}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium"
                           onClick={() => {
                             setEditGradeId(m.id);
                             setEditGradeValue(m.grade != null ? String(m.grade) : "");
@@ -280,7 +279,7 @@ export function MakeupsClient() {
                       {!readOnly && m.status === "open" ? (
                         <button
                           type="button"
-                          className={`inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium ${interactiveCursor.check}`}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium"
                           onClick={() => setCompleteId(m.id)}
                         >
                           <CheckCircle2 className="size-3.5 shrink-0" strokeWidth={2} />
@@ -290,7 +289,7 @@ export function MakeupsClient() {
                       {!readOnly ? (
                         <button
                           type="button"
-                          className={`inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100 ${interactiveCursor.makeup}`}
+                          className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
                           title="ביטול: התלמידה כן נבחנה במועד, סומנה בטעות. ימחק את ההשלמה ויחזיר את הסטטוס במבחן."
                           onClick={() => void undoMakeup(m)}
                         >

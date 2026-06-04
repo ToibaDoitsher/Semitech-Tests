@@ -23,8 +23,6 @@ import type { LucideIcon } from "lucide-react";
 import { AcademicYearBanner } from "@/components/academicYears/AcademicYearBanner";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { NotificationsBell } from "@/components/NotificationsBell";
-import { cursorClassForHref } from "@/lib/ui/interactiveCursor";
-
 type NavItem = { href: string; label: string; icon: LucideIcon; iconClass: string };
 
 const nav: NavItem[] = [
@@ -139,7 +137,6 @@ export function AppShell({
                 key={item.href}
                 href={item.href}
                 className={[
-                  cursorClassForHref(item.href),
                   "group flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium outline-none ring-1 ring-transparent transition-all",
                   active
                     ? "bg-[var(--color-primary)] text-white shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.14),0_4px_14px_-4px_rgb(37_99_235_/_0.45)] ring-[var(--color-primary)]/30 hover:bg-[var(--color-primary-hover)] hover:shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.16),0_6px_18px_-4px_rgb(37_99_235_/_0.4)]"

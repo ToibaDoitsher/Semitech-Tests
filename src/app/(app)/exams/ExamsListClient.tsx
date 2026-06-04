@@ -20,7 +20,6 @@ import { TableClearFooter } from "@/components/ui/TableClearFooter";
 import { formatHebrewDateFromYmd } from "@/lib/hebrewDate";
 import { teacherEmbedDisplayName } from "@/lib/teachers/display";
 import type { Teacher } from "@/lib/types/db";
-import { interactiveCursor } from "@/lib/ui/interactiveCursor";
 
 const fetcher = (url: string) => fetch(url).then((r) => {
   if (!r.ok) throw new Error("שגיאת טעינה");
@@ -237,7 +236,7 @@ export function ExamsListClient() {
                     <div className="flex flex-col gap-1.5">
                       {e.notes && e.notes.trim() ? (
                         <span
-                          className={`line-clamp-3 text-xs leading-snug text-amber-900 dark:text-amber-200 ${interactiveCursor.note}`}
+                          className="line-clamp-3 text-xs leading-snug text-amber-900 dark:text-amber-200"
                           title={e.notes}
                         >
                           {e.notes}
@@ -263,7 +262,7 @@ export function ExamsListClient() {
                       <Link
                         href={`/exams/${e.id}`}
                         title="תלמידות וסטטוסים במבחן"
-                        className={`inline-flex items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-900 transition hover:bg-sky-100 dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-100 dark:hover:bg-sky-900/50 ${interactiveCursor.student}`}
+                        className="inline-flex items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-900 transition hover:bg-sky-100 dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-100 dark:hover:bg-sky-900/50"
                       >
                         <Users className="size-3.5 shrink-0 opacity-90" strokeWidth={2} />
                         תלמידות
@@ -272,7 +271,7 @@ export function ExamsListClient() {
                         <Link
                           href={`/exams/${e.id}/edit`}
                           title="תאריך, מורה, יעד ושכבות"
-                          className={`inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-900 transition hover:bg-amber-100 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-100 dark:hover:bg-amber-900/50 ${interactiveCursor.edit}`}
+                          className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-900 transition hover:bg-amber-100 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-100 dark:hover:bg-amber-900/50"
                         >
                           <PenLine className="size-3.5 shrink-0 opacity-90" strokeWidth={2} />
                           עריכת מבחן
