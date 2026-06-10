@@ -36,6 +36,7 @@ type Row = {
   id: string;
   exam_id: string;
   submitted_exam: string | null;
+  student_submission_date: string | null;
   approved_by_coordinator: boolean;
   sent_for_review: boolean;
   grades_submitted: boolean;
@@ -44,8 +45,27 @@ type Row = {
   exam: { subject: string; exam_date: string; teacher_name: string | null } | null;
 };
 
-type SortKey = "exam_date" | "submission_due" | "grades_due" | "submitted_exam" | "teacher_name";
-type DateColumnKey = "exam_date" | "submission_due" | "grades_due" | "submitted_exam";
+type SortKey =
+  | "exam_date"
+  | "student_submission_date"
+  | "submission_due"
+  | "grades_due"
+  | "submitted_exam"
+  | "teacher_name";
+type DateColumnKey =
+  | "exam_date"
+  | "student_submission_date"
+  | "submission_due"
+  | "grades_due"
+  | "submitted_exam";
+
+/** המקור שעל פיו מחושב תאריך הגשת הציונים. */
+function gradesDueBase(row: Row): { date: string | null; fromSubmission: boolean } {
+  if (row.student_submission_date) {
+    return { date: row.student_submission_date.slice(0, 10), fromSubmission: true };
+  }
+  return { date: row.exam?.exam_date ?? null, fromSubmission: false };
+}
 
 function addDays(ymd: string, offset: number): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
@@ -62,8 +82,13 @@ function addDays(ymd: string, offset: number): string | null {
 function sortValue(row: Row, key: SortKey): string | null {
   const examDate = row.exam?.exam_date ?? null;
   if (key === "exam_date") return examDate;
+  if (key === "student_submission_date")
+    return row.student_submission_date ? row.student_submission_date.slice(0, 10) : null;
   if (key === "submission_due") return examDate ? addDays(examDate, EXAM_SUBMISSION_DUE_OFFSET) : null;
-  if (key === "grades_due") return examDate ? addDays(examDate, GRADES_SUBMISSION_DUE_OFFSET) : null;
+  if (key === "grades_due") {
+    const base = gradesDueBase(row).date;
+    return base ? addDays(base, GRADES_SUBMISSION_DUE_OFFSET) : null;
+  }
   if (key === "submitted_exam") return row.submitted_exam;
   if (key === "teacher_name") {
     const name = (row.exam?.teacher_name ?? "").trim();
@@ -76,14 +101,20 @@ function sortValue(row: Row, key: SortKey): string | null {
 function dateColumnYmd(row: Row, key: DateColumnKey): string | null {
   const examDate = row.exam?.exam_date ?? null;
   if (key === "exam_date") return examDate;
+  if (key === "student_submission_date")
+    return row.student_submission_date ? row.student_submission_date.slice(0, 10) : null;
   if (key === "submission_due") return examDate ? addDays(examDate, EXAM_SUBMISSION_DUE_OFFSET) : null;
-  if (key === "grades_due") return examDate ? addDays(examDate, GRADES_SUBMISSION_DUE_OFFSET) : null;
+  if (key === "grades_due") {
+    const base = gradesDueBase(row).date;
+    return base ? addDays(base, GRADES_SUBMISSION_DUE_OFFSET) : null;
+  }
   if (key === "submitted_exam") return row.submitted_exam ? row.submitted_exam.slice(0, 10) : null;
   return null;
 }
 
 const DATE_COLUMN_OPTIONS: { value: DateColumnKey; label: string }[] = [
   { value: "exam_date", label: "תאריך מבחן" },
+  { value: "student_submission_date", label: "הגשת מטלה (תלמידות)" },
   { value: "submission_due", label: "הגשת המבחן" },
   { value: "grades_due", label: "הגשת ציונים" },
   { value: "submitted_exam", label: "הוגש מבחן (בפועל)" },
@@ -219,6 +250,7 @@ export function TrackingClient() {
     id: string,
     payload: {
       submitted_exam: string | null;
+      student_submission_date: string | null;
       approved_by_coordinator: boolean;
       sent_for_review: boolean;
       grades_submitted: boolean;
@@ -407,6 +439,14 @@ export function TrackingClient() {
                 </TableHead>
                 <TableHead className="whitespace-nowrap">
                   <SortButton
+                    label="הגשת מטלה (תלמידות)"
+                    active={sortKey === "student_submission_date"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("student_submission_date")}
+                  />
+                </TableHead>
+                <TableHead className="whitespace-nowrap">
+                  <SortButton
                     label="הגשת ציונים"
                     active={sortKey === "grades_due"}
                     dir={sortDir}
@@ -442,9 +482,25 @@ export function TrackingClient() {
                     <TableCell className="whitespace-nowrap">
                       {row.exam?.exam_date ? formatHebrewDateFromYmd(row.exam.exam_date) : "—"}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap tabular-nums text-zinc-600">
-                      {examTrackingDueDate(row.exam?.exam_date, GRADES_SUBMISSION_DUE_OFFSET)}
+                    <TableCell className="whitespace-nowrap tabular-nums text-zinc-700">
+                      {row.student_submission_date
+                        ? formatHebrewDateFromYmd(row.student_submission_date.slice(0, 10))
+                        : "—"}
                     </TableCell>
+                    {(() => {
+                      const { date: gradesBase, fromSubmission } = gradesDueBase(row);
+                      const cellClass = fromSubmission
+                        ? "whitespace-nowrap tabular-nums rounded bg-amber-100 text-amber-900 ring-1 ring-amber-300"
+                        : "whitespace-nowrap tabular-nums text-zinc-600";
+                      const title = fromSubmission
+                        ? "מחושב 7 ימים אחרי הגשת המטלה ע״י התלמידות"
+                        : "מחושב 7 ימים אחרי תאריך המבחן";
+                      return (
+                        <TableCell className={cellClass} title={title}>
+                          {examTrackingDueDate(gradesBase, GRADES_SUBMISSION_DUE_OFFSET)}
+                        </TableCell>
+                      );
+                    })()}
                     <TableCell>
                       <Link
                         href={`/exams/${row.exam_id}`}
@@ -494,7 +550,7 @@ export function TrackingClient() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={13} className="py-14 text-center text-zinc-500">
+                  <TableCell colSpan={14} className="py-14 text-center text-zinc-500">
                     {isLoading ? "טוען…" : isFiltering ? "אין תוצאות תואמות לסינון" : "אין נתוני מעקב"}
                   </TableCell>
                 </TableRow>
@@ -525,6 +581,7 @@ function TrackingRowForm({
   onCancel: () => void;
   onSave: (p: {
     submitted_exam: string | null;
+    student_submission_date: string | null;
     approved_by_coordinator: boolean;
     sent_for_review: boolean;
     grades_submitted: boolean;
@@ -533,6 +590,9 @@ function TrackingRowForm({
   }) => void;
 }) {
   const [submittedIso, setSubmittedIso] = useState<string | null>(row.submitted_exam);
+  const [studentSubmissionDate, setStudentSubmissionDate] = useState<string>(
+    row.student_submission_date ? row.student_submission_date.slice(0, 10) : "",
+  );
   const [approved, setApproved] = useState(row.approved_by_coordinator);
   const [sent, setSent] = useState(row.sent_for_review);
   const [gradesIn, setGradesIn] = useState(row.grades_submitted);
@@ -545,6 +605,11 @@ function TrackingRowForm({
         label="הוגש מבחן"
         value={submittedIso}
         onChange={setSubmittedIso}
+      />
+      <HebrewDatePicker
+        label='תאריך הגשת מטלה ע"י תלמידות'
+        value={studentSubmissionDate}
+        onChange={setStudentSubmissionDate}
       />
       <label className="inline-flex items-center gap-2 text-[11px]">
         <input type="checkbox" checked={approved} onChange={(e) => setApproved(e.target.checked)} />
@@ -573,6 +638,7 @@ function TrackingRowForm({
           onClick={() => {
             onSave({
               submitted_exam: submittedIso,
+              student_submission_date: studentSubmissionDate.trim() || null,
               approved_by_coordinator: approved,
               sent_for_review: sent,
               grades_submitted: gradesIn,

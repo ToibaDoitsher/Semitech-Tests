@@ -17,9 +17,10 @@ import { ASSIGNMENT_WITH_LOOKUPS } from "@/lib/db/assignmentSelect";
 import { notDeleted } from "@/lib/db/softDelete";
 import { isTeachingTrackName } from "@/lib/students/fields";
 import { resolveAssignmentTeachingMode } from "@/lib/teachers/assignments";
+import { cascadeAssignmentTargetToExams } from "@/lib/assignments/cascadeAssignmentTarget";
 import { cascadeTeacherForAssignment } from "@/lib/teachers/cascadeTeacherChange";
 import { isTeachingModeSelection } from "@/lib/teachers/teachingMode";
-import type { AssignmentCategory } from "@/lib/types/db";
+import type { AssignmentCategory, TeachingTrackType } from "@/lib/types/db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -152,6 +153,16 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     body.teacher_id !== undefined &&
     (existing as { teacher_id: string }).teacher_id !== patch.teacher_id;
 
+  const previousFingerprint = (existing as { targets_fingerprint?: string | null })
+    .targets_fingerprint ?? null;
+  const previousCategory = (existing as { assignment_category: AssignmentCategory })
+    .assignment_category;
+  const previousTeachingMode = (existing as { teaching_mode?: unknown }).teaching_mode ?? null;
+  const targetChanged = previousFingerprint !== patch.targets_fingerprint;
+  const categoryChanged = patch.assignment_category !== undefined && previousCategory !== patch.assignment_category;
+  const teachingModeChanged =
+    body.teaching_mode !== undefined && previousTeachingMode !== patch.teaching_mode;
+
   const { data, error } = await supabase
     .from("teacher_assignments")
     .update(patch)
@@ -177,7 +188,41 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     };
   }
 
-  return NextResponse.json({ assignment: data, cascade });
+  let targetCascade: {
+    exams_updated: number;
+    exams_locked_skipped: number;
+    students_added: number;
+    students_removed: number;
+    makeups_removed: number;
+    tracking_removed: number;
+  } | null = null;
+
+  if (targetChanged || categoryChanged || teachingModeChanged) {
+    const teachingDbRaw =
+      patch.teaching_mode !== undefined ? patch.teaching_mode : previousTeachingMode;
+    const teachingDb: TeachingTrackType | null =
+      teachingDbRaw === "full" || teachingDbRaw === "short" ? teachingDbRaw : null;
+    const result = await cascadeAssignmentTargetToExams(
+      supabase,
+      id,
+      nextTarget,
+      category,
+      teachingDb,
+    );
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+    targetCascade = {
+      exams_updated: result.examsTargetUpdated,
+      exams_locked_skipped: result.examsSkippedLocked,
+      students_added: result.studentsAdded,
+      students_removed: result.studentsRemoved,
+      makeups_removed: result.makeupsRemoved,
+      tracking_removed: result.trackingRemoved,
+    };
+  }
+
+  return NextResponse.json({ assignment: data, cascade, target_cascade: targetCascade });
 }
 
 export async function DELETE(request: Request, ctx: { params: Promise<{ id: string }> }) {

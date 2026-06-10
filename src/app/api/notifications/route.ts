@@ -130,17 +130,28 @@ export async function GET(request: Request) {
 
   /* ── שלב 2: מעקב / השלמות / מעקב השלמות במקביל ── */
 
+  const trackingSelect =
+    "id, exam_id, submitted_exam, student_submission_date, grades_submitted, grades_approved, transferred_to_system";
+  const trackingSelectLegacy =
+    "id, exam_id, submitted_exam, grades_submitted, grades_approved, transferred_to_system";
   const trackingQ = examIds.length
-    ? notDeleted(
-        supabase
-          .from("exam_tracking")
-          .select(
-            "id, exam_id, submitted_exam, grades_submitted, grades_approved, transferred_to_system",
-          ),
-      )
-        .eq("academic_year_id", yearId)
-        .in("exam_id", examIds)
-        .limit(500)
+    ? (async () => {
+        const first = await notDeleted(
+          supabase.from("exam_tracking").select(trackingSelect),
+        )
+          .eq("academic_year_id", yearId)
+          .in("exam_id", examIds)
+          .limit(500);
+        if (first.error && /student_submission_date/i.test(first.error.message)) {
+          return await notDeleted(
+            supabase.from("exam_tracking").select(trackingSelectLegacy),
+          )
+            .eq("academic_year_id", yearId)
+            .in("exam_id", examIds)
+            .limit(500);
+        }
+        return first;
+      })()
     : Promise.resolve({ data: [], error: null });
 
   const openMakeupsQ = notDeleted(
@@ -183,6 +194,7 @@ export async function GET(request: Request) {
   type TrackingWithExam = {
     exam_id: string;
     submitted_exam: string | null;
+    student_submission_date: string | null;
     grades_submitted: boolean;
     grades_approved: boolean;
     transferred_to_system: boolean;
@@ -192,6 +204,7 @@ export async function GET(request: Request) {
     const t = row as {
       exam_id: string;
       submitted_exam: string | null;
+      student_submission_date?: string | null;
       grades_submitted: boolean;
       grades_approved: boolean;
       transferred_to_system: boolean;
@@ -200,6 +213,7 @@ export async function GET(request: Request) {
     return {
       exam_id: t.exam_id,
       submitted_exam: t.submitted_exam,
+      student_submission_date: t.student_submission_date ?? null,
       grades_submitted: t.grades_submitted,
       grades_approved: t.grades_approved,
       transferred_to_system: t.transferred_to_system,
@@ -290,9 +304,12 @@ export async function GET(request: Request) {
       }
     }
 
-    // ציונים: יעד = exam_date + 7. רק למבחנים שעברו.
-    if (e.exam_date <= today && !t.grades_submitted) {
-      const gradesDue = addDays(e.exam_date, GRADES_SUBMISSION_DUE_OFFSET);
+    // ציונים: יעד = (תאריך הגשת מטלה אם מולא, אחרת תאריך מבחן) + 7. רק למבחנים שעברו.
+    const gradesBaseDate = t.student_submission_date
+      ? t.student_submission_date.slice(0, 10)
+      : e.exam_date;
+    if (gradesBaseDate <= today && !t.grades_submitted) {
+      const gradesDue = addDays(gradesBaseDate, GRADES_SUBMISSION_DUE_OFFSET);
       if (today >= gradesDue) {
         const overdue = daysBetween(gradesDue, today);
         items.push({

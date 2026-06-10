@@ -344,15 +344,33 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
     }
 
     if (kind === "tracking") {
-      const data = await paginateSelect((from, to) =>
-        supabase
-          .from("exam_tracking")
-          .select(
-            "id, submitted_exam, approved_by_coordinator, sent_for_review, grades_submitted, grades_approved, transferred_to_system, exam_id",
-          )
-          .order("id", { ascending: false })
-          .range(from, to),
-      );
+      let data: Awaited<ReturnType<typeof paginateSelect>>;
+      try {
+        data = await paginateSelect((from, to) =>
+          supabase
+            .from("exam_tracking")
+            .select(
+              "id, submitted_exam, student_submission_date, approved_by_coordinator, sent_for_review, grades_submitted, grades_approved, transferred_to_system, exam_id",
+            )
+            .order("id", { ascending: false })
+            .range(from, to),
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (/student_submission_date/i.test(msg)) {
+          data = await paginateSelect((from, to) =>
+            supabase
+              .from("exam_tracking")
+              .select(
+                "id, submitted_exam, approved_by_coordinator, sent_for_review, grades_submitted, grades_approved, transferred_to_system, exam_id",
+              )
+              .order("id", { ascending: false })
+              .range(from, to),
+          );
+        } else {
+          throw err;
+        }
+      }
       const examIds = [...new Set(data.map((r) => (r as { exam_id: string }).exam_id))];
       const examsBy: Record<string, { subject: string; exam_date: string; teachers: unknown }> = {};
       if (examIds.length) {
@@ -368,6 +386,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
       const rows = data.map((r) => {
         const row = r as {
           submitted_exam: string | null;
+          student_submission_date?: string | null;
           approved_by_coordinator: boolean;
           sent_for_review: boolean;
           grades_submitted: boolean;
@@ -377,11 +396,17 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
         };
         const ex = examsBy[row.exam_id];
         const examDate = ex?.exam_date ?? "";
+        const submissionDate = row.student_submission_date
+          ? row.student_submission_date.slice(0, 10)
+          : "";
+        const gradesBase = submissionDate || examDate;
         return {
           מקצוע: ex?.subject ?? "",
           הגשת_המבחן: examTrackingDueDate(examDate, -7),
           תאריך: hebrewYmd(examDate),
-          הגשת_ציונים: examTrackingDueDate(examDate, 7),
+          הגשת_מטלה_תלמידות: submissionDate ? hebrewYmd(submissionDate) : "",
+          הגשת_ציונים: examTrackingDueDate(gradesBase, 7),
+          הגשת_ציונים_מקור: submissionDate ? "הגשת מטלה" : "תאריך מבחן",
           מורה: ex ? teacherNameCell(ex.teachers) : "",
           הוגש_מבחן: row.submitted_exam ? formatTrackingDateTime(row.submitted_exam) : "",
           אושר_על_ידי_רכזת: row.approved_by_coordinator ? "כן" : "לא",
