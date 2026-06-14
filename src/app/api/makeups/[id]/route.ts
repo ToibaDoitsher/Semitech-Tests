@@ -8,6 +8,13 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
+function parseStartingGrade(raw: number | string | null | undefined): number | null | "invalid" {
+  if (raw === null || raw === undefined || raw === "") return null;
+  const n = typeof raw === "number" ? raw : Number(String(raw).replace(",", "."));
+  if (!Number.isFinite(n) || n < 0 || n > 100) return "invalid";
+  return n;
+}
+
 export async function PATCH(request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const body = (await request.json()) as {
@@ -15,6 +22,9 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     notes?: string | null;
     completed_at?: string | null;
     auto_registered?: boolean;
+    starting_grade?: number | string | null;
+    is_paid?: boolean;
+    clear_registration?: boolean;
   };
 
   const supabase = createSupabaseAdminClient();
@@ -28,7 +38,7 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 
   const { data: existing, error: loadErr } = await supabase
     .from("makeup_exams")
-    .select("id, student_id, exam_id, status, academic_year_id")
+    .select("id, student_id, exam_id, status, academic_year_id, auto_registered")
     .eq("id", id)
     .maybeSingle();
 
@@ -40,31 +50,77 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
 
   const patch: Record<string, unknown> = {};
 
-  if (body.notes !== undefined) patch.notes = body.notes?.trim() || null;
-  if (body.auto_registered !== undefined) patch.auto_registered = Boolean(body.auto_registered);
+  if (body.clear_registration || body.auto_registered === false) {
+    patch.auto_registered = false;
+    patch.completed_at = null;
+    patch.starting_grade = null;
+    patch.is_paid = false;
+  } else {
+    if (body.notes !== undefined) patch.notes = body.notes?.trim() || null;
 
-  if (body.completed_at !== undefined) {
-    if (!body.completed_at) {
-      patch.completed_at = null;
-    } else {
+    if (body.auto_registered === true) {
+      if (!body.completed_at?.trim()) {
+        return NextResponse.json({ error: "תאריך השלמה חובה לרישום" }, { status: 400 });
+      }
       const d = new Date(body.completed_at);
       if (Number.isNaN(d.getTime())) {
         return NextResponse.json({ error: "תאריך השלמה לא תקין" }, { status: 400 });
       }
+      patch.auto_registered = true;
       patch.completed_at = d.toISOString();
-    }
-  }
-
-  if (body.grade !== undefined) {
-    const raw = body.grade;
-    if (raw === null || raw === "") {
-      patch.grade = null;
-    } else {
-      const n = typeof raw === "number" ? raw : Number(String(raw).replace(",", "."));
-      if (!Number.isFinite(n)) {
-        return NextResponse.json({ error: "ציון לא תקין" }, { status: 400 });
+      if (body.starting_grade !== undefined) {
+        const sg = parseStartingGrade(body.starting_grade);
+        if (sg === "invalid") {
+          return NextResponse.json(
+            { error: "ציון התחלה חייב להיות מספר בין 0 ל-100" },
+            { status: 400 },
+          );
+        }
+        patch.starting_grade = sg;
       }
-      patch.grade = n;
+      if (body.is_paid !== undefined) patch.is_paid = Boolean(body.is_paid);
+    } else if (body.auto_registered !== undefined) {
+      patch.auto_registered = Boolean(body.auto_registered);
+    }
+
+    if (body.completed_at !== undefined && body.auto_registered !== true && !body.clear_registration) {
+      if (!body.completed_at) {
+        patch.completed_at = null;
+      } else {
+        const d = new Date(body.completed_at);
+        if (Number.isNaN(d.getTime())) {
+          return NextResponse.json({ error: "תאריך השלמה לא תקין" }, { status: 400 });
+        }
+        patch.completed_at = d.toISOString();
+      }
+    }
+
+    if (body.starting_grade !== undefined && body.auto_registered !== true) {
+      const sg = parseStartingGrade(body.starting_grade);
+      if (sg === "invalid") {
+        return NextResponse.json(
+          { error: "ציון התחלה חייב להיות מספר בין 0 ל-100" },
+          { status: 400 },
+        );
+      }
+      patch.starting_grade = sg;
+    }
+
+    if (body.is_paid !== undefined && body.auto_registered !== true) {
+      patch.is_paid = Boolean(body.is_paid);
+    }
+
+    if (body.grade !== undefined) {
+      const raw = body.grade;
+      if (raw === null || raw === "") {
+        patch.grade = null;
+      } else {
+        const n = typeof raw === "number" ? raw : Number(String(raw).replace(",", "."));
+        if (!Number.isFinite(n)) {
+          return NextResponse.json({ error: "ציון לא תקין" }, { status: 400 });
+        }
+        patch.grade = n;
+      }
     }
   }
 
@@ -79,21 +135,23 @@ export async function PATCH(request: Request, ctx: { params: Promise<{ id: strin
     .select("*")
     .single();
 
-  if (error && "auto_registered" in patch && /auto_registered/i.test(error.message)) {
-    const withoutAuto = { ...patch };
-    delete withoutAuto.auto_registered;
-    if (!Object.keys(withoutAuto).length) {
+  if (error && /auto_registered|starting_grade|is_paid/i.test(error.message)) {
+    const fallback = { ...patch };
+    delete fallback.auto_registered;
+    delete fallback.starting_grade;
+    delete fallback.is_paid;
+    if (!Object.keys(fallback).length) {
       return NextResponse.json(
         {
           error:
-            "העמודה «נרשמה להשלמה» עוד לא קיימת במסד. הריצי את supabase/PATCH_MAKEUP_AUTO_REGISTERED.sql ב-Supabase.",
+            "עמודות רישום להשלמה עוד לא קיימות במסד. הריצי את supabase/PATCH_MAKEUP_AUTO_REGISTERED.sql ו-PATCH_MAKEUP_REGISTRATION_FIELDS.sql.",
         },
         { status: 400 },
       );
     }
     const retry = await supabase
       .from("makeup_exams")
-      .update(withoutAuto)
+      .update(fallback)
       .eq("id", id)
       .select("*")
       .single();

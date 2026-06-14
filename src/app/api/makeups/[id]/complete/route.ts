@@ -26,7 +26,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
 
   const { data: m, error: gErr } = await supabase
     .from("makeup_exams")
-    .select("id, student_id, exam_id, status, academic_year_id")
+    .select("id, student_id, exam_id, status, academic_year_id, completed_at")
     .eq("id", id)
     .single();
 
@@ -38,22 +38,28 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: "ההשלמה כבר סומנה כהושלמה" }, { status: 400 });
   }
 
-  let completedAt: string;
+  const notes = body.notes !== undefined ? body.notes.trim() || null : undefined;
+  const makeupPatch: Record<string, unknown> = {
+    status: "completed",
+  };
+
+  // תאריך השלמה כבר הוזן בעת «נרשמה להשלמה» — לא דורסים אותו כאן
   if (body.completed_at?.trim()) {
     const d = new Date(body.completed_at);
     if (Number.isNaN(d.getTime())) {
       return NextResponse.json({ error: "תאריך השלמה לא תקין" }, { status: 400 });
     }
-    completedAt = d.toISOString();
-  } else {
-    completedAt = new Date().toISOString();
+    makeupPatch.completed_at = d.toISOString();
+  } else if (!m.completed_at) {
+    return NextResponse.json(
+      {
+        error:
+          "אין תאריך השלמה. סמני קודם «נרשמה להשלמה» עם תאריך, או הזיני תאריך ידנית.",
+      },
+      { status: 400 },
+    );
   }
 
-  const notes = body.notes !== undefined ? body.notes.trim() || null : undefined;
-  const makeupPatch: Record<string, unknown> = {
-    status: "completed",
-    completed_at: completedAt,
-  };
   if (notes !== undefined) makeupPatch.notes = notes;
 
   const { error: mErr } = await supabase.from("makeup_exams").update(makeupPatch).eq("id", id);
@@ -68,5 +74,14 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
 
   if (esErr) return NextResponse.json({ error: esErr.message }, { status: 400 });
 
-  return NextResponse.json({ ok: true, completed_at: completedAt });
+  const { data: updated } = await supabase
+    .from("makeup_exams")
+    .select("completed_at")
+    .eq("id", id)
+    .maybeSingle();
+
+  return NextResponse.json({
+    ok: true,
+    completed_at: (updated as { completed_at?: string } | null)?.completed_at ?? null,
+  });
 }

@@ -16,6 +16,8 @@ export async function GET(request: Request) {
     scopeFromSearchParams(new URL(request.url).searchParams),
   );
 
+  const SELECT_WITH_FIELDS =
+    "id, status, created_at, completed_at, grade, student_id, exam_id, notes, auto_registered, starting_grade, is_paid";
   const SELECT_WITH_AUTO =
     "id, status, created_at, completed_at, grade, student_id, exam_id, notes, auto_registered";
   const SELECT_LEGACY =
@@ -23,7 +25,7 @@ export async function GET(request: Request) {
 
   const first = await supabase
     .from("makeup_exams")
-    .select(SELECT_WITH_AUTO)
+    .select(SELECT_WITH_FIELDS)
     .eq("academic_year_id", scope.year.id)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
@@ -32,6 +34,17 @@ export async function GET(request: Request) {
     | Array<Record<string, unknown>>
     | null;
   let error = first.error;
+
+  if (error && /starting_grade|is_paid/i.test(error.message)) {
+    const mid = await supabase
+      .from("makeup_exams")
+      .select(SELECT_WITH_AUTO)
+      .eq("academic_year_id", scope.year.id)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false });
+    rows = (mid.data ?? null) as Array<Record<string, unknown>> | null;
+    error = mid.error;
+  }
 
   if (error && /auto_registered/i.test(error.message)) {
     const legacy = await supabase
@@ -97,9 +110,13 @@ export async function GET(request: Request) {
 
   const makeups = (rows ?? []).map((r) => {
     const row = r as Record<string, unknown> & { student_id: string; exam_id: string };
+    const rawGrade = row.starting_grade;
     return {
       ...row,
       auto_registered: Boolean(row.auto_registered),
+      starting_grade:
+        rawGrade === null || rawGrade === undefined ? null : Number(rawGrade),
+      is_paid: Boolean(row.is_paid),
       student: studentsBy[row.student_id] ?? null,
       exam: examsBy[row.exam_id] ?? null,
     };

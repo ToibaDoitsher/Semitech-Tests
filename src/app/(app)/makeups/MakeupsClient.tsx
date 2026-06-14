@@ -6,12 +6,17 @@ import { useDeferredValue, useMemo, useState } from "react";
 import useSWR from "swr";
 import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
 import { CompleteMakeupDialog } from "@/components/makeup/CompleteMakeupDialog";
+import {
+  RegisterForMakeupDialog,
+  type RegisterForMakeupPayload,
+} from "@/components/makeup/RegisterForMakeupDialog";
 import { ListDataCard, ListPageHeader, ListTableToolbar, LIST_ROW_LINK_CLASS } from "@/components/ui/ListPage";
 import { ListFilterBar, matchesNameQuery } from "@/components/ui/ListFilterBar";
 import { MakeupStatusBadge } from "@/components/ui/StatusBadge";
 import { NotesButton } from "@/components/ui/NotesButton";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
+import { HebrewDatePicker } from "@/components/ui/HebrewDatePicker";
 import { formatHebrewDateFromYmd } from "@/lib/hebrewDate";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TableClearFooter } from "@/components/ui/TableClearFooter";
@@ -31,6 +36,8 @@ type Row = {
   grade: number | null;
   notes?: string | null;
   auto_registered: boolean;
+  starting_grade: number | null;
+  is_paid: boolean;
   student: {
     first_name: string;
     last_name: string;
@@ -83,17 +90,19 @@ function RegisteredForMakeupCell({
   );
 }
 
-function formatCompleted(iso: string | null) {
+function formatMakeupDate(iso: string | null) {
   if (!iso) return "—";
+  const ymd = iso.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return formatHebrewDateFromYmd(ymd);
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString("he-IL", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return d.toLocaleDateString("he-IL");
+}
+
+function makeupDateYmd(iso: string | null): string | null {
+  if (!iso) return null;
+  const ymd = iso.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(ymd) ? ymd : null;
 }
 
 export function MakeupsClient() {
@@ -104,7 +113,10 @@ export function MakeupsClient() {
     fetcher,
   );
   const [completeId, setCompleteId] = useState<string | null>(null);
+  const [completeLegacy, setCompleteLegacy] = useState(false);
   const [completeBusy, setCompleteBusy] = useState(false);
+  const [registerRow, setRegisterRow] = useState<Row | null>(null);
+  const [registerBusy, setRegisterBusy] = useState(false);
   const [editGradeId, setEditGradeId] = useState<string | null>(null);
   const [editGradeValue, setEditGradeValue] = useState("");
   const [editGradeBusy, setEditGradeBusy] = useState(false);
@@ -113,6 +125,9 @@ export function MakeupsClient() {
   const [statusFilter, setStatusFilter] = useState("open");
   const [gradeFilter, setGradeFilter] = useState("");
   const [autoRegisteredFilter, setAutoRegisteredFilter] = useState("");
+  const [paidFilter, setPaidFilter] = useState("");
+  const [makeupDateFrom, setMakeupDateFrom] = useState("");
+  const [makeupDateTo, setMakeupDateTo] = useState("");
   const [autoRegisteredBusyId, setAutoRegisteredBusyId] = useState<string | null>(null);
   const deferredSearch = useDeferredValue(searchTerm);
 
@@ -123,6 +138,14 @@ export function MakeupsClient() {
       if (gradeFilter && (m.student?.grade_level ?? "") !== gradeFilter) return false;
       if (autoRegisteredFilter === "yes" && !m.auto_registered) return false;
       if (autoRegisteredFilter === "no" && m.auto_registered) return false;
+      if (paidFilter === "yes" && !m.is_paid) return false;
+      if (paidFilter === "no" && m.is_paid) return false;
+      if (makeupDateFrom || makeupDateTo) {
+        const ymd = makeupDateYmd(m.completed_at);
+        if (!ymd) return false;
+        if (makeupDateFrom && ymd < makeupDateFrom) return false;
+        if (makeupDateTo && ymd > makeupDateTo) return false;
+      }
       if (deferredSearch.trim()) {
         const matches = matchesNameQuery(deferredSearch, [
           m.student?.first_name,
@@ -135,63 +158,109 @@ export function MakeupsClient() {
       }
       return true;
     });
-  }, [allRows, deferredSearch, statusFilter, gradeFilter, autoRegisteredFilter]);
+  }, [allRows, deferredSearch, statusFilter, gradeFilter, autoRegisteredFilter, paidFilter, makeupDateFrom, makeupDateTo]);
 
   const totalCount = allRows.length;
   const count = filteredRows.length;
   const isFiltering = Boolean(
-    deferredSearch.trim() || statusFilter !== "open" || gradeFilter || autoRegisteredFilter,
+    deferredSearch.trim() ||
+      statusFilter !== "open" ||
+      gradeFilter ||
+      autoRegisteredFilter ||
+      paidFilter ||
+      makeupDateFrom ||
+      makeupDateTo,
   );
 
-  async function toggleAutoRegistered(row: Row) {
+  function onRegisteredToggle(row: Row) {
     if (readOnly || autoRegisteredBusyId) return;
-    const next = !row.auto_registered;
+    if (row.auto_registered) {
+      const studentLabel = row.student
+        ? `${row.student.first_name} ${row.student.last_name}`.trim()
+        : "התלמידה";
+      const ok = confirm(
+        `לבטל את הרישום להשלמה של ${studentLabel}?\n\n` +
+          `תאריך השלמה, ציון התחלה ו«בתשלום» יימחקו. ההשלמה עצמה תישאר פתוחה.`,
+      );
+      if (!ok) return;
+      void clearRegistration(row);
+      return;
+    }
+    setRegisterRow(row);
+  }
+
+  async function clearRegistration(row: Row) {
     setAutoRegisteredBusyId(row.id);
-
-    void mutate(
-      (current) =>
-        current
-          ? {
-              ...current,
-              makeups: current.makeups.map((m) =>
-                m.id === row.id ? { ...m, auto_registered: next } : m,
-              ),
-            }
-          : current,
-      { revalidate: false },
-    );
-
     try {
       const r = await fetch(withYearQuery(`/api/makeups/${row.id}`, yearId), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ auto_registered: next }),
+        body: JSON.stringify({ clear_registration: true }),
       });
-      const j = (await r.json().catch(() => ({}))) as {
-        error?: string;
-        makeup?: { auto_registered?: boolean };
-      };
-      if (!r.ok) {
-        void mutate();
-        throw new Error(j.error ?? "עדכון נכשל");
-      }
-      const saved = Boolean(j.makeup?.auto_registered);
-      void mutate(
-        (current) =>
-          current
-            ? {
-                ...current,
-                makeups: current.makeups.map((m) =>
-                  m.id === row.id ? { ...m, auto_registered: saved } : m,
-                ),
-              }
-            : current,
-        { revalidate: true },
-      );
+      const j = (await r.json().catch(() => ({}))) as { error?: string };
+      if (!r.ok) throw new Error(j.error ?? "עדכון נכשל");
+      await mutate();
     } catch (e) {
       alert((e as Error).message);
     } finally {
       setAutoRegisteredBusyId(null);
+    }
+  }
+
+  async function saveRegistration(payload: RegisterForMakeupPayload) {
+    if (!registerRow) return;
+    setRegisterBusy(true);
+    try {
+      const r = await fetch(withYearQuery(`/api/makeups/${registerRow.id}`, yearId), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          auto_registered: true,
+          completed_at: payload.completed_at,
+          starting_grade: payload.starting_grade,
+          is_paid: payload.is_paid,
+        }),
+      });
+      const j = (await r.json().catch(() => ({}))) as { error?: string };
+      if (!r.ok) throw new Error(j.error ?? "שמירה נכשלה");
+      setRegisterRow(null);
+      await mutate();
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setRegisterBusy(false);
+    }
+  }
+
+  function onCompleteClick(row: Row) {
+    if (row.auto_registered && row.completed_at) {
+      const studentLabel = row.student
+        ? `${row.student.first_name} ${row.student.last_name}`.trim()
+        : "התלמידה";
+      const ok = confirm(`לסמן שההשלמה של ${studentLabel} הושלמה?`);
+      if (!ok) return;
+      void completeDirect(row.id);
+      return;
+    }
+    setCompleteLegacy(true);
+    setCompleteId(row.id);
+  }
+
+  async function completeDirect(id: string) {
+    setCompleteBusy(true);
+    try {
+      const r = await fetch(withYearQuery(`/api/makeups/${id}/complete`, yearId), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error((j as { error?: string }).error ?? "עדכון נכשל");
+      await mutate();
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setCompleteBusy(false);
     }
   }
 
@@ -207,6 +276,7 @@ export function MakeupsClient() {
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error((j as { error?: string }).error ?? "עדכון נכשל");
       setCompleteId(null);
+      setCompleteLegacy(false);
       await mutate();
     } catch (e) {
       alert((e as Error).message);
@@ -291,6 +361,16 @@ export function MakeupsClient() {
                 { value: "no", label: "לא — לא נרשמה" },
               ],
             },
+            {
+              id: "paid",
+              label: "בתשלום",
+              value: paidFilter,
+              onChange: setPaidFilter,
+              options: [
+                { value: "yes", label: "כן — בתשלום" },
+                { value: "no", label: "לא — לא בתשלום" },
+              ],
+            },
           ]}
           isAnyActive={isFiltering}
           onClearAll={() => {
@@ -298,8 +378,30 @@ export function MakeupsClient() {
             setStatusFilter("open");
             setGradeFilter("");
             setAutoRegisteredFilter("");
+            setPaidFilter("");
+            setMakeupDateFrom("");
+            setMakeupDateTo("");
           }}
         />
+        <div className="border-t border-slate-200/70 px-4 py-3 dark:border-zinc-700/70 sm:px-5">
+          <div className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <HebrewDatePicker
+              label="תאריך השלמה — מתאריך"
+              value={makeupDateFrom}
+              onChange={setMakeupDateFrom}
+            />
+            <HebrewDatePicker
+              label="תאריך השלמה — עד תאריך"
+              value={makeupDateTo}
+              onChange={setMakeupDateTo}
+            />
+            {makeupDateFrom && makeupDateTo && makeupDateFrom > makeupDateTo ? (
+              <p className="text-xs text-amber-700 sm:col-span-2 lg:col-span-3">
+                שימי לב — «מתאריך» מאוחר מ«עד תאריך».
+              </p>
+            ) : null}
+          </div>
+        </div>
       </ListDataCard>
 
       <ListDataCard enterDelay={0.09}>
@@ -317,7 +419,7 @@ export function MakeupsClient() {
             </span>
           )}
         </ListTableToolbar>
-        <Table className="min-w-[900px]">
+        <Table className="min-w-[1100px]">
           <TableHeader>
             <TableRow>
               <TableHead>תלמידה</TableHead>
@@ -326,8 +428,10 @@ export function MakeupsClient() {
               <TableHead>מורה</TableHead>
               <TableHead>סטטוס</TableHead>
               <TableHead className="whitespace-nowrap">נרשמה להשלמה</TableHead>
+              <TableHead className="whitespace-nowrap">תאריך השלמה</TableHead>
+              <TableHead className="whitespace-nowrap">ציון התחלה</TableHead>
+              <TableHead className="whitespace-nowrap">בתשלום</TableHead>
               <TableHead>ציון</TableHead>
-              <TableHead>תאריך השלמה</TableHead>
               <TableHead>הערה</TableHead>
               <TableHead className="w-[1%] whitespace-nowrap" />
             </TableRow>
@@ -350,13 +454,31 @@ export function MakeupsClient() {
                       value={Boolean(m.auto_registered)}
                       readOnly={readOnly}
                       busy={autoRegisteredBusyId === m.id}
-                      onToggle={() => void toggleAutoRegistered(m)}
+                      onToggle={() => onRegisteredToggle(m)}
                     />
                   </TableCell>
-                  <TableCell className="tabular-nums">{m.grade ?? "—"}</TableCell>
                   <TableCell className="whitespace-nowrap tabular-nums">
-                    {formatCompleted(m.completed_at)}
+                    {m.auto_registered && m.completed_at ? formatMakeupDate(m.completed_at) : "—"}
                   </TableCell>
+                  <TableCell className="tabular-nums">
+                    {m.auto_registered && m.starting_grade != null ? m.starting_grade : "—"}
+                  </TableCell>
+                  <TableCell>
+                    {m.auto_registered ? (
+                      <span
+                        className={
+                          m.is_paid
+                            ? "font-semibold text-emerald-600"
+                            : "text-slate-500"
+                        }
+                      >
+                        {m.is_paid ? "כן" : "לא"}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                  <TableCell className="tabular-nums">{m.grade ?? "—"}</TableCell>
                   <TableCell className="max-w-[220px]">
                     {m.notes && m.notes.trim() ? (
                       <span
@@ -402,7 +524,8 @@ export function MakeupsClient() {
                         <button
                           type="button"
                           className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium"
-                          onClick={() => setCompleteId(m.id)}
+                          onClick={() => onCompleteClick(m)}
+                          disabled={completeBusy}
                         >
                           <CheckCircle2 className="size-3.5 shrink-0" strokeWidth={2} />
                           הושלם
@@ -434,7 +557,7 @@ export function MakeupsClient() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={10} className="py-14 text-center text-zinc-500">
+                <TableCell colSpan={12} className="py-14 text-center text-zinc-500">
                   {isLoading ? "טוען…" : isFiltering ? "אין תוצאות תואמות לסינון" : "אין השלמות פתוחות"}
                 </TableCell>
               </TableRow>
@@ -451,10 +574,23 @@ export function MakeupsClient() {
         ) : null}
       </ListDataCard>
 
+      <RegisterForMakeupDialog
+        open={Boolean(registerRow)}
+        onClose={() => !registerBusy && setRegisterRow(null)}
+        busy={registerBusy}
+        studentLabel={
+          registerRow?.student
+            ? `${registerRow.student.first_name} ${registerRow.student.last_name}`.trim()
+            : undefined
+        }
+        onSave={saveRegistration}
+      />
+
       <CompleteMakeupDialog
-        open={Boolean(completeId)}
-        onClose={() => !completeBusy && setCompleteId(null)}
+        open={Boolean(completeId) && completeLegacy}
+        onClose={() => !completeBusy && (setCompleteId(null), setCompleteLegacy(false))}
         busy={completeBusy}
+        title="סימון השלמה (ללא רישום מוקדם)"
         onSave={completeSave}
       />
 

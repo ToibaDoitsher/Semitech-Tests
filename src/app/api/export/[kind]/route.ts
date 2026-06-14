@@ -296,14 +296,24 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
           supabase
             .from("makeup_exams")
             .select(
-              "id, status, created_at, completed_at, student_id, exam_id, auto_registered",
+              "id, status, created_at, completed_at, student_id, exam_id, auto_registered, starting_grade, is_paid",
             )
             .order("created_at", { ascending: false })
             .range(from, to),
         );
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        if (/auto_registered/i.test(msg)) {
+        if (/starting_grade|is_paid/i.test(msg)) {
+          data = await paginateSelect((from, to) =>
+            supabase
+              .from("makeup_exams")
+              .select(
+                "id, status, created_at, completed_at, student_id, exam_id, auto_registered",
+              )
+              .order("created_at", { ascending: false })
+              .range(from, to),
+          );
+        } else if (/auto_registered/i.test(msg)) {
           data = await paginateSelect((from, to) =>
             supabase
               .from("makeup_exams")
@@ -344,14 +354,18 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
           student_id: string;
           exam_id: string;
           auto_registered?: boolean;
+          starting_grade?: number | null;
+          is_paid?: boolean;
         };
         const st = studentsBy[row.student_id];
         const ex = examsBy[row.exam_id];
         return {
           סטטוס: makeupStatusHe[row.status] ?? row.status,
           נרשמה_להשלמה: row.auto_registered ? "כן" : "לא",
+          תאריך_השלמה: row.completed_at ? hebrewYmd(row.completed_at.slice(0, 10)) : "",
+          ציון_התחלה: row.starting_grade ?? "",
+          בתשלום: row.is_paid ? "כן" : "לא",
           נוצר: row.created_at?.slice(0, 19) ?? "",
-          הושלם: row.completed_at?.slice(0, 19) ?? "",
           שם_פרטי: st?.first_name ?? "",
           שם_משפחה: st?.last_name ?? "",
           תעודת_זהות: st?.tz ?? "",
