@@ -307,6 +307,142 @@ export function MakeupsClient() {
     await mutate();
   }
 
+  function exportMakeupsRows(): Record<string, string | number | boolean | null | undefined>[] {
+    const statusHe: Record<string, string> = {
+      open: "פתוח",
+      completed: "הושלם",
+    };
+    return filteredRows.map((m) => ({
+      סטטוס: statusHe[m.status] ?? m.status,
+      נרשמה_להשלמה: m.auto_registered ? "כן" : "לא",
+      תאריך_השלמה:
+        m.auto_registered && m.completed_at ? formatMakeupDate(m.completed_at) : "",
+      ציון_התחלה: m.auto_registered && m.starting_grade != null ? m.starting_grade : "",
+      בתשלום: m.auto_registered ? (m.is_paid ? "כן" : "לא") : "",
+      נוצר: m.created_at?.slice(0, 19) ?? "",
+      שם_תלמידה: m.student ? `${m.student.last_name} ${m.student.first_name}` : "",
+      שם_מבחן: m.exam?.subject ?? "",
+      תאריך_מבחן: m.exam?.exam_date ? formatHebrewDateFromYmd(m.exam.exam_date) : "",
+      מורה: m.exam?.teacher_name ?? "",
+      ציון: m.grade ?? "",
+      הערה: (m.notes ?? "").trim() || "",
+    }));
+  }
+
+  function openPrintWindow(title: string, bodyHtml: string, extraHead: string = "") {
+    const win = window.open("", "_blank", "noopener,noreferrer");
+    if (!win) return;
+    win.document.write(`<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charSet="utf-8" />
+<title>${title}</title>
+<style>
+@page { size: A4; margin: 10mm; }
+body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #111827; }
+table { width: 100%; border-collapse: collapse; font-size: 11pt; }
+th, td { border: 1px solid #e5e7eb; padding: 4px 6px; vertical-align: top; }
+th { background: #f1f5f9; }
+.small { font-size: 9pt; color: #6b7280; }
+.labels-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2mm; }
+.label-item { box-sizing: border-box; border: 1px dashed #e5e7eb; padding: 3mm 2mm; height: 24mm; overflow: hidden; font-size: 9pt; }
+.label-title { font-weight: 700; margin-bottom: 2px; }
+.label-line { line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.page-title { font-size: 16pt; font-weight: 700; margin-bottom: 4mm; }
+.summary { margin-bottom: 3mm; font-size: 10pt; color: #4b5563; }
+</style>
+${extraHead}
+</head>
+<body>
+${bodyHtml}
+</body>
+</html>`);
+    win.document.close();
+    win.focus();
+    win.print();
+  }
+
+  function handlePrintList() {
+    const rows = filteredRows;
+    if (!rows.length) {
+      alert("אין נתונים להדפסה לפי הסינון הנוכחי");
+      return;
+    }
+    const header = `<div class="page-title">רשימת השלמות</div>
+<div class="summary">סה\"כ ${rows.length} רשומות${isFiltering ? ` (מסונן מתוך ${totalCount})` : ""}</div>`;
+    const table = `<table>
+  <thead>
+    <tr>
+      <th>שם תלמידה</th>
+      <th>שם המבחן</th>
+      <th>תאריך השלמה</th>
+      <th>שם המורה</th>
+      <th>ציון התחלה</th>
+      <th>בתשלום</th>
+      <th>הערה</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${rows
+      .map((m) => {
+        const student = m.student ? `${m.student.last_name} ${m.student.first_name}` : "";
+        const exam = m.exam?.subject ?? "";
+        const teacher = m.exam?.teacher_name ?? "";
+        const makeupDate = m.auto_registered && m.completed_at ? formatMakeupDate(m.completed_at) : "";
+        const startGrade =
+          m.auto_registered && m.starting_grade != null ? String(m.starting_grade) : "";
+        const paid = m.auto_registered ? (m.is_paid ? "כן" : "לא") : "";
+        const note = (m.notes ?? "").trim();
+        return `<tr>
+  <td>${student}</td>
+  <td>${exam}</td>
+  <td>${makeupDate}</td>
+  <td>${teacher}</td>
+  <td>${startGrade}</td>
+  <td>${paid}</td>
+  <td>${note}</td>
+</tr>`;
+      })
+      .join("")}
+  </tbody>
+</table>`;
+    openPrintWindow("רשימת השלמות", `${header}${table}`);
+  }
+
+  function handlePrintLabels() {
+    const rows = filteredRows;
+    if (!rows.length) {
+      alert("אין נתונים להדפסה לפי הסינון הנוכחי");
+      return;
+    }
+    const labelsHtml = `<div class="page-title">מדבקות השלמות</div>
+<div class="summary">סה\"כ ${rows.length} מדבקות${isFiltering ? ` (מסונן מתוך ${totalCount})` : ""}</div>
+<div class="labels-grid">
+${rows
+  .map((m) => {
+    const student = m.student ? `${m.student.last_name} ${m.student.first_name}` : "";
+    const exam = m.exam?.subject ?? "";
+    const teacher = m.exam?.teacher_name ?? "";
+    const makeupDate = m.auto_registered && m.completed_at ? formatMakeupDate(m.completed_at) : "";
+    const startGrade =
+      m.auto_registered && m.starting_grade != null ? String(m.starting_grade) : "";
+    const paid = m.auto_registered ? (m.is_paid ? "כן" : "לא") : "";
+    const note = (m.notes ?? "").trim();
+    return `<div class="label-item">
+  <div class="label-title">${student || "תלמידה"}</div>
+  <div class="label-line">מבחן: ${exam}</div>
+  <div class="label-line">תאריך השלמה: ${makeupDate}</div>
+  <div class="label-line">מורה: ${teacher}</div>
+  <div class="label-line">ציון התחלה: ${startGrade}</div>
+  <div class="label-line">בתשלום: ${paid}</div>
+  <div class="label-line">הערה: ${note}</div>
+</div>`;
+  })
+  .join("")}
+</div>`;
+    openPrintWindow("מדבקות השלמות", labelsHtml);
+  }
+
   return (
     <div className="space-y-8">
       <ListPageHeader
@@ -314,10 +450,10 @@ export function MakeupsClient() {
         subtitle="מבחנים חסרים — סימון השלמה מעדכן גם את סטטוס המבחן"
         actions={
           <ExportExcelButton
-            label="ייצוא לאקסל (כל ההשלמות)"
+            label="ייצוא לאקסל (לפי סינון)"
             filename="השלמות"
             sheetName="השלמות"
-            exportUrl={withYearQuery("/api/export/makeups", yearId)}
+            getRows={async () => exportMakeupsRows()}
           />
         }
       />
@@ -406,18 +542,36 @@ export function MakeupsClient() {
 
       <ListDataCard enterDelay={0.09}>
         <ListTableToolbar>
-          {isLoading ? (
-            <span className="inline-flex items-center gap-2">
-              <Spinner className="size-4" />
-              טוען…
-            </span>
-          ) : error ? (
-            <span className="text-red-600">{(error as Error).message}</span>
-          ) : (
-            <span>
-              {count} רשומות{isFiltering && count !== totalCount ? ` · מתוך ${totalCount}` : ""}
-            </span>
-          )}
+          <div className="flex flex-wrap items-center gap-3">
+            {isLoading ? (
+              <span className="inline-flex items-center gap-2">
+                <Spinner className="size-4" />
+                טוען…
+              </span>
+            ) : error ? (
+              <span className="text-red-600">{(error as Error).message}</span>
+            ) : (
+              <span>
+                {count} רשומות{isFiltering && count !== totalCount ? ` · מתוך ${totalCount}` : ""}
+              </span>
+            )}
+            <div className="ms-auto flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
+                onClick={handlePrintList}
+              >
+                הדפסת רשימה
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium hover:bg-slate-50"
+                onClick={handlePrintLabels}
+              >
+                הדפסת מדבקות
+              </button>
+            </div>
+          </div>
         </ListTableToolbar>
         <Table className="min-w-[1100px]">
           <TableHeader>
