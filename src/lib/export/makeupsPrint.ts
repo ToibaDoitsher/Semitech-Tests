@@ -164,9 +164,6 @@ export type MakeupListPrintRow = {
   examDate: string;
   makeupDate: string;
   teacher: string;
-  status: string;
-  registered: string;
-  grade: string;
   note: string;
 };
 
@@ -194,9 +191,6 @@ export function buildMakeupsListPrintHtml({
   <td>${row.examDate || "—"}</td>
   <td>${row.makeupDate || "—"}</td>
   <td>${row.teacher || "—"}</td>
-  <td>${row.status || "—"}</td>
-  <td>${row.registered || "—"}</td>
-  <td>${row.grade || "—"}</td>
   <td class="note-cell">${row.note || "—"}</td>
 </tr>`,
     )
@@ -218,9 +212,6 @@ export function buildMakeupsListPrintHtml({
       <th>תאריך מבחן</th>
       <th>תאריך השלמה</th>
       <th>שם המורה</th>
-      <th>סטטוס</th>
-      <th>נרשמה להשלמה</th>
-      <th>ציון</th>
       <th>הערה</th>
     </tr>
   </thead>

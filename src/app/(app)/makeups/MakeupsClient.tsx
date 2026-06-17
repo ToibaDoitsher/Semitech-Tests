@@ -367,10 +367,6 @@ export function MakeupsClient() {
   }
 
   function makeupListPrintFields(m: Row): MakeupListPrintRow {
-    const statusHe: Record<string, string> = {
-      open: "פתוח",
-      completed: "הושלם",
-    };
     return {
       student: m.student
         ? escapePrintText(`${m.student.last_name} ${m.student.first_name}`)
@@ -380,9 +376,6 @@ export function MakeupsClient() {
       makeupDate:
         m.auto_registered && m.completed_at ? escapePrintText(formatMakeupDate(m.completed_at)) : "",
       teacher: escapePrintText(m.exam?.teacher_name ?? ""),
-      status: escapePrintText(statusHe[m.status] ?? m.status),
-      registered: escapePrintText(m.auto_registered ? "כן" : "לא"),
-      grade: m.grade != null ? escapePrintText(String(m.grade)) : "",
       note: escapePrintText(displayNotes(m)),
     };
   }
