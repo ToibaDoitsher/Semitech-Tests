@@ -46,7 +46,7 @@ body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Se
 table { width: 100%; border-collapse: collapse; font-size: 10pt; }
 th, td { border: 1px solid #e5e7eb; padding: 3px 5px; vertical-align: top; text-align: right; }
 th { background: #f1f5f9; font-weight: 600; }
-td.note-cell { font-size: 9pt; max-width: 45mm; word-wrap: break-word; }
+td.note-cell { font-size: 9pt; max-width: 55mm; white-space: pre-wrap; word-wrap: break-word; }
 tr { break-inside: avoid; page-break-inside: avoid; }
 `;
 
@@ -158,6 +158,18 @@ function labelItemHtml(row: MakeupPrintRow): string {
 </div>`;
 }
 
+export type MakeupListPrintRow = {
+  student: string;
+  exam: string;
+  examDate: string;
+  makeupDate: string;
+  teacher: string;
+  status: string;
+  registered: string;
+  grade: string;
+  note: string;
+};
+
 export function buildMakeupsListPrintHtml({
   rows,
   totalCount,
@@ -165,7 +177,7 @@ export function buildMakeupsListPrintHtml({
   logoUrl,
   yearName,
 }: {
-  rows: MakeupPrintRow[];
+  rows: MakeupListPrintRow[];
   totalCount: number;
   isFiltering: boolean;
   logoUrl: string;
@@ -179,10 +191,12 @@ export function buildMakeupsListPrintHtml({
       (row) => `<tr>
   <td>${row.student || "—"}</td>
   <td>${row.exam || "—"}</td>
+  <td>${row.examDate || "—"}</td>
   <td>${row.makeupDate || "—"}</td>
   <td>${row.teacher || "—"}</td>
-  <td>${row.startGrade || "—"}</td>
-  <td>${row.paid || "—"}</td>
+  <td>${row.status || "—"}</td>
+  <td>${row.registered || "—"}</td>
+  <td>${row.grade || "—"}</td>
   <td class="note-cell">${row.note || "—"}</td>
 </tr>`,
     )
@@ -201,10 +215,12 @@ export function buildMakeupsListPrintHtml({
     <tr>
       <th>שם תלמידה</th>
       <th>שם המבחן</th>
+      <th>תאריך מבחן</th>
       <th>תאריך השלמה</th>
       <th>שם המורה</th>
-      <th>ציון התחלה</th>
-      <th>בתשלום</th>
+      <th>סטטוס</th>
+      <th>נרשמה להשלמה</th>
+      <th>ציון</th>
       <th>הערה</th>
     </tr>
   </thead>

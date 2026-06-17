@@ -22,9 +22,14 @@ import {
   buildMakeupsListPrintHtml,
   MAKEUPS_LABELS_PRINT_CSS,
   MAKEUPS_LIST_PRINT_CSS,
+  type MakeupListPrintRow,
   type MakeupPrintRow,
 } from "@/lib/export/makeupsPrint";
 import { escapePrintText, openPrintDocument } from "@/lib/export/printClient";
+import {
+  combinedMakeupDisplayNotes,
+  hasAnyMakeupDisplayNote,
+} from "@/lib/makeups/combinedNotes";
 import { formatHebrewDateFromYmd } from "@/lib/hebrewDate";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TableClearFooter } from "@/components/ui/TableClearFooter";
@@ -52,7 +57,8 @@ type Row = {
     tz: string;
     grade_level?: string | null;
   } | null;
-  exam: { subject: string; exam_date: string; teacher_name: string | null } | null;
+  exam: { subject: string; exam_date: string; teacher_name: string | null; notes?: string | null } | null;
+  exam_student_notes?: string | null;
 };
 
 function RegisteredForMakeupCell({
@@ -315,6 +321,14 @@ export function MakeupsClient() {
     await mutate();
   }
 
+  function displayNotes(m: Row): string {
+    return combinedMakeupDisplayNotes({
+      makeupNotes: m.notes,
+      examNotes: m.exam?.notes,
+      examStudentNotes: m.exam_student_notes,
+    });
+  }
+
   function exportMakeupsRows(): Record<string, string | number | boolean | null | undefined>[] {
     const statusHe: Record<string, string> = {
       open: "פתוח",
@@ -333,7 +347,7 @@ export function MakeupsClient() {
       תאריך_מבחן: m.exam?.exam_date ? formatHebrewDateFromYmd(m.exam.exam_date) : "",
       מורה: m.exam?.teacher_name ?? "",
       ציון: m.grade ?? "",
-      הערה: (m.notes ?? "").trim() || "",
+      הערה: displayNotes(m) || "",
     }));
   }
 
@@ -348,12 +362,33 @@ export function MakeupsClient() {
     const startGrade =
       m.auto_registered && m.starting_grade != null ? escapePrintText(String(m.starting_grade)) : "";
     const paid = m.auto_registered ? (m.is_paid ? "כן" : "לא") : "";
-    const note = escapePrintText((m.notes ?? "").trim());
+    const note = escapePrintText(displayNotes(m));
     return { student, exam, teacher, makeupDate, startGrade, paid, note };
   }
 
+  function makeupListPrintFields(m: Row): MakeupListPrintRow {
+    const statusHe: Record<string, string> = {
+      open: "פתוח",
+      completed: "הושלם",
+    };
+    return {
+      student: m.student
+        ? escapePrintText(`${m.student.last_name} ${m.student.first_name}`)
+        : "",
+      exam: escapePrintText(m.exam?.subject ?? ""),
+      examDate: m.exam?.exam_date ? escapePrintText(formatHebrewDateFromYmd(m.exam.exam_date)) : "",
+      makeupDate:
+        m.auto_registered && m.completed_at ? escapePrintText(formatMakeupDate(m.completed_at)) : "",
+      teacher: escapePrintText(m.exam?.teacher_name ?? ""),
+      status: escapePrintText(statusHe[m.status] ?? m.status),
+      registered: escapePrintText(m.auto_registered ? "כן" : "לא"),
+      grade: m.grade != null ? escapePrintText(String(m.grade)) : "",
+      note: escapePrintText(displayNotes(m)),
+    };
+  }
+
   function handlePrintList() {
-    const rows = filteredRows.map(makeupPrintFields);
+    const rows = filteredRows.map(makeupListPrintFields);
     if (!rows.length) {
       alert("אין נתונים להדפסה לפי הסינון הנוכחי");
       return;
@@ -534,7 +569,9 @@ export function MakeupsClient() {
           </TableHeader>
           <TableBody>
             {filteredRows.length ? (
-              filteredRows.map((m) => (
+              filteredRows.map((m) => {
+                const notesText = displayNotes(m);
+                return (
                 <TableRow key={m.id}>
                   <TableCell className="font-medium">
                     {m.student ? `${m.student.last_name} ${m.student.first_name}` : "—"}
@@ -576,12 +613,12 @@ export function MakeupsClient() {
                   </TableCell>
                   <TableCell className="tabular-nums">{m.grade ?? "—"}</TableCell>
                   <TableCell className="max-w-[220px]">
-                    {m.notes && m.notes.trim() ? (
+                    {notesText ? (
                       <span
-                        className="line-clamp-2 text-xs leading-snug text-amber-900 dark:text-amber-200"
-                        title={m.notes}
+                        className="line-clamp-3 whitespace-pre-line text-xs leading-snug text-amber-900 dark:text-amber-200"
+                        title={notesText}
                       >
-                        {m.notes}
+                        {notesText}
                       </span>
                     ) : (
                       <span className="text-xs text-zinc-400">—</span>
@@ -644,13 +681,18 @@ export function MakeupsClient() {
                         compact
                         label="הערה"
                         modalTitle={`הערה — ${m.student ? `${m.student.first_name} ${m.student.last_name}`.trim() : "השלמה"}`}
-                        hasNote={Boolean(m.notes && m.notes.trim().length)}
+                        hasNote={hasAnyMakeupDisplayNote({
+                          makeupNotes: m.notes,
+                          examNotes: m.exam?.notes,
+                          examStudentNotes: m.exam_student_notes,
+                        })}
                         onSaved={() => void mutate()}
                       />
                     </div>
                   </TableCell>
                 </TableRow>
-              ))
+                );
+              })
             ) : (
               <TableRow>
                 <TableCell colSpan={12} className="py-14 text-center text-zinc-500">

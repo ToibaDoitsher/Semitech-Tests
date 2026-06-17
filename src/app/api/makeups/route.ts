@@ -66,7 +66,10 @@ export async function GET(request: Request) {
     string,
     { first_name: string; last_name: string; tz: string; grade_level: string | null }
   > = {};
-  const examsBy: Record<string, { subject: string; exam_date: string; teacher_name: string | null }> = {};
+  const examsBy: Record<
+    string,
+    { subject: string; exam_date: string; teacher_name: string | null; notes: string | null }
+  > = {};
 
   if (studentIds.length) {
     const { data: studs } = await supabase
@@ -93,13 +96,20 @@ export async function GET(request: Request) {
   if (examIds.length) {
     const { data: exams } = await supabase
       .from("exams")
-      .select(`id, subject, exam_date, ${TEACHER_EMBED_IN_EXAM}`)
+      .select(`id, subject, exam_date, notes, ${TEACHER_EMBED_IN_EXAM}`)
       .in("id", examIds);
     for (const e of exams ?? []) {
-      const raw = e as { id: string; subject: string; exam_date: string; teachers: unknown };
+      const raw = e as {
+        id: string;
+        subject: string;
+        exam_date: string;
+        notes: string | null;
+        teachers: unknown;
+      };
       examsBy[raw.id] = {
         subject: raw.subject,
         exam_date: raw.exam_date,
+        notes: raw.notes ?? null,
         teacher_name:
           teacherEmbedDisplayName(
             raw.teachers as Parameters<typeof teacherEmbedDisplayName>[0],
@@ -108,15 +118,34 @@ export async function GET(request: Request) {
     }
   }
 
+  const examStudentNotesByKey: Record<string, string | null> = {};
+  if (examIds.length && studentIds.length) {
+    const withNotes = await supabase
+      .from("exam_students")
+      .select("exam_id, student_id, notes")
+      .in("exam_id", examIds)
+      .in("student_id", studentIds);
+    if (!withNotes.error) {
+      for (const es of withNotes.data ?? []) {
+        const row = es as { exam_id: string; student_id: string; notes: string | null };
+        examStudentNotesByKey[`${row.exam_id}:${row.student_id}`] = row.notes ?? null;
+      }
+    } else if (!/notes|schema cache|column/i.test(withNotes.error.message)) {
+      return NextResponse.json({ error: withNotes.error.message }, { status: 500 });
+    }
+  }
+
   const makeups = (rows ?? []).map((r) => {
     const row = r as Record<string, unknown> & { student_id: string; exam_id: string };
     const rawGrade = row.starting_grade;
+    const pairKey = `${row.exam_id}:${row.student_id}`;
     return {
       ...row,
       auto_registered: Boolean(row.auto_registered),
       starting_grade:
         rawGrade === null || rawGrade === undefined ? null : Number(rawGrade),
       is_paid: Boolean(row.is_paid),
+      exam_student_notes: examStudentNotesByKey[pairKey] ?? null,
       student: studentsBy[row.student_id] ?? null,
       exam: examsBy[row.exam_id] ?? null,
     };
