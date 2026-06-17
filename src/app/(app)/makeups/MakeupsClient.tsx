@@ -17,6 +17,7 @@ import { NotesButton } from "@/components/ui/NotesButton";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 import { HebrewDatePicker } from "@/components/ui/HebrewDatePicker";
+import { escapePrintText, openPrintDocument } from "@/lib/export/printClient";
 import { formatHebrewDateFromYmd } from "@/lib/hebrewDate";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TableClearFooter } from "@/components/ui/TableClearFooter";
@@ -329,37 +330,19 @@ export function MakeupsClient() {
     }));
   }
 
-  function openPrintWindow(title: string, bodyHtml: string, extraHead: string = "") {
-    const win = window.open("", "_blank", "noopener,noreferrer");
-    if (!win) return;
-    win.document.write(`<!doctype html>
-<html lang="he" dir="rtl">
-<head>
-<meta charSet="utf-8" />
-<title>${title}</title>
-<style>
-@page { size: A4; margin: 10mm; }
-body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #111827; }
-table { width: 100%; border-collapse: collapse; font-size: 11pt; }
-th, td { border: 1px solid #e5e7eb; padding: 4px 6px; vertical-align: top; }
-th { background: #f1f5f9; }
-.small { font-size: 9pt; color: #6b7280; }
-.labels-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2mm; }
-.label-item { box-sizing: border-box; border: 1px dashed #e5e7eb; padding: 3mm 2mm; height: 24mm; overflow: hidden; font-size: 9pt; }
-.label-title { font-weight: 700; margin-bottom: 2px; }
-.label-line { line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.page-title { font-size: 16pt; font-weight: 700; margin-bottom: 4mm; }
-.summary { margin-bottom: 3mm; font-size: 10pt; color: #4b5563; }
-</style>
-${extraHead}
-</head>
-<body>
-${bodyHtml}
-</body>
-</html>`);
-    win.document.close();
-    win.focus();
-    win.print();
+  function makeupPrintFields(m: Row) {
+    const student = m.student
+      ? escapePrintText(`${m.student.last_name} ${m.student.first_name}`)
+      : "";
+    const exam = escapePrintText(m.exam?.subject ?? "");
+    const teacher = escapePrintText(m.exam?.teacher_name ?? "");
+    const makeupDate =
+      m.auto_registered && m.completed_at ? escapePrintText(formatMakeupDate(m.completed_at)) : "";
+    const startGrade =
+      m.auto_registered && m.starting_grade != null ? escapePrintText(String(m.starting_grade)) : "";
+    const paid = m.auto_registered ? (m.is_paid ? "כן" : "לא") : "";
+    const note = escapePrintText((m.notes ?? "").trim());
+    return { student, exam, teacher, makeupDate, startGrade, paid, note };
   }
 
   function handlePrintList() {
@@ -385,14 +368,7 @@ ${bodyHtml}
   <tbody>
     ${rows
       .map((m) => {
-        const student = m.student ? `${m.student.last_name} ${m.student.first_name}` : "";
-        const exam = m.exam?.subject ?? "";
-        const teacher = m.exam?.teacher_name ?? "";
-        const makeupDate = m.auto_registered && m.completed_at ? formatMakeupDate(m.completed_at) : "";
-        const startGrade =
-          m.auto_registered && m.starting_grade != null ? String(m.starting_grade) : "";
-        const paid = m.auto_registered ? (m.is_paid ? "כן" : "לא") : "";
-        const note = (m.notes ?? "").trim();
+        const { student, exam, teacher, makeupDate, startGrade, paid, note } = makeupPrintFields(m);
         return `<tr>
   <td>${student}</td>
   <td>${exam}</td>
@@ -406,7 +382,7 @@ ${bodyHtml}
       .join("")}
   </tbody>
 </table>`;
-    openPrintWindow("רשימת השלמות", `${header}${table}`);
+    openPrintDocument({ title: "רשימת השלמות", bodyHtml: `${header}${table}` });
   }
 
   function handlePrintLabels() {
@@ -420,14 +396,7 @@ ${bodyHtml}
 <div class="labels-grid">
 ${rows
   .map((m) => {
-    const student = m.student ? `${m.student.last_name} ${m.student.first_name}` : "";
-    const exam = m.exam?.subject ?? "";
-    const teacher = m.exam?.teacher_name ?? "";
-    const makeupDate = m.auto_registered && m.completed_at ? formatMakeupDate(m.completed_at) : "";
-    const startGrade =
-      m.auto_registered && m.starting_grade != null ? String(m.starting_grade) : "";
-    const paid = m.auto_registered ? (m.is_paid ? "כן" : "לא") : "";
-    const note = (m.notes ?? "").trim();
+    const { student, exam, teacher, makeupDate, startGrade, paid, note } = makeupPrintFields(m);
     return `<div class="label-item">
   <div class="label-title">${student || "תלמידה"}</div>
   <div class="label-line">מבחן: ${exam}</div>
@@ -440,7 +409,7 @@ ${rows
   })
   .join("")}
 </div>`;
-    openPrintWindow("מדבקות השלמות", labelsHtml);
+    openPrintDocument({ title: "מדבקות השלמות", bodyHtml: labelsHtml });
   }
 
   return (
