@@ -13,4 +13,5 @@ export async function downloadExcelFromRows(
   XLSX.utils.book_append_sheet(wb, ws, safeSheet);
   const name = filename.endsWith(".xlsx") ? filename : `${filename}.xlsx`;
   XLSX.writeFile(wb, name);
+  
 }
