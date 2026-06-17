@@ -17,6 +17,13 @@ import { NotesButton } from "@/components/ui/NotesButton";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 import { HebrewDatePicker } from "@/components/ui/HebrewDatePicker";
+import {
+  buildMakeupsLabelsPrintHtml,
+  buildMakeupsListPrintHtml,
+  MAKEUPS_LABELS_PRINT_CSS,
+  MAKEUPS_LIST_PRINT_CSS,
+  type MakeupPrintRow,
+} from "@/lib/export/makeupsPrint";
 import { escapePrintText, openPrintDocument } from "@/lib/export/printClient";
 import { formatHebrewDateFromYmd } from "@/lib/hebrewDate";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -330,7 +337,7 @@ export function MakeupsClient() {
     }));
   }
 
-  function makeupPrintFields(m: Row) {
+  function makeupPrintFields(m: Row): MakeupPrintRow {
     const student = m.student
       ? escapePrintText(`${m.student.last_name} ${m.student.first_name}`)
       : "";
@@ -346,70 +353,36 @@ export function MakeupsClient() {
   }
 
   function handlePrintList() {
-    const rows = filteredRows;
+    const rows = filteredRows.map(makeupPrintFields);
     if (!rows.length) {
       alert("אין נתונים להדפסה לפי הסינון הנוכחי");
       return;
     }
-    const header = `<div class="page-title">רשימת השלמות</div>
-<div class="summary">סה\"כ ${rows.length} רשומות${isFiltering ? ` (מסונן מתוך ${totalCount})` : ""}</div>`;
-    const table = `<table>
-  <thead>
-    <tr>
-      <th>שם תלמידה</th>
-      <th>שם המבחן</th>
-      <th>תאריך השלמה</th>
-      <th>שם המורה</th>
-      <th>ציון התחלה</th>
-      <th>בתשלום</th>
-      <th>הערה</th>
-    </tr>
-  </thead>
-  <tbody>
-    ${rows
-      .map((m) => {
-        const { student, exam, teacher, makeupDate, startGrade, paid, note } = makeupPrintFields(m);
-        return `<tr>
-  <td>${student}</td>
-  <td>${exam}</td>
-  <td>${makeupDate}</td>
-  <td>${teacher}</td>
-  <td>${startGrade}</td>
-  <td>${paid}</td>
-  <td>${note}</td>
-</tr>`;
-      })
-      .join("")}
-  </tbody>
-</table>`;
-    openPrintDocument({ title: "רשימת השלמות", bodyHtml: `${header}${table}` });
+    const logoUrl = `${window.location.origin}/logo.png`;
+    openPrintDocument({
+      title: "רשימת השלמות",
+      styles: MAKEUPS_LIST_PRINT_CSS,
+      bodyHtml: buildMakeupsListPrintHtml({
+        rows,
+        totalCount,
+        isFiltering,
+        logoUrl,
+        yearName: viewingYear?.year_name,
+      }),
+    });
   }
 
   function handlePrintLabels() {
-    const rows = filteredRows;
+    const rows = filteredRows.map(makeupPrintFields);
     if (!rows.length) {
       alert("אין נתונים להדפסה לפי הסינון הנוכחי");
       return;
     }
-    const labelsHtml = `<div class="page-title">מדבקות השלמות</div>
-<div class="summary">סה\"כ ${rows.length} מדבקות${isFiltering ? ` (מסונן מתוך ${totalCount})` : ""}</div>
-<div class="labels-grid">
-${rows
-  .map((m) => {
-    const { student, exam, teacher, makeupDate, startGrade, paid, note } = makeupPrintFields(m);
-    return `<div class="label-item">
-  <div class="label-title">${student || "תלמידה"}</div>
-  <div class="label-line">מבחן: ${exam}</div>
-  <div class="label-line">תאריך השלמה: ${makeupDate}</div>
-  <div class="label-line">מורה: ${teacher}</div>
-  <div class="label-line">ציון התחלה: ${startGrade}</div>
-  <div class="label-line">בתשלום: ${paid}</div>
-  <div class="label-line">הערה: ${note}</div>
-</div>`;
-  })
-  .join("")}
-</div>`;
-    openPrintDocument({ title: "מדבקות השלמות", bodyHtml: labelsHtml });
+    openPrintDocument({
+      title: "מדבקות השלמות",
+      styles: MAKEUPS_LABELS_PRINT_CSS,
+      bodyHtml: buildMakeupsLabelsPrintHtml({ rows }),
+    });
   }
 
   return (

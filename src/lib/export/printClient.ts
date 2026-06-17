@@ -20,10 +20,6 @@ body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sa
 table { width: 100%; border-collapse: collapse; font-size: 11pt; }
 th, td { border: 1px solid #e5e7eb; padding: 4px 6px; vertical-align: top; }
 th { background: #f1f5f9; }
-.labels-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2mm; }
-.label-item { box-sizing: border-box; border: 1px dashed #e5e7eb; padding: 3mm 2mm; height: 24mm; overflow: hidden; font-size: 9pt; }
-.label-title { font-weight: 700; margin-bottom: 2px; }
-.label-line { line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .page-title { font-size: 16pt; font-weight: 700; margin-bottom: 4mm; }
 .summary { margin-bottom: 3mm; font-size: 10pt; color: #4b5563; }
 `;
@@ -32,18 +28,20 @@ th { background: #f1f5f9; }
 export function openPrintDocument({
   title,
   bodyHtml,
-  extraHead = "",
+  styles,
 }: {
   title: string;
   bodyHtml: string;
-  extraHead?: string;
+  /** CSS מלא — אם לא מועבר, משתמשים ב-BASE_PRINT_STYLES */
+  styles?: string;
 }) {
+  const css = styles ?? BASE_PRINT_STYLES;
   const html = `<!doctype html>
 <html lang="he" dir="rtl">
 <head>
 <meta charset="utf-8" />
 <title>${escapeHtml(title)}</title>
-<style>${BASE_PRINT_STYLES}${extraHead}</style>
+<style>${css}</style>
 </head>
 <body>
 ${bodyHtml}
@@ -75,15 +73,38 @@ ${bodyHtml}
     window.setTimeout(() => iframe.remove(), 1000);
   };
 
+  const waitForImages = () =>
+    new Promise<void>((resolve) => {
+      const imgs = win.document.querySelectorAll("img");
+      if (!imgs.length) {
+        resolve();
+        return;
+      }
+      let pending = imgs.length;
+      const done = () => {
+        pending -= 1;
+        if (pending <= 0) resolve();
+      };
+      imgs.forEach((img) => {
+        if (img.complete) done();
+        else {
+          img.addEventListener("load", done, { once: true });
+          img.addEventListener("error", done, { once: true });
+        }
+      });
+    });
+
   const triggerPrint = () => {
-    try {
-      win.focus();
-      win.print();
-    } catch {
-      alert("הדפסה נכשלה. נסי שוב.");
-    } finally {
-      cleanup();
-    }
+    void waitForImages().then(() => {
+      try {
+        win.focus();
+        win.print();
+      } catch {
+        alert("הדפסה נכשלה. נסי שוב.");
+      } finally {
+        cleanup();
+      }
+    });
   };
 
   win.document.open();
