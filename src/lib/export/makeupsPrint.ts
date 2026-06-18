@@ -47,6 +47,7 @@ table { width: 100%; border-collapse: collapse; font-size: 10pt; }
 th, td { border: 1px solid #e5e7eb; padding: 3px 5px; vertical-align: top; text-align: right; }
 th { background: #f1f5f9; font-weight: 600; }
 td.note-cell { font-size: 9pt; max-width: 55mm; white-space: pre-wrap; word-wrap: break-word; }
+td.manual-cell, th.manual-col { width: 14mm; min-width: 14mm; height: 7mm; min-height: 7mm; }
 tr { break-inside: avoid; page-break-inside: avoid; }
 `;
 
@@ -186,6 +187,8 @@ export function buildMakeupsListPrintHtml({
   const tableRows = rows
     .map(
       (row) => `<tr>
+  <td class="manual-cell"></td>
+  <td class="manual-cell"></td>
   <td>${row.student || "—"}</td>
   <td>${row.exam || "—"}</td>
   <td>${row.examDate || "—"}</td>
@@ -207,6 +210,8 @@ export function buildMakeupsListPrintHtml({
 <table>
   <thead>
     <tr>
+      <th class="manual-col">נוכחות</th>
+      <th class="manual-col">הגשת מבחן</th>
       <th>שם תלמידה</th>
       <th>שם המבחן</th>
       <th>תאריך מבחן</th>

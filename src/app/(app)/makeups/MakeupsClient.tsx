@@ -30,7 +30,7 @@ import {
   combinedMakeupDisplayNotes,
   hasAnyMakeupDisplayNote,
 } from "@/lib/makeups/combinedNotes";
-import { formatHebrewDateFromYmd } from "@/lib/hebrewDate";
+import { formatHebrewDateFromYmd, hebrewPartsToGregorianYmd, todayHebrewParts } from "@/lib/hebrewDate";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TableClearFooter } from "@/components/ui/TableClearFooter";
 
@@ -119,6 +119,11 @@ function makeupDateYmd(iso: string | null): string | null {
   return /^\d{4}-\d{2}-\d{2}$/.test(ymd) ? ymd : null;
 }
 
+/** תאריך היום (גרגוריאני) — ברירת מחדל לסינון תאריך השלמה */
+function todayGregorianYmd(): string {
+  return hebrewPartsToGregorianYmd(todayHebrewParts()) ?? new Date().toISOString().slice(0, 10);
+}
+
 export function MakeupsClient() {
   const { viewingYear, readOnly } = useAcademicYear();
   const yearId = viewingYear?.id;
@@ -140,8 +145,8 @@ export function MakeupsClient() {
   const [gradeFilter, setGradeFilter] = useState("");
   const [autoRegisteredFilter, setAutoRegisteredFilter] = useState("");
   const [paidFilter, setPaidFilter] = useState("");
-  const [makeupDateFrom, setMakeupDateFrom] = useState("");
-  const [makeupDateTo, setMakeupDateTo] = useState("");
+  const [makeupDateFrom, setMakeupDateFrom] = useState(() => todayGregorianYmd());
+  const [makeupDateTo, setMakeupDateTo] = useState(() => todayGregorianYmd());
   const [autoRegisteredBusyId, setAutoRegisteredBusyId] = useState<string | null>(null);
   const deferredSearch = useDeferredValue(searchTerm);
 
@@ -480,13 +485,14 @@ export function MakeupsClient() {
           ]}
           isAnyActive={isFiltering}
           onClearAll={() => {
+            const today = todayGregorianYmd();
             setSearchTerm("");
             setStatusFilter("open");
             setGradeFilter("");
             setAutoRegisteredFilter("");
             setPaidFilter("");
-            setMakeupDateFrom("");
-            setMakeupDateTo("");
+            setMakeupDateFrom(today);
+            setMakeupDateTo(today);
           }}
         />
         <div className="border-t border-slate-200/70 px-4 py-3 dark:border-zinc-700/70 sm:px-5">
