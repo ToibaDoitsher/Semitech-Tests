@@ -62,58 +62,69 @@ ${bodyHtml}
   });
 
   document.body.appendChild(iframe);
-  const win = iframe.contentWindow;
-  if (!win) {
-    iframe.remove();
-    alert("לא ניתן לפתוח חלון הדפסה. נסי שוב.");
-    return;
-  }
 
   const cleanup = () => {
     window.setTimeout(() => iframe.remove(), 1000);
   };
 
-  const waitForImages = () =>
-    new Promise<void>((resolve) => {
-      const imgs = win.document.querySelectorAll("img");
-      if (!imgs.length) {
-        resolve();
-        return;
-      }
-      let pending = imgs.length;
-      const done = () => {
-        pending -= 1;
-        if (pending <= 0) resolve();
-      };
-      imgs.forEach((img) => {
-        if (img.complete) done();
-        else {
-          img.addEventListener("load", done, { once: true });
-          img.addEventListener("error", done, { once: true });
+  const writeAndPrint = () => {
+    const win = iframe.contentWindow;
+    if (!win) {
+      iframe.remove();
+      alert("לא ניתן לפתוח חלון הדפסה. נסי שוב.");
+      return;
+    }
+
+    const waitForImages = () =>
+      new Promise<void>((resolve) => {
+        const imgs = win.document.querySelectorAll("img");
+        if (!imgs.length) {
+          resolve();
+          return;
+        }
+        let pending = imgs.length;
+        const done = () => {
+          pending -= 1;
+          if (pending <= 0) resolve();
+        };
+        imgs.forEach((img) => {
+          if (img.complete) done();
+          else {
+            img.addEventListener("load", done, { once: true });
+            img.addEventListener("error", done, { once: true });
+          }
+        });
+      });
+
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+
+    const triggerPrint = () => {
+      void waitForImages().then(() => {
+        try {
+          win.focus();
+          win.print();
+        } catch {
+          alert("הדפסה נכשלה. נסי שוב.");
+        } finally {
+          cleanup();
         }
       });
-    });
+    };
 
-  const triggerPrint = () => {
-    void waitForImages().then(() => {
-      try {
-        win.focus();
-        win.print();
-      } catch {
-        alert("הדפסה נכשלה. נסי שוב.");
-      } finally {
-        cleanup();
-      }
-    });
+    if (win.document.readyState === "complete") {
+      window.setTimeout(triggerPrint, 150);
+    } else {
+      win.addEventListener("load", () => window.setTimeout(triggerPrint, 150), { once: true });
+    }
   };
 
-  win.document.open();
-  win.document.write(html);
-  win.document.close();
-
-  if (win.document.readyState === "complete") {
-    window.setTimeout(triggerPrint, 150);
+  // about:blank — כדי שלא תודפס כתובת האתר (localhost וכו') בתחתית הדף
+  iframe.src = "about:blank";
+  if (iframe.contentDocument?.readyState === "complete") {
+    writeAndPrint();
   } else {
-    iframe.onload = () => window.setTimeout(triggerPrint, 150);
+    iframe.addEventListener("load", writeAndPrint, { once: true });
   }
 }
