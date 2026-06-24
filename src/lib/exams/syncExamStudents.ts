@@ -11,6 +11,7 @@ import {
 } from "@/lib/exams/studentMatch";
 import { teacherEmbedDisplayName } from "@/lib/teachers/display";
 import { teachingModeForExamStudentFilter } from "@/lib/teachers/teachingMode";
+import { loadPsychologyEligibilityContext } from "@/lib/students/psychologyEligibility";
 import type { AssignmentCategory, TeachingTrackType } from "@/lib/types/db";
 
 type ExamMatchRow = ExamTargetForMatch & {
@@ -248,13 +249,14 @@ export async function propagateStudentChangeToFutureExams(
   }
 
   const teachingTrackIds = await fetchTeachingTrackIds(supabase);
+  const psychCtx = await loadPsychologyEligibilityContext(supabase);
 
   const toAdd: ExamMatchRow[] = [];
   const toRemoveLines: { lineId: string; examId: string }[] = [];
   const affected: string[] = [];
 
   for (const exam of futureExams) {
-    const shouldBeIn = studentMatchesExamTarget(student, exam, teachingTrackIds);
+    const shouldBeIn = studentMatchesExamTarget(student, exam, teachingTrackIds, psychCtx);
     const currentLine = existingByExam.get(exam.id);
     const isIn = Boolean(currentLine);
 

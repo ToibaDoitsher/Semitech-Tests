@@ -126,4 +126,7 @@ export type ExamTracking = {
   transferred_to_system: boolean;
   photocopied: boolean;
   notes: string | null;
+  student_submission_date?: string | null;
+  reminder_1_hindi?: string | null;
+  reminder_2_biller?: string | null;
 };

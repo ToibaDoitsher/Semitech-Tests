@@ -8,6 +8,8 @@ type Props = {
   onChange: (iso: string | null) => void;
   disabled?: boolean;
   label?: string;
+  /** כשמופעל — אין כפתור «נקה תאריך» (לשדות חובה) */
+  required?: boolean;
 };
 
 function isoToParts(iso: string | null): { ymd: string; time: string } {
@@ -34,6 +36,7 @@ export function HebrewDateTimePicker({
   onChange,
   disabled,
   label = "תאריך ושעה (עברי)",
+  required = false,
 }: Props) {
   const [ymd, setYmd] = useState(() => isoToParts(value).ymd);
   const [time, setTime] = useState(() => isoToParts(value).time);
@@ -50,6 +53,9 @@ export function HebrewDateTimePicker({
         label={label}
         value={ymd}
         disabled={disabled}
+        required={required}
+        allowEmpty={required && !ymd}
+        emptyHint="בחרי תאריך הגשה"
         onChange={(nextYmd) => emit(nextYmd, time)}
       />
       <label className="block text-xs text-zinc-600">
@@ -63,7 +69,7 @@ export function HebrewDateTimePicker({
           dir="ltr"
         />
       </label>
-      {ymd ? (
+      {ymd && !required ? (
         <button
           type="button"
           disabled={disabled}

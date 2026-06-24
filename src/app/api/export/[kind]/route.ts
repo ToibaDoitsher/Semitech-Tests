@@ -378,32 +378,46 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
     }
 
     if (kind === "tracking") {
-      let data: Awaited<ReturnType<typeof paginateSelect>>;
-      try {
-        data = await paginateSelect((from, to) =>
-          supabase
-            .from("exam_tracking")
-            .select(
-              "id, submitted_exam, student_submission_date, approved_by_coordinator, sent_for_review, grades_submitted, grades_approved, transferred_to_system, exam_id",
-            )
-            .order("id", { ascending: false })
-            .range(from, to),
-        );
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (/student_submission_date/i.test(msg)) {
+      const SELECT_TRACKING_FULL =
+        "id, submitted_exam, student_submission_date, reminder_1_hindi, reminder_2_biller, approved_by_coordinator, sent_for_review, grades_submitted, grades_approved, transferred_to_system, exam_id";
+      const SELECT_TRACKING_NO_REMINDERS =
+        "id, submitted_exam, student_submission_date, approved_by_coordinator, sent_for_review, grades_submitted, grades_approved, transferred_to_system, exam_id";
+      const SELECT_TRACKING_LEGACY =
+        "id, submitted_exam, approved_by_coordinator, sent_for_review, grades_submitted, grades_approved, transferred_to_system, exam_id";
+
+      let data: Awaited<ReturnType<typeof paginateSelect>> | null = null;
+      let hasStudentSubmission = true;
+      let hasReminders = true;
+
+      for (const [fields, withStudent, withReminders] of [
+        [SELECT_TRACKING_FULL, true, true],
+        [SELECT_TRACKING_NO_REMINDERS, true, false],
+        [SELECT_TRACKING_LEGACY, false, false],
+      ] as const) {
+        try {
           data = await paginateSelect((from, to) =>
             supabase
               .from("exam_tracking")
-              .select(
-                "id, submitted_exam, approved_by_coordinator, sent_for_review, grades_submitted, grades_approved, transferred_to_system, exam_id",
-              )
+              .select(fields)
               .order("id", { ascending: false })
               .range(from, to),
           );
-        } else {
+          hasStudentSubmission = withStudent;
+          hasReminders = withReminders;
+          break;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (
+            /reminder_1_hindi|reminder_2_biller|student_submission_date/i.test(msg)
+          ) {
+            continue;
+          }
           throw err;
         }
+      }
+
+      if (!data) {
+        return NextResponse.json({ rows: [] });
       }
       const examIds = [...new Set(data.map((r) => (r as { exam_id: string }).exam_id))];
       const examsBy: Record<string, { subject: string; exam_date: string; teachers: unknown }> = {};
@@ -421,6 +435,8 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
         const row = r as {
           submitted_exam: string | null;
           student_submission_date?: string | null;
+          reminder_1_hindi?: string | null;
+          reminder_2_biller?: string | null;
           approved_by_coordinator: boolean;
           sent_for_review: boolean;
           grades_submitted: boolean;
@@ -430,10 +446,19 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
         };
         const ex = examsBy[row.exam_id];
         const examDate = ex?.exam_date ?? "";
-        const submissionDate = row.student_submission_date
-          ? row.student_submission_date.slice(0, 10)
-          : "";
+        const submissionDate =
+          hasStudentSubmission && row.student_submission_date
+            ? row.student_submission_date.slice(0, 10)
+            : "";
         const gradesBase = submissionDate || examDate;
+        const reminder1 =
+          hasReminders && row.reminder_1_hindi
+            ? hebrewYmd(row.reminder_1_hindi.slice(0, 10))
+            : "";
+        const reminder2 =
+          hasReminders && row.reminder_2_biller
+            ? hebrewYmd(row.reminder_2_biller.slice(0, 10))
+            : "";
         return {
           מקצוע: ex?.subject ?? "",
           הגשת_המבחן: examTrackingDueDate(examDate, -7),
@@ -445,6 +470,8 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
           הוגש_מבחן: row.submitted_exam ? formatTrackingDateTime(row.submitted_exam) : "",
           אושר_על_ידי_רכזת: row.approved_by_coordinator ? "כן" : "לא",
           נשלח_לבדיקה: row.sent_for_review ? "כן" : "לא",
+          תזכורת_1_הינדי: reminder1,
+          תזכורת_2_בילר: reminder2,
           ציונים_הוגשו: row.grades_submitted ? "כן" : "לא",
           ציונים_אושרו: row.grades_approved ? "כן" : "לא",
           הועבר_למערכת: row.transferred_to_system ? "כן" : "לא",

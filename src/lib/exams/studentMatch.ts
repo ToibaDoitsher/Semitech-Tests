@@ -1,6 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isTeachingTrackName } from "@/lib/students/fields";
 import {
+  type PsychologyEligibilityContext,
+  studentQualifiesForPsychologyExam,
+  studentQualifiesForPsychologyExamLegacy,
+} from "@/lib/students/psychologyEligibility";
+import {
   studentTeachingTypeMatches,
   teachingModeForExamStudentFilter,
 } from "@/lib/teachers/teachingMode";
@@ -79,6 +84,14 @@ function passesTeachingTypeFilter(
   return true;
 }
 
+function passesPsychologyRequirement(
+  student: StudentForMatch,
+  psychCtx?: PsychologyEligibilityContext,
+): boolean {
+  if (psychCtx) return studentQualifiesForPsychologyExam(student, psychCtx);
+  return studentQualifiesForPsychologyExamLegacy(student);
+}
+
 /**
  * בודק האם תלמידה מתאימה ליעד של מבחן.
  * - שכבה: חובה להיות בתוך grade_levels
@@ -87,13 +100,14 @@ function passesTeachingTypeFilter(
  *   חייבת להיות עליו, להתאים לסוג ההוראה, ואם נבחרה גם כיתה — להיות בכיתה.
  * - חובה (במקרים אחרים): איחוד (OR) על כיתות/מסלולים; פסיכולוגיה משמשת כסינון:
  *   • אם נבחרה רק פסיכולוגיה (בלי כיתה/מסלול) — רק תלמידות פסיכולוגיה
- *   • אם נבחרו גם כיתה/מסלול וגם פסיכולוגיה — רק תלמידות פסיכולוגיה
- *     מתוך אלו שמתאימות לכיתה/מסלול שנבחרו (AND)
+ *   • אם נבחרו גם כיתה/מסלול וגם פסיכולוגיה — תלמידות במסלול «הוראה»
+ *     או «הוראת מדעי המחשב», או שסומנה «פסיכולוגיה», מתוך מי שהתאים ליעד (AND)
  */
 export function studentMatchesExamTarget(
   student: StudentForMatch,
   exam: ExamTargetForMatch,
   teachingTrackIds: Set<string>,
+  psychCtx?: PsychologyEligibilityContext,
 ): boolean {
   if (!exam.grade_levels.includes(student.grade_level)) return false;
 
@@ -124,7 +138,7 @@ export function studentMatchesExamTarget(
       if (exam.class_ids.length > 0) {
         if (!student.class_id || !exam.class_ids.includes(student.class_id)) return false;
       }
-      if (exam.psychology_enabled && !student.is_psychology) return false;
+      if (exam.psychology_enabled && !passesPsychologyRequirement(student, psychCtx)) return false;
       return true;
     }
   }
@@ -132,7 +146,7 @@ export function studentMatchesExamTarget(
   const hasClassOrTrack = exam.class_ids.length > 0 || exam.track_ids.length > 0;
 
   if (exam.psychology_enabled && !hasClassOrTrack) {
-    return student.is_psychology;
+    return passesPsychologyRequirement(student, psychCtx);
   }
 
   let matches = false;
@@ -154,7 +168,7 @@ export function studentMatchesExamTarget(
 
   if (!matches) return false;
 
-  if (exam.psychology_enabled && !student.is_psychology) return false;
+  if (exam.psychology_enabled && !passesPsychologyRequirement(student, psychCtx)) return false;
 
   return passesTeachingTypeFilter(student, exam, teachingTrackIds);
 }

@@ -4,6 +4,11 @@ import { formatGradeLabel } from "@/lib/academicYears/labels";
 import { GRADE_LEVELS, type GradeLevel } from "@/lib/academicYears/types";
 import { notDeleted } from "@/lib/db/softDelete";
 import { isTeachingTrackName } from "@/lib/students/fields";
+import {
+  loadPsychologyEligibilityContext,
+  type PsychologyEligibilityContext,
+  studentQualifiesForPsychologyExam,
+} from "@/lib/students/psychologyEligibility";
 import { studentTeachingTypeMatches } from "@/lib/teachers/teachingMode";
 import type { AssignmentCategory, TeachingMode, TeachingTrackType } from "@/lib/types/db";
 
@@ -200,6 +205,31 @@ export type MultiTargetScope = {
   academic_year_id: string;
 };
 
+type StudentPsychRow = {
+  id: string;
+  is_psychology: boolean;
+  track_id: string | null;
+};
+
+async function filterStudentIdsByPsychologyEligibility(
+  supabase: SupabaseClient,
+  academicYearId: string,
+  ids: string[],
+  psychCtx: PsychologyEligibilityContext,
+): Promise<{ ids: string[]; error: string | null }> {
+  if (!ids.length) return { ids: [], error: null };
+  const { data, error } = await notDeleted(
+    supabase.from("students").select("id, is_psychology, track_id"),
+  )
+    .eq("academic_year_id", academicYearId)
+    .in("id", ids);
+  if (error) return { ids: [], error: error.message };
+  const qualified = (data ?? [])
+    .filter((row) => studentQualifiesForPsychologyExam(row as StudentPsychRow, psychCtx))
+    .map((row) => (row as { id: string }).id);
+  return { ids: qualified, error: null };
+}
+
 async function studentIdsForGradeAndSlice(
   supabase: SupabaseClient,
   academicYearId: string,
@@ -208,7 +238,11 @@ async function studentIdsForGradeAndSlice(
     AssignmentMultiTarget,
     "class_ids" | "track_ids" | "specialization_ids" | "psychology_enabled" | "applies_to_all_in_grade"
   >,
-  options?: { teachingMode?: TeachingMode | null; category?: AssignmentCategory },
+  options?: {
+    teachingMode?: TeachingMode | null;
+    category?: AssignmentCategory;
+    psychCtx?: PsychologyEligibilityContext;
+  },
 ): Promise<{ ids: string[]; error: string | null }> {
   const ids = new Set<string>();
 
@@ -245,26 +279,43 @@ async function studentIdsForGradeAndSlice(
       if (slice.class_ids.length) {
         q = q.in("class_id", slice.class_ids);
       }
-      if (slice.psychology_enabled) {
-        q = q.eq("is_psychology", true);
-      }
       const { data, error } = await q;
       if (error) return { ids: [], error: error.message };
-      for (const row of data ?? []) ids.add(row.id as string);
+      let resultIds = (data ?? []).map((row) => row.id as string);
+      if (slice.psychology_enabled && options?.psychCtx) {
+        const filtered = await filterStudentIdsByPsychologyEligibility(
+          supabase,
+          academicYearId,
+          resultIds,
+          options.psychCtx,
+        );
+        if (filtered.error) return filtered;
+        resultIds = filtered.ids;
+      }
+      for (const id of resultIds) ids.add(id);
       return { ids: [...ids], error: null };
     }
   }
 
   const hasClassOrTrack = slice.class_ids.length > 0 || slice.track_ids.length > 0;
 
-  // פסיכולוגיה לבד (בלי כיתה/מסלול) — מחזיר את כל תלמידות הפסיכולוגיה בשכבה
+  // פסיכולוגיה לבד (בלי כיתה/מסלול) — כל מי שזכאית לפסיכולוגיה בשכבה
   if (slice.psychology_enabled && !hasClassOrTrack && !slice.specialization_ids.length) {
-    const { data, error } = await notDeleted(supabase.from("students").select("id"))
+    const { data, error } = await notDeleted(
+      supabase.from("students").select("id, is_psychology, track_id"),
+    )
       .eq("academic_year_id", academicYearId)
-      .eq("grade_level", gradeLevel)
-      .eq("is_psychology", true);
+      .eq("grade_level", gradeLevel);
     if (error) return { ids: [], error: error.message };
-    for (const row of data ?? []) ids.add(row.id as string);
+    const psychCtx = options?.psychCtx;
+    for (const row of data ?? []) {
+      const student = row as StudentPsychRow;
+      if (psychCtx) {
+        if (studentQualifiesForPsychologyExam(student, psychCtx)) ids.add(student.id);
+      } else if (student.is_psychology) {
+        ids.add(student.id);
+      }
+    }
     return { ids: [...ids], error: null };
   }
 
@@ -311,12 +362,19 @@ async function studentIdsForGradeAndSlice(
     }
   }
 
-  // פסיכולוגיה כסינון: אם נבחרו גם כיתה/מסלול — מצמצמים את הקבוצה לרק
-  // תלמידות פסיכולוגיה מתוך מי שהתאימה לכיתה/מסלול שנבחרו.
+  // פסיכולוגיה כסינון: מצמצמים לתלמידות שזכאיות לפסיכולוגיה
   if (slice.psychology_enabled && ids.size) {
-    const { data, error } = await notDeleted(
-      supabase.from("students").select("id"),
-    )
+    if (options?.psychCtx) {
+      const filtered = await filterStudentIdsByPsychologyEligibility(
+        supabase,
+        academicYearId,
+        [...ids],
+        options.psychCtx,
+      );
+      if (filtered.error) return filtered;
+      return { ids: filtered.ids, error: null };
+    }
+    const { data, error } = await notDeleted(supabase.from("students").select("id"))
       .eq("academic_year_id", academicYearId)
       .eq("is_psychology", true)
       .in("id", [...ids]);
@@ -337,6 +395,10 @@ export async function fetchStudentIdsForMultiTarget(
   const err = validateMultiTarget(options?.category ?? "חובה", target);
   if (err && options?.category) return { ids: [], error: err };
 
+  const psychCtx = target.psychology_enabled
+    ? await loadPsychologyEligibilityContext(supabase)
+    : undefined;
+
   const allIds = new Set<string>();
   for (const gradeLevel of target.grade_levels) {
     const result = await studentIdsForGradeAndSlice(
@@ -344,7 +406,7 @@ export async function fetchStudentIdsForMultiTarget(
       scope.academic_year_id,
       gradeLevel,
       target,
-      options,
+      { ...options, psychCtx },
     );
     if (result.error) return result;
     result.ids.forEach((id) => allIds.add(id));

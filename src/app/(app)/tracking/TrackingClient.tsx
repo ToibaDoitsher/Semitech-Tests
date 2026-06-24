@@ -37,6 +37,8 @@ type Row = {
   exam_id: string;
   submitted_exam: string | null;
   student_submission_date: string | null;
+  reminder_1_hindi: string | null;
+  reminder_2_biller: string | null;
   approved_by_coordinator: boolean;
   sent_for_review: boolean;
   grades_submitted: boolean;
@@ -122,6 +124,13 @@ const DATE_COLUMN_OPTIONS: { value: DateColumnKey; label: string }[] = [
 
 function formatSubmittedDisplay(iso: string | null) {
   return formatTrackingDateTime(iso);
+}
+
+function formatOptionalDateYmd(value: string | null) {
+  if (!value) return "—";
+  const ymd = value.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return formatHebrewDateFromYmd(ymd);
+  return "—";
 }
 
 function SortButton({
@@ -251,6 +260,8 @@ export function TrackingClient() {
     payload: {
       submitted_exam: string | null;
       student_submission_date: string | null;
+      reminder_1_hindi: string | null;
+      reminder_2_biller: string | null;
       approved_by_coordinator: boolean;
       sent_for_review: boolean;
       grades_submitted: boolean;
@@ -268,6 +279,8 @@ export function TrackingClient() {
       alert((j as { error?: string }).error ?? "עדכון נכשל");
       return;
     }
+    const warning = (j as { warning?: string }).warning;
+    if (warning) alert(warning);
     setEditingId(null);
     await mutate();
   }
@@ -409,7 +422,7 @@ export function TrackingClient() {
               </span>
             )}
           </ListTableToolbar>
-          <Table className="min-w-[1320px]">
+          <Table className="min-w-[1560px]">
             <TableHeader>
               <TableRow>
                 <TableHead>
@@ -464,6 +477,8 @@ export function TrackingClient() {
                 </TableHead>
                 <TableHead className="whitespace-nowrap">אישור רכזת</TableHead>
                 <TableHead className="whitespace-nowrap">נשלח לבדיקה</TableHead>
+                <TableHead className="whitespace-nowrap">תזכורת 1 ע&quot;י הינדי</TableHead>
+                <TableHead className="whitespace-nowrap">תזכורת 2 ע&quot;י בילר</TableHead>
                 <TableHead className="whitespace-nowrap">ציונים הוגשו</TableHead>
                 <TableHead className="whitespace-nowrap">ציונים אושרו</TableHead>
                 <TableHead className="whitespace-nowrap">הועבר למערכת</TableHead>
@@ -518,6 +533,12 @@ export function TrackingClient() {
                     <TableCell>
                       <BoolCell value={row.sent_for_review} />
                     </TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums">
+                      {formatOptionalDateYmd(row.reminder_1_hindi)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums">
+                      {formatOptionalDateYmd(row.reminder_2_biller)}
+                    </TableCell>
                     <TableCell>
                       <BoolCell value={row.grades_submitted} />
                     </TableCell>
@@ -550,7 +571,7 @@ export function TrackingClient() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={14} className="py-14 text-center text-zinc-500">
+                  <TableCell colSpan={16} className="py-14 text-center text-zinc-500">
                     {isLoading ? "טוען…" : isFiltering ? "אין תוצאות תואמות לסינון" : "אין נתוני מעקב"}
                   </TableCell>
                 </TableRow>
@@ -582,6 +603,8 @@ function TrackingRowForm({
   onSave: (p: {
     submitted_exam: string | null;
     student_submission_date: string | null;
+    reminder_1_hindi: string | null;
+    reminder_2_biller: string | null;
     approved_by_coordinator: boolean;
     sent_for_review: boolean;
     grades_submitted: boolean;
@@ -589,9 +612,16 @@ function TrackingRowForm({
     transferred_to_system: boolean;
   }) => void;
 }) {
+  const [examSubmitted, setExamSubmitted] = useState(Boolean(row.submitted_exam));
   const [submittedIso, setSubmittedIso] = useState<string | null>(row.submitted_exam);
   const [studentSubmissionDate, setStudentSubmissionDate] = useState<string>(
     row.student_submission_date ? row.student_submission_date.slice(0, 10) : "",
+  );
+  const [reminder1Hindi, setReminder1Hindi] = useState<string>(
+    row.reminder_1_hindi ? row.reminder_1_hindi.slice(0, 10) : "",
+  );
+  const [reminder2Biller, setReminder2Biller] = useState<string>(
+    row.reminder_2_biller ? row.reminder_2_biller.slice(0, 10) : "",
   );
   const [approved, setApproved] = useState(row.approved_by_coordinator);
   const [sent, setSent] = useState(row.sent_for_review);
@@ -599,17 +629,52 @@ function TrackingRowForm({
   const [gradesOk, setGradesOk] = useState(row.grades_approved);
   const [transferred, setTransferred] = useState(row.transferred_to_system);
 
+  function handleSave() {
+    if (examSubmitted && !submittedIso) {
+      alert('סימון «הוגש מבחן» דורש למלא תאריך ושעה של הגשת המבחן.');
+      return;
+    }
+    onSave({
+      submitted_exam: examSubmitted ? submittedIso : null,
+      student_submission_date: studentSubmissionDate.trim() || null,
+      reminder_1_hindi: reminder1Hindi.trim() || null,
+      reminder_2_biller: reminder2Biller.trim() || null,
+      approved_by_coordinator: approved,
+      sent_for_review: sent,
+      grades_submitted: gradesIn,
+      grades_approved: gradesOk,
+      transferred_to_system: transferred,
+    });
+  }
+
   return (
     <div className="flex min-w-[300px] flex-col gap-2 rounded-lg border border-zinc-200 bg-zinc-50 p-2">
-      <HebrewDateTimePicker
-        label="הוגש מבחן"
-        value={submittedIso}
-        onChange={setSubmittedIso}
-      />
+      <label className="inline-flex items-center gap-2 text-[11px] font-medium">
+        <input
+          type="checkbox"
+          checked={examSubmitted}
+          onChange={(e) => {
+            const checked = e.target.checked;
+            setExamSubmitted(checked);
+            if (!checked) setSubmittedIso(null);
+          }}
+        />
+        הוגש מבחן
+      </label>
+      {examSubmitted ? (
+        <HebrewDateTimePicker
+          label="תאריך ושעת הגשת מבחן *"
+          value={submittedIso}
+          onChange={setSubmittedIso}
+          required
+        />
+      ) : null}
       <HebrewDatePicker
         label='תאריך הגשת מטלה ע"י תלמידות'
         value={studentSubmissionDate}
         onChange={setStudentSubmissionDate}
+        allowEmpty
+        emptyHint="לא נבחר — אופציונלי"
       />
       <label className="inline-flex items-center gap-2 text-[11px]">
         <input type="checkbox" checked={approved} onChange={(e) => setApproved(e.target.checked)} />
@@ -619,6 +684,20 @@ function TrackingRowForm({
         <input type="checkbox" checked={sent} onChange={(e) => setSent(e.target.checked)} />
         נשלח לבדיקה
       </label>
+      <HebrewDatePicker
+        label='תזכורת 1 ע"י הינדי'
+        value={reminder1Hindi}
+        onChange={setReminder1Hindi}
+        allowEmpty
+        emptyHint="לא נבחר — אופציונלי"
+      />
+      <HebrewDatePicker
+        label='תזכורת 2 ע"י בילר'
+        value={reminder2Biller}
+        onChange={setReminder2Biller}
+        allowEmpty
+        emptyHint="לא נבחר — אופציונלי"
+      />
       <label className="inline-flex items-center gap-2 text-[11px]">
         <input type="checkbox" checked={gradesIn} onChange={(e) => setGradesIn(e.target.checked)} />
         ציונים הוגשו
@@ -635,17 +714,7 @@ function TrackingRowForm({
         <button
           type="button"
           className="rounded-md border border-zinc-900 bg-zinc-900 px-2 py-1 text-[11px] text-white"
-          onClick={() => {
-            onSave({
-              submitted_exam: submittedIso,
-              student_submission_date: studentSubmissionDate.trim() || null,
-              approved_by_coordinator: approved,
-              sent_for_review: sent,
-              grades_submitted: gradesIn,
-              grades_approved: gradesOk,
-              transferred_to_system: transferred,
-            });
-          }}
+          onClick={handleSave}
         >
           שמירה
         </button>
