@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowDown, ArrowUp, ArrowUpDown, Pencil } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, BookOpen, Pencil } from "lucide-react";
 import { useDeferredValue, useMemo, useState } from "react";
 import useSWR from "swr";
 import {
@@ -126,6 +126,18 @@ function formatSubmittedDisplay(iso: string | null) {
   return formatTrackingDateTime(iso);
 }
 
+/** תאריך בלבד — לתצוגה קומפקטית בטבלה */
+function formatSubmittedCompact(iso: string | null) {
+  if (!iso?.trim()) return "—";
+  const ymd = iso.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return formatHebrewDateFromYmd(ymd);
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return formatHebrewDateFromYmd(
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
+  );
+}
+
 function formatOptionalDateYmd(value: string | null) {
   if (!value) return "—";
   const ymd = value.slice(0, 10);
@@ -135,11 +147,13 @@ function formatOptionalDateYmd(value: string | null) {
 
 function SortButton({
   label,
+  title,
   active,
   dir,
   onClick,
 }: {
   label: string;
+  title?: string;
   active: boolean;
   dir: "asc" | "desc";
   onClick: () => void;
@@ -148,12 +162,12 @@ function SortButton({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-1 rounded px-1 py-0.5 transition hover:bg-slate-200/60 ${
+      className={`inline-flex max-w-full items-center gap-0.5 rounded px-0.5 py-0.5 text-[11px] leading-tight transition hover:bg-slate-200/60 ${
         active ? "text-zinc-900" : "text-zinc-700"
       }`}
-      title="לחיצה למיון — לחיצה שניה להפיכה — שלישית לביטול"
+      title={title ?? "לחיצה למיון — לחיצה שניה להפיכה — שלישית לביטול"}
     >
-      <span>{label}</span>
+      <span className="whitespace-normal text-start">{label}</span>
       {active ? (
         dir === "asc" ? (
           <ArrowUp className="size-3" strokeWidth={2.5} />
@@ -169,7 +183,7 @@ function SortButton({
 
 function BoolCell({ value }: { value: boolean }) {
   return (
-    <span className={value ? "font-semibold text-emerald-600" : "text-slate-400"}>
+    <span className={`text-[11px] ${value ? "font-semibold text-emerald-600" : "text-slate-400"}`}>
       {value ? "כן" : "לא"}
     </span>
   );
@@ -422,10 +436,10 @@ export function TrackingClient() {
               </span>
             )}
           </ListTableToolbar>
-          <Table className="min-w-[1560px]">
+          <Table className="w-full table-fixed text-xs">
             <TableHeader>
               <TableRow>
-                <TableHead>
+                <TableHead className="px-1 py-2">
                   <SortButton
                     label="מורה"
                     active={sortKey === "teacher_name"}
@@ -433,71 +447,97 @@ export function TrackingClient() {
                     onClick={() => toggleSort("teacher_name")}
                   />
                 </TableHead>
-                <TableHead>מקצוע</TableHead>
-                <TableHead className="whitespace-nowrap">
+                <TableHead className="px-1 py-2">מקצוע</TableHead>
+                <TableHead className="px-1 py-2">
                   <SortButton
-                    label="הגשת המבחן"
+                    label="להגשה"
+                    title="הגשת המבחן"
                     active={sortKey === "submission_due"}
                     dir={sortDir}
                     onClick={() => toggleSort("submission_due")}
                   />
                 </TableHead>
-                <TableHead>
+                <TableHead className="px-1 py-2">
                   <SortButton
-                    label="תאריך"
+                    label="ת. מבחן"
+                    title="תאריך מבחן"
                     active={sortKey === "exam_date"}
                     dir={sortDir}
                     onClick={() => toggleSort("exam_date")}
                   />
                 </TableHead>
-                <TableHead className="whitespace-nowrap">
+                <TableHead className="px-1 py-2">
                   <SortButton
-                    label="הגשת מטלה (תלמידות)"
+                    label="מטלה"
+                    title="הגשת מטלה (תלמידות)"
                     active={sortKey === "student_submission_date"}
                     dir={sortDir}
                     onClick={() => toggleSort("student_submission_date")}
                   />
                 </TableHead>
-                <TableHead className="whitespace-nowrap">
+                <TableHead className="px-1 py-2">
                   <SortButton
-                    label="הגשת ציונים"
+                    label="ציונים"
+                    title="הגשת ציונים"
                     active={sortKey === "grades_due"}
                     dir={sortDir}
                     onClick={() => toggleSort("grades_due")}
                   />
                 </TableHead>
-                <TableHead>מבחן</TableHead>
-                <TableHead className="whitespace-nowrap">
+                <TableHead className="w-[2.5rem] px-1 py-2">מבחן</TableHead>
+                <TableHead className="px-1 py-2">
                   <SortButton
-                    label="הוגש מבחן"
+                    label="הוגש"
+                    title="הוגש מבחן (בפועל)"
                     active={sortKey === "submitted_exam"}
                     dir={sortDir}
                     onClick={() => toggleSort("submitted_exam")}
                   />
                 </TableHead>
-                <TableHead className="whitespace-nowrap">אישור רכזת</TableHead>
-                <TableHead className="whitespace-nowrap">נשלח לבדיקה</TableHead>
-                <TableHead className="whitespace-nowrap">תזכורת 1 ע&quot;י הינדי</TableHead>
-                <TableHead className="whitespace-nowrap">תזכורת 2 ע&quot;י בילר</TableHead>
-                <TableHead className="whitespace-nowrap">ציונים הוגשו</TableHead>
-                <TableHead className="whitespace-nowrap">ציונים אושרו</TableHead>
-                <TableHead className="whitespace-nowrap">הועבר למערכת</TableHead>
-                <TableHead>עריכה</TableHead>
+                <TableHead className="px-1 py-2 whitespace-normal" title="אישור רכזת">
+                  רכזת
+                </TableHead>
+                <TableHead className="px-1 py-2 whitespace-normal" title="נשלח לבדיקה">
+                  בדיקה
+                </TableHead>
+                <TableHead className="px-1 py-2 whitespace-normal" title='תזכורת 1 ע"י הינדי'>
+                  תז׳ הינדי
+                </TableHead>
+                <TableHead className="px-1 py-2 whitespace-normal" title='תזכורת 2 ע"י בילר'>
+                  תז׳ בילר
+                </TableHead>
+                <TableHead className="px-1 py-2 whitespace-normal" title="ציונים הוגשו">
+                  צ. הוגשו
+                </TableHead>
+                <TableHead className="px-1 py-2 whitespace-normal" title="ציונים אושרו">
+                  צ. אושרו
+                </TableHead>
+                <TableHead className="px-1 py-2 whitespace-normal" title="הועבר למערכת">
+                  במערכת
+                </TableHead>
+                <TableHead className="w-[2.5rem] px-1 py-2">עריכה</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredRows.length ? (
                 filteredRows.map((row) => (
                   <TableRow key={row.id} className="align-top">
-                    <TableCell className="font-medium">{row.exam?.teacher_name ?? "—"}</TableCell>
-                    <TableCell>{row.exam?.subject ?? "—"}</TableCell>
-                    <TableCell className="whitespace-nowrap tabular-nums text-zinc-600">
+                    <TableCell
+                      className="truncate px-1 py-1.5 font-medium"
+                      title={row.exam?.teacher_name ?? undefined}
+                    >
+                      {row.exam?.teacher_name ?? "—"}
+                    </TableCell>
+                    <TableCell className="truncate px-1 py-1.5" title={row.exam?.subject ?? undefined}>
+                      {row.exam?.subject ?? "—"}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap px-1 py-1.5 tabular-nums text-[11px] text-zinc-600">
                       {examTrackingDueDate(row.exam?.exam_date, EXAM_SUBMISSION_DUE_OFFSET)}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap">
+                    <TableCell className="whitespace-nowrap px-1 py-1.5 tabular-nums text-[11px]">
                       {row.exam?.exam_date ? formatHebrewDateFromYmd(row.exam.exam_date) : "—"}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap tabular-nums text-zinc-700">
+                    <TableCell className="whitespace-nowrap px-1 py-1.5 tabular-nums text-[11px] text-zinc-700">
                       {row.student_submission_date
                         ? formatHebrewDateFromYmd(row.student_submission_date.slice(0, 10))
                         : "—"}
@@ -505,8 +545,8 @@ export function TrackingClient() {
                     {(() => {
                       const { date: gradesBase, fromSubmission } = gradesDueBase(row);
                       const cellClass = fromSubmission
-                        ? "whitespace-nowrap tabular-nums rounded bg-amber-100 text-amber-900 ring-1 ring-amber-300"
-                        : "whitespace-nowrap tabular-nums text-zinc-600";
+                        ? "whitespace-nowrap px-1 py-1.5 tabular-nums text-[11px] rounded bg-amber-100 text-amber-900 ring-1 ring-amber-300"
+                        : "whitespace-nowrap px-1 py-1.5 tabular-nums text-[11px] text-zinc-600";
                       const title = fromSubmission
                         ? "מחושב 7 ימים אחרי הגשת המטלה ע״י התלמידות"
                         : "מחושב 7 ימים אחרי תאריך המבחן";
@@ -516,39 +556,44 @@ export function TrackingClient() {
                         </TableCell>
                       );
                     })()}
-                    <TableCell>
+                    <TableCell className="px-1 py-1.5 text-center">
                       <Link
                         href={`/exams/${row.exam_id}`}
-                        className={LIST_ROW_LINK_CLASS}
+                        className={`${LIST_ROW_LINK_CLASS} !rounded-lg !px-1 !py-0.5`}
+                        title="פתיחת מבחן"
                       >
-                        פתיחת מבחן
+                        <BookOpen className="size-3 shrink-0 opacity-80" strokeWidth={2} />
+                        <span className="sr-only">פתיחת מבחן</span>
                       </Link>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap tabular-nums">
-                      {formatSubmittedDisplay(row.submitted_exam)}
+                    <TableCell
+                      className="whitespace-nowrap px-1 py-1.5 tabular-nums text-[11px]"
+                      title={row.submitted_exam ? formatSubmittedDisplay(row.submitted_exam) : undefined}
+                    >
+                      {formatSubmittedCompact(row.submitted_exam)}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-1 py-1.5 text-center">
                       <BoolCell value={row.approved_by_coordinator} />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-1 py-1.5 text-center">
                       <BoolCell value={row.sent_for_review} />
                     </TableCell>
-                    <TableCell className="whitespace-nowrap tabular-nums">
+                    <TableCell className="whitespace-nowrap px-1 py-1.5 tabular-nums text-[11px]">
                       {formatOptionalDateYmd(row.reminder_1_hindi)}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap tabular-nums">
+                    <TableCell className="whitespace-nowrap px-1 py-1.5 tabular-nums text-[11px]">
                       {formatOptionalDateYmd(row.reminder_2_biller)}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-1 py-1.5 text-center">
                       <BoolCell value={row.grades_submitted} />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-1 py-1.5 text-center">
                       <BoolCell value={row.grades_approved} />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-1 py-1.5 text-center">
                       <BoolCell value={row.transferred_to_system} />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-1 py-1.5">
                       {editingId === row.id ? (
                         <TrackingRowForm
                           key={row.id}
@@ -559,11 +604,12 @@ export function TrackingClient() {
                       ) : !readOnly ? (
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium"
+                          className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-1 py-0.5"
+                          title="עריכה"
                           onClick={() => setEditingId(row.id)}
                         >
-                          <Pencil className="size-3.5" strokeWidth={2} />
-                          עריכה
+                          <Pencil className="size-3 shrink-0" strokeWidth={2} />
+                          <span className="sr-only">עריכה</span>
                         </button>
                       ) : null}
                     </TableCell>
