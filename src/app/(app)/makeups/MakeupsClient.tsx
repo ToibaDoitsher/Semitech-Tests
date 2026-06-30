@@ -80,7 +80,7 @@ function RegisteredForMakeupCell({
   if (readOnly) {
     return (
       <span
-        className={`inline-flex min-w-[3rem] items-center justify-center rounded-lg border px-2.5 py-1 text-xs font-semibold ${badgeClass}`}
+        className={`inline-flex min-w-[2.25rem] items-center justify-center rounded-md border px-1.5 py-0.5 text-[11px] font-semibold ${badgeClass}`}
       >
         {label}
       </span>
@@ -97,7 +97,7 @@ function RegisteredForMakeupCell({
         onToggle();
       }}
       title="לחיצה לשינוי — נרשמה להשלמה"
-      className={`inline-flex min-w-[3rem] items-center justify-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-semibold shadow-sm transition hover:brightness-95 active:scale-[0.98] disabled:opacity-60 ${badgeClass}`}
+      className={`inline-flex min-w-[2.25rem] items-center justify-center gap-0.5 rounded-md border px-1.5 py-0.5 text-[11px] font-semibold shadow-sm transition hover:brightness-95 active:scale-[0.98] disabled:opacity-60 ${badgeClass}`}
     >
       {busy ? <Spinner className="size-3" /> : label}
     </button>
@@ -136,7 +136,7 @@ export function MakeupsClient() {
   const [editGradeBusy, setEditGradeBusy] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("open");
+  const [statusFilter, setStatusFilter] = useState("");
   const [gradeFilter, setGradeFilter] = useState("");
   const [autoRegisteredFilter, setAutoRegisteredFilter] = useState("");
   const [paidFilter, setPaidFilter] = useState("");
@@ -178,7 +178,7 @@ export function MakeupsClient() {
   const count = filteredRows.length;
   const isFiltering = Boolean(
     deferredSearch.trim() ||
-      statusFilter !== "open" ||
+      statusFilter ||
       gradeFilter ||
       autoRegisteredFilter ||
       paidFilter ||
@@ -478,7 +478,7 @@ export function MakeupsClient() {
           isAnyActive={isFiltering}
           onClearAll={() => {
             setSearchTerm("");
-            setStatusFilter("open");
+            setStatusFilter("");
             setGradeFilter("");
             setAutoRegisteredFilter("");
             setPaidFilter("");
@@ -556,21 +556,21 @@ export function MakeupsClient() {
             </div>
           </div>
         </ListTableToolbar>
-        <Table className="min-w-[1100px]">
+        <Table className="w-full table-fixed text-xs">
           <TableHeader>
             <TableRow>
-              <TableHead>תלמידה</TableHead>
-              <TableHead>מבחן</TableHead>
-              <TableHead>תאריך מבחן</TableHead>
-              <TableHead>מורה</TableHead>
-              <TableHead>סטטוס</TableHead>
-              <TableHead className="whitespace-nowrap">נרשמה להשלמה</TableHead>
-              <TableHead className="whitespace-nowrap">תאריך השלמה</TableHead>
-              <TableHead className="whitespace-nowrap">ציון התחלה</TableHead>
-              <TableHead className="whitespace-nowrap">בתשלום</TableHead>
-              <TableHead>ציון</TableHead>
-              <TableHead>הערה</TableHead>
-              <TableHead className="w-[1%] whitespace-nowrap" />
+              <TableHead className="px-1.5 py-2">תלמידה</TableHead>
+              <TableHead className="px-1.5 py-2">מבחן</TableHead>
+              <TableHead className="px-1.5 py-2 whitespace-normal">ת. מבחן</TableHead>
+              <TableHead className="px-1.5 py-2">מורה</TableHead>
+              <TableHead className="px-1.5 py-2">סטטוס</TableHead>
+              <TableHead className="px-1.5 py-2 whitespace-normal">נרשמה</TableHead>
+              <TableHead className="px-1.5 py-2 whitespace-normal">ת. השלמה</TableHead>
+              <TableHead className="px-1.5 py-2 whitespace-normal">צ. התחלה</TableHead>
+              <TableHead className="px-1.5 py-2">בתשלום</TableHead>
+              <TableHead className="px-1.5 py-2">ציון</TableHead>
+              <TableHead className="px-1.5 py-2">הערה</TableHead>
+              <TableHead className="w-[1%] px-1.5 py-2 whitespace-normal">פעולות</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -579,16 +579,22 @@ export function MakeupsClient() {
                 const notesText = displayNotes(m);
                 return (
                 <TableRow key={m.id}>
-                  <TableCell className="font-medium">
+                  <TableCell className="truncate px-1.5 py-1.5 font-medium" title={m.student ? `${m.student.last_name} ${m.student.first_name}` : undefined}>
                     {m.student ? `${m.student.last_name} ${m.student.first_name}` : "—"}
                   </TableCell>
-                  <TableCell>{m.exam?.subject ?? "—"}</TableCell>
-                  <TableCell>{m.exam?.exam_date ? formatHebrewDateFromYmd(m.exam.exam_date) : "—"}</TableCell>
-                  <TableCell>{m.exam?.teacher_name ?? "—"}</TableCell>
-                  <TableCell>
+                  <TableCell className="truncate px-1.5 py-1.5" title={m.exam?.subject ?? undefined}>
+                    {m.exam?.subject ?? "—"}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap px-1.5 py-1.5 tabular-nums">
+                    {m.exam?.exam_date ? formatHebrewDateFromYmd(m.exam.exam_date) : "—"}
+                  </TableCell>
+                  <TableCell className="truncate px-1.5 py-1.5" title={m.exam?.teacher_name ?? undefined}>
+                    {m.exam?.teacher_name ?? "—"}
+                  </TableCell>
+                  <TableCell className="px-1.5 py-1.5">
                     <MakeupStatusBadge status={m.status as "open" | "completed"} />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="px-1.5 py-1.5">
                     <RegisteredForMakeupCell
                       value={Boolean(m.auto_registered)}
                       readOnly={readOnly}
@@ -596,13 +602,13 @@ export function MakeupsClient() {
                       onToggle={() => onRegisteredToggle(m)}
                     />
                   </TableCell>
-                  <TableCell className="whitespace-nowrap tabular-nums">
+                  <TableCell className="whitespace-nowrap px-1.5 py-1.5 tabular-nums">
                     {m.auto_registered && m.completed_at ? formatMakeupDate(m.completed_at) : "—"}
                   </TableCell>
-                  <TableCell className="tabular-nums">
+                  <TableCell className="px-1.5 py-1.5 tabular-nums">
                     {m.auto_registered && m.starting_grade != null ? m.starting_grade : "—"}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="px-1.5 py-1.5">
                     {m.auto_registered ? (
                       <span
                         className={
@@ -617,68 +623,72 @@ export function MakeupsClient() {
                       "—"
                     )}
                   </TableCell>
-                  <TableCell className="tabular-nums">{m.grade ?? "—"}</TableCell>
-                  <TableCell className="max-w-[220px]">
+                  <TableCell className="px-1.5 py-1.5 tabular-nums">{m.grade ?? "—"}</TableCell>
+                  <TableCell className="max-w-0 px-1.5 py-1.5">
                     {notesText ? (
                       <span
-                        className="line-clamp-3 whitespace-pre-line text-xs leading-snug text-amber-900 dark:text-amber-200"
+                        className="line-clamp-2 whitespace-pre-line text-[11px] leading-snug text-amber-900 dark:text-amber-200"
                         title={notesText}
                       >
                         {notesText}
                       </span>
                     ) : (
-                      <span className="text-xs text-zinc-400">—</span>
+                      <span className="text-zinc-400">—</span>
                     )}
                   </TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    <div className="flex flex-wrap justify-end gap-1">
+                  <TableCell className="px-1 py-1.5">
+                    <div className="flex flex-wrap justify-end gap-0.5">
                       <Link
                         href={`/students/${m.student_id}`}
-                        className={LIST_ROW_LINK_CLASS}
+                        className={`${LIST_ROW_LINK_CLASS} !rounded-lg !px-1 !py-0.5`}
+                        title="כרטיס תלמידה"
                       >
-                        <UserRound className="size-3.5 shrink-0 opacity-80" strokeWidth={2} />
-                        כרטיס תלמידה
+                        <UserRound className="size-3 shrink-0 opacity-80" strokeWidth={2} />
+                        <span className="sr-only">כרטיס תלמידה</span>
                       </Link>
                       <Link
                         href={`/exams/${m.exam_id}`}
-                        className={LIST_ROW_LINK_CLASS}
+                        className={`${LIST_ROW_LINK_CLASS} !rounded-lg !px-1 !py-0.5`}
+                        title="למבחן"
                       >
-                        <BookOpen className="size-3.5 shrink-0 opacity-80" strokeWidth={2} />
-                        למבחן
+                        <BookOpen className="size-3 shrink-0 opacity-80" strokeWidth={2} />
+                        <span className="sr-only">למבחן</span>
                       </Link>
                       {!readOnly ? (
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium"
+                          className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-1 py-0.5"
+                          title="עריכת ציון"
                           onClick={() => {
                             setEditGradeId(m.id);
                             setEditGradeValue(m.grade != null ? String(m.grade) : "");
                           }}
                         >
-                          <Pencil className="size-3.5 shrink-0" strokeWidth={2} />
-                          ציון
+                          <Pencil className="size-3 shrink-0" strokeWidth={2} />
+                          <span className="sr-only">ציון</span>
                         </button>
                       ) : null}
                       {!readOnly && m.status === "open" ? (
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium"
+                          className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-1 py-0.5"
+                          title="סימון הושלם"
                           onClick={() => onCompleteClick(m)}
                           disabled={completeBusy}
                         >
-                          <CheckCircle2 className="size-3.5 shrink-0" strokeWidth={2} />
-                          הושלם
+                          <CheckCircle2 className="size-3 shrink-0" strokeWidth={2} />
+                          <span className="sr-only">הושלם</span>
                         </button>
                       ) : null}
                       {!readOnly ? (
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
-                          title="ביטול: התלמידה כן נבחנה במועד, סומנה בטעות. ימחק את ההשלמה ויחזיר את הסטטוס במבחן."
+                          className="inline-flex items-center rounded-lg border border-amber-300 bg-amber-50 px-1 py-0.5 text-amber-900 hover:bg-amber-100"
+                          title="ביטול השלמה"
                           onClick={() => void undoMakeup(m)}
                         >
-                          <Undo2 className="size-3.5 shrink-0" strokeWidth={2} />
-                          ביטול
+                          <Undo2 className="size-3 shrink-0" strokeWidth={2} />
+                          <span className="sr-only">ביטול</span>
                         </button>
                       ) : null}
                       <NotesButton
@@ -702,7 +712,7 @@ export function MakeupsClient() {
             ) : (
               <TableRow>
                 <TableCell colSpan={12} className="py-14 text-center text-zinc-500">
-                  {isLoading ? "טוען…" : isFiltering ? "אין תוצאות תואמות לסינון" : "אין השלמות פתוחות"}
+                  {isLoading ? "טוען…" : isFiltering ? "אין תוצאות תואמות לסינון" : "אין השלמות"}
                 </TableCell>
               </TableRow>
             )}

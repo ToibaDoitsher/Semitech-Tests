@@ -235,7 +235,7 @@ export function MakeupTrackingTab() {
                       <TableCell>{name}</TableCell>
                       <TableCell>
                         {fmtDt(row.sent_to_teacher_at)}
-                        {!readOnly && !done && !row.sent_to_teacher_at ? (
+                        {!readOnly && !row.sent_to_teacher_at ? (
                           <button
                             type="button"
                             className="mr-1 underline"
@@ -261,7 +261,7 @@ export function MakeupTrackingTab() {
                       <TableCell>
                         <GradeEditor
                           row={row}
-                          disabled={readOnly || done}
+                          disabled={readOnly}
                           busy={busy}
                           onSaved={refresh}
                         />
@@ -291,7 +291,7 @@ export function MakeupTrackingTab() {
                             הושלם סופית
                           </button>
                         ) : done ? (
-                          "הושלם"
+                          <span className="text-emerald-700">הושלם</span>
                         ) : null}
                       </TableCell>
                     </TableRow>
