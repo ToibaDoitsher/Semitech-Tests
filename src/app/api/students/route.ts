@@ -12,6 +12,10 @@ import { asStudentRows } from "@/lib/db/studentRow";
 import { getStudentWithLookupsSelect } from "@/lib/db/studentSelect";
 import { notDeleted } from "@/lib/db/softDelete";
 import { dbSchemaHint } from "@/lib/db/schemaHint";
+import {
+  applyStudentListFilters,
+  studentListFiltersFromSearchParams,
+} from "@/lib/students/listQuery";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -19,13 +23,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const q = (searchParams.get("q") ?? "").trim();
-    const gradeLevelRaw = (searchParams.get("grade_level") ?? "").trim();
-    const classId = (searchParams.get("class_id") ?? "").trim();
-    const specializationId = (searchParams.get("specialization_id") ?? "").trim();
-    const trackId = (searchParams.get("track_id") ?? "").trim();
-    const psychology = (searchParams.get("is_psychology") ?? "").trim();
-    const teachingType = (searchParams.get("teaching_track_type") ?? "").trim();
+    const filters = studentListFiltersFromSearchParams(searchParams);
 
     const supabase = createSupabaseAdminClient();
     const scope = await resolveAcademicYearScope(supabase, scopeFromSearchParams(searchParams));
@@ -38,36 +36,7 @@ export async function GET(request: Request) {
       .order("first_name", { ascending: true })
       .limit(500);
 
-    const gl = parseGradeLevel(gradeLevelRaw);
-    if (gl) query = query.eq("grade_level", gl);
-
-    if (classId) query = query.eq("class_id", classId);
-    if (specializationId) query = query.eq("specialization_id", specializationId);
-    if (trackId) query = query.eq("track_id", trackId);
-    if (psychology === "1" || psychology === "true") query = query.eq("is_psychology", true);
-    if (psychology === "0" || psychology === "false") query = query.eq("is_psychology", false);
-    if (teachingType === "full" || teachingType === "short") {
-      query = query.eq("teaching_track_type", teachingType);
-    }
-
-    if (q) {
-      const escapeIlike = (s: string) => s.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
-      const parts = q.split(/\s+/).filter(Boolean);
-      if (parts.length >= 2) {
-        const p0 = escapeIlike(parts[0]);
-        const pRest = escapeIlike(parts.slice(1).join(" "));
-        const pLast = escapeIlike(parts[parts.length - 1]);
-        const pHead = escapeIlike(parts.slice(0, -1).join(" "));
-        query = query.or(
-          `and(first_name.ilike.%${p0}%,last_name.ilike.%${pRest}%),and(first_name.ilike.%${pHead}%,last_name.ilike.%${pLast}%)`,
-        );
-      } else {
-        const escaped = escapeIlike(parts[0] ?? q);
-        query = query.or(
-          `first_name.ilike.%${escaped}%,last_name.ilike.%${escaped}%,tz.ilike.%${escaped}%`,
-        );
-      }
-    }
+    query = applyStudentListFilters(query, filters);
 
     const { data, error } = await query;
     if (error) return NextResponse.json({ error: dbSchemaHint(error.message) }, { status: 500 });

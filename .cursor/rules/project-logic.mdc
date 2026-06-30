@@ -1,0 +1,26 @@
+---
+description: לוגיקת הפרויקט וחובת קריאה לפני שינויי DB
+alwaysApply: true
+---
+
+# לוגיקת הפרויקט
+
+**לפני כל שינוי במסד נתונים, סכימה, או PATCH SQL** — קרא במלואו את:
+
+`docs/PROJECT_LOGIC.md`
+
+## חובות לשינוי DB
+
+1. אל תמחק נתונים קיימים — רק `ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS`
+2. צור `supabase/PATCH_<FEATURE>.sql` + עדכן `supabase/RUN_FULL_DATABASE_RESET.sql`
+3. עדכן `src/lib/types/db.ts` ו-API עם graceful fallback לעמודות חסרות
+4. אל תשבור CHECK constraints על `exams` / `teacher_assignments` (יעד מרובה)
+5. כל טבלה תפעולית חדשה — `academic_year_id` אם אחיותיה מבודדות לשנה
+
+## לוגיקה עסקית קריטית (אל תשבור בלי כוונה)
+
+- יעד שיבוץ/מבחן: חובה vs התמחות — כללים שונים (`multiTarget.ts`)
+- מסלול הוראה = חיתוך (AND), לא איחוד
+- פסיכולוגיה = `is_psychology` **או** מסלול הוראה/הוראת מדעי המחשב (`psychologyEligibility.ts`)
+- השלמה `completed` נשארת ברשימת השלמות לעקיבה (תשלום וכו')
+- מעקב השלמות: ציון ניתן לעריכה גם אחרי «נשלח למורה» / «הושלם»

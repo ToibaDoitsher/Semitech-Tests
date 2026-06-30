@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Pencil, Plus, Upload } from "lucide-react";
+import { Pencil, Plus, Printer, Upload } from "lucide-react";
 import { useDeferredValue, useMemo, useState } from "react";
 import useSWR from "swr";
 import {
@@ -15,6 +15,9 @@ import {
 import { ListFilterBar } from "@/components/ui/ListFilterBar";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
+import { StudentCardsPrintConfirmDialog } from "@/components/students/StudentCardsPrintConfirmDialog";
+import { printStudentCards } from "@/components/students/StudentCardPrintActions";
+import type { StudentCardData } from "@/lib/students/loadStudentCardData";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TableClearFooter } from "@/components/ui/TableClearFooter";
 import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
@@ -56,6 +59,66 @@ export function StudentsListClient() {
   const { data, error, isLoading, mutate } = useSWR<{ students: Student[] }>(url, fetcher);
   const count = data?.students?.length ?? 0;
 
+  const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  const [printBusy, setPrintBusy] = useState(false);
+  const [printPreview, setPrintPreview] = useState<{
+    studentCount: number;
+    estimatedPages: number;
+    cards: StudentCardData[];
+  } | null>(null);
+
+  const printCardsUrl = useMemo(() => {
+    const p = new URLSearchParams();
+    if (deferred.trim()) p.set("q", deferred.trim());
+    if (gradeLevel) p.set("grade_level", gradeLevel);
+    if (classId) p.set("class_id", classId);
+    if (specializationId) p.set("specialization_id", specializationId);
+    if (trackId) p.set("track_id", trackId);
+    if (psychology) p.set("is_psychology", psychology);
+    if (teachingType) p.set("teaching_track_type", teachingType);
+    const qs = p.toString();
+    return withYearQuery(`/api/students/print-cards${qs ? `?${qs}` : ""}`, viewingYear?.id);
+  }, [deferred, gradeLevel, classId, specializationId, trackId, psychology, teachingType, viewingYear?.id]);
+
+  async function handleOpenPrintDialog() {
+    if (!count) {
+      alert("אין תלמידות להדפסה לפי הסינון הנוכחי");
+      return;
+    }
+    setPrintBusy(true);
+    try {
+      const r = await fetch(printCardsUrl);
+      const j = (await r.json()) as {
+        error?: string;
+        cards?: StudentCardData[];
+        studentCount?: number;
+        estimatedPages?: number;
+      };
+      if (!r.ok) throw new Error(j.error ?? "שגיאת טעינה");
+      if (!j.cards?.length) {
+        alert("אין נתונים להדפסה");
+        return;
+      }
+      setPrintPreview({
+        cards: j.cards,
+        studentCount: j.studentCount ?? j.cards.length,
+        estimatedPages: j.estimatedPages ?? j.cards.length,
+      });
+      setPrintDialogOpen(true);
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setPrintBusy(false);
+    }
+  }
+
+  function handleConfirmPrint() {
+    if (!printPreview?.cards.length) return;
+    printStudentCards(printPreview.cards);
+    setPrintDialogOpen(false);
+    setPrintPreview(null);
+  }
+
   const { data: clData } = useSWR<{ items: { id: string; name: string }[] }>(
     withYearQuery("/api/lookups/classes", viewingYear?.id),
     fetcher,
@@ -76,6 +139,15 @@ export function StudentsListClient() {
         subtitle="חיפוש חי: מילה אחת (שם או ת״ז), או שם פרטי ואז רווח ואז שם משפחה — גם בסדר הפוך (משפחה רווח פרטי)"
         actions={
           <>
+            <button
+              type="button"
+              disabled={printBusy || isLoading || !count}
+              onClick={() => void handleOpenPrintDialog()}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+            >
+              <Printer className="size-4 shrink-0 opacity-80" strokeWidth={2} />
+              {printBusy ? "מכין…" : "הדפסת כרטיסים"}
+            </button>
             <ExportExcelButton
               label="ייצוא לאקסל"
               filename="תלמידות"
@@ -254,6 +326,20 @@ export function StudentsListClient() {
           onCleared={() => void mutate()}
         />
       </ListDataCard>
+
+      <StudentCardsPrintConfirmDialog
+        open={printDialogOpen}
+        onClose={() => {
+          if (!printBusy) {
+            setPrintDialogOpen(false);
+            setPrintPreview(null);
+          }
+        }}
+        onConfirm={handleConfirmPrint}
+        busy={printBusy}
+        studentCount={printPreview?.studentCount ?? 0}
+        estimatedPages={printPreview?.estimatedPages ?? 0}
+      />
     </div>
   );
 }

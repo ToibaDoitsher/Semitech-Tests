@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { ExamStudentStatusBadge, MakeupStatusBadge } from "@/components/ui/StatusBadge";
 import { NotesButton } from "@/components/ui/NotesButton";
-import { PrintButton } from "@/components/PrintButton";
+import {
+  StudentCardPrintButton,
+  printStudentCards,
+} from "@/components/students/StudentCardPrintActions";
+import type { StudentCardData } from "@/lib/students/loadStudentCardData";
 import { Spinner } from "@/components/ui/Spinner";
 import { StudentProfileGrid } from "@/components/students/StudentProfileGrid";
 import { formatHebrewDateFromYmd } from "@/lib/hebrewDate";
@@ -128,7 +132,27 @@ export function StudentDetailClient({ id }: { id: string }) {
         </div>
         <div className="flex flex-wrap gap-2 print:hidden">
           <NotesButton entity="students" id={id} />
-          <PrintButton />
+          <StudentCardPrintButton
+            onPrint={() => {
+              const card: StudentCardData = {
+                student: {
+                  ...s,
+                  year_label: (s as Student & { year_label?: string }).year_label,
+                } as StudentCardData["student"],
+                exam_students: data.exam_students ?? [],
+                makeups: (data.makeups ?? []).map((m) => ({
+                  id: m.id,
+                  status: m.status,
+                  created_at: m.created_at,
+                  completed_at: m.completed_at,
+                  grade: (m as { grade?: number | null }).grade ?? null,
+                  exam_id: m.exam_id,
+                  exam: m.exam,
+                })),
+              };
+              printStudentCards([card]);
+            }}
+          />
           <Link
             href={`/students/${id}/edit`}
             className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-50"

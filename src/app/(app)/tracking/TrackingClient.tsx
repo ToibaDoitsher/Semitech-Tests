@@ -162,12 +162,14 @@ function SortButton({
     <button
       type="button"
       onClick={onClick}
+      title={title ?? "לחיצה למיון — לחיצה שניה להפיכה — שלישית לביטול"}
       className={`inline-flex max-w-full items-center gap-0.5 rounded px-0.5 py-0.5 text-[11px] leading-tight transition hover:bg-slate-200/60 ${
         active ? "text-zinc-900" : "text-zinc-700"
       }`}
-      title={title ?? "לחיצה למיון — לחיצה שניה להפיכה — שלישית לביטול"}
     >
-      <span className="whitespace-normal text-start">{label}</span>
+      <span className="whitespace-normal text-start" title={title ?? label}>
+        {label}
+      </span>
       {active ? (
         dir === "asc" ? (
           <ArrowUp className="size-3" strokeWidth={2.5} />
@@ -178,6 +180,14 @@ function SortButton({
         <ArrowUpDown className="size-3 opacity-40" strokeWidth={2} />
       )}
     </button>
+  );
+}
+
+function AbbrevHead({ label, title }: { label: string; title: string }) {
+  return (
+    <span className="whitespace-normal" title={title}>
+      {label}
+    </span>
   );
 }
 
@@ -484,7 +494,9 @@ export function TrackingClient() {
                     onClick={() => toggleSort("grades_due")}
                   />
                 </TableHead>
-                <TableHead className="w-[2.5rem] px-1 py-2">מבחן</TableHead>
+                <TableHead className="w-[2.5rem] px-1 py-2">
+                  <AbbrevHead label="מבחן" title="פתיחת מבחן" />
+                </TableHead>
                 <TableHead className="px-1 py-2">
                   <SortButton
                     label="הוגש"
@@ -494,28 +506,30 @@ export function TrackingClient() {
                     onClick={() => toggleSort("submitted_exam")}
                   />
                 </TableHead>
-                <TableHead className="px-1 py-2 whitespace-normal" title="אישור רכזת">
-                  רכזת
+                <TableHead className="px-1 py-2 whitespace-normal">
+                  <AbbrevHead label="רכזת" title="אישור רכזת" />
                 </TableHead>
-                <TableHead className="px-1 py-2 whitespace-normal" title="נשלח לבדיקה">
-                  בדיקה
+                <TableHead className="px-1 py-2 whitespace-normal">
+                  <AbbrevHead label="בדיקה" title="נשלח לבדיקה" />
                 </TableHead>
-                <TableHead className="px-1 py-2 whitespace-normal" title='תזכורת 1 ע"י הינדי'>
-                  תז׳ הינדי
+                <TableHead className="px-1 py-2 whitespace-normal">
+                  <AbbrevHead label="תז׳ הינדי" title='תזכורת 1 ע"י הינדי' />
                 </TableHead>
-                <TableHead className="px-1 py-2 whitespace-normal" title='תזכורת 2 ע"י בילר'>
-                  תז׳ בילר
+                <TableHead className="px-1 py-2 whitespace-normal">
+                  <AbbrevHead label="תז׳ בילר" title='תזכורת 2 ע"י בילר' />
                 </TableHead>
-                <TableHead className="px-1 py-2 whitespace-normal" title="ציונים הוגשו">
-                  צ. הוגשו
+                <TableHead className="px-1 py-2 whitespace-normal">
+                  <AbbrevHead label="צ. הוגשו" title="ציונים הוגשו" />
                 </TableHead>
-                <TableHead className="px-1 py-2 whitespace-normal" title="ציונים אושרו">
-                  צ. אושרו
+                <TableHead className="px-1 py-2 whitespace-normal">
+                  <AbbrevHead label="צ. אושרו" title="ציונים אושרו" />
                 </TableHead>
-                <TableHead className="px-1 py-2 whitespace-normal" title="הועבר למערכת">
-                  במערכת
+                <TableHead className="px-1 py-2 whitespace-normal">
+                  <AbbrevHead label="במערכת" title="הועבר למערכת" />
                 </TableHead>
-                <TableHead className="w-[2.5rem] px-1 py-2">עריכה</TableHead>
+                <TableHead className="w-[2.5rem] px-1 py-2">
+                  <AbbrevHead label="עריכה" title="עריכת שורת מעקב" />
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
