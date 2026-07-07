@@ -21,6 +21,10 @@ import {
   AssignmentTargetForm,
   type AssignmentTargetFormValue,
 } from "@/components/assignments/AssignmentTargetForm";
+import {
+  AssignmentEditDialog,
+  type AssignmentEditDraft,
+} from "@/components/assignments/AssignmentEditDialog";
 import { TeacherSearchCombobox } from "@/components/teachers/TeacherSearchCombobox";
 import { teacherEmbedDisplayName, teachingModeSelectionLabel } from "@/lib/teachers/display";
 import {
@@ -59,12 +63,6 @@ type AssignmentRow = {
 };
 
 type LookupItem = { id: string; name: string };
-
-type EditDraft = {
-  teacher_id: string;
-  subject: string;
-  lesson_name: string;
-} & AssignmentTargetFormValue;
 
 export function AssignmentsClient() {
   const { viewingYear, readOnly } = useAcademicYear();
@@ -114,7 +112,7 @@ export function AssignmentsClient() {
   const [formNotice, setFormNotice] = useState<{ tone: "success" | "error"; text: string } | null>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
+  const [editDraft, setEditDraft] = useState<AssignmentEditDraft | null>(null);
   const [editSaving, setEditSaving] = useState(false);
 
   const teachingTrackId = useMemo(
@@ -559,113 +557,46 @@ export function AssignmentsClient() {
           </TableHeader>
           <TableBody>
             {rows.length ? (
-              rows.map((a) => {
-                const isEditing = editingId === a.id && editDraft;
-                return (
+              rows.map((a) => (
                 <TableRow key={a.id}>
                   <TableCell className="font-medium text-slate-900 dark:text-zinc-100">
-                    {isEditing ? (
-                      <div className="min-w-[12rem]">
-                        <TeacherSearchCombobox
-                          value={editDraft.teacher_id}
-                          onChange={(id) => setEditDraft({ ...editDraft, teacher_id: id })}
-                          label=""
-                          required
-                        />
-                      </div>
-                    ) : (
-                      teacherEmbedDisplayName(a.teachers)
-                    )}
+                    {teacherEmbedDisplayName(a.teachers)}
                   </TableCell>
-                  <TableCell>
-                    {isEditing ? (
-                      <input
-                        value={editDraft.subject}
-                        onChange={(e) => setEditDraft({ ...editDraft, subject: e.target.value })}
-                        className="w-full min-w-[6rem] rounded border border-zinc-200 px-2 py-1 text-sm"
-                      />
-                    ) : (
-                      a.subject
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {isEditing ? (
-                      <input
-                        value={editDraft.lesson_name}
-                        onChange={(e) => setEditDraft({ ...editDraft, lesson_name: e.target.value })}
-                        className="w-full min-w-[6rem] rounded border border-zinc-200 px-2 py-1 text-sm"
-                        placeholder="שם שיעור"
-                      />
-                    ) : (
-                      a.lesson_name ?? "—"
-                    )}
-                  </TableCell>
+                  <TableCell>{a.subject}</TableCell>
+                  <TableCell>{a.lesson_name ?? "—"}</TableCell>
                   <TableCell className="text-slate-600 dark:text-zinc-300">
-                    {isEditing ? editDraft.category : a.assignment_category}
+                    {a.assignment_category}
                   </TableCell>
-                  <TableCell className="text-slate-800 dark:text-zinc-200" colSpan={isEditing ? 2 : 1}>
-                    {isEditing ? (
-                      <AssignmentTargetForm
-                        value={editDraft}
-                        onChange={(next) => setEditDraft({ ...editDraft, ...next })}
-                        classes={clData?.items ?? []}
-                        tracks={trData?.items ?? []}
-                        specializations={spData?.items ?? []}
-                      />
-                    ) : (
-                      <>
-                        {a.target_label ?? "—"}
-                        {assignmentTeachingLabel(a) ? (
-                          <span className="text-sky-800"> · {assignmentTeachingLabel(a)}</span>
-                        ) : null}
-                      </>
-                    )}
+                  <TableCell className="text-slate-800 dark:text-zinc-200">
+                    {a.target_label ?? "—"}
+                    {assignmentTeachingLabel(a) ? (
+                      <span className="text-sky-800"> · {assignmentTeachingLabel(a)}</span>
+                    ) : null}
                   </TableCell>
-                  {isEditing ? null : (
                   <TableCell>
-                      <>
-                        {a.year_label ?? a.grade_levels.join(", ")}
-                        {assignmentTeachingLabel(a) ? ` · ${assignmentTeachingLabel(a)}` : ""}
-                      </>
+                    {a.year_label ?? a.grade_levels.join(", ")}
+                    {assignmentTeachingLabel(a) ? ` · ${assignmentTeachingLabel(a)}` : ""}
                   </TableCell>
-                  )}
                   <TableCell className="whitespace-nowrap">
                     {!readOnly ? (
-                      isEditing ? (
-                        <span className="inline-flex gap-2">
-                          <button
-                            type="button"
-                            disabled={editSaving}
-                            className="text-sm font-medium text-emerald-800"
-                            onClick={() => void saveEdit(a.id)}
-                          >
-                            {editSaving ? "שומר…" : "שמירה"}
-                          </button>
-                          <button type="button" className="text-sm text-zinc-500" onClick={cancelEdit}>
-                            ביטול
-                          </button>
-                        </span>
-                      ) : (
-                        <span className="inline-flex gap-2">
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900"
-                            onClick={() => startEdit(a)}
-                          >
-                            <Pencil className="size-3.5" strokeWidth={2} />
-                            עריכה
-                          </button>
-                          <button type="button" className={LIST_ROW_DELETE_CLASS} onClick={() => void removeRow(a.id)}>
-                            <Trash2 className="size-3.5 shrink-0 opacity-70" strokeWidth={2} />
-                            מחיקה
-                          </button>
-                        </span>
-                      )
+                      <span className="inline-flex gap-2">
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900"
+                          onClick={() => startEdit(a)}
+                        >
+                          <Pencil className="size-3.5" strokeWidth={2} />
+                          עריכה
+                        </button>
+                        <button type="button" className={LIST_ROW_DELETE_CLASS} onClick={() => void removeRow(a.id)}>
+                          <Trash2 className="size-3.5 shrink-0 opacity-70" strokeWidth={2} />
+                          מחיקה
+                        </button>
+                      </span>
                     ) : null}
                   </TableCell>
                 </TableRow>
-              );
-              })
+              ))
             ) : (
               <TableRow>
                 <TableCell className="py-14 text-center text-slate-500 dark:text-zinc-400" colSpan={7}>
@@ -683,6 +614,23 @@ export function AssignmentsClient() {
           onCleared={() => void mutate()}
         />
       </ListDataCard>
+
+      <AssignmentEditDialog
+        open={Boolean(editingId && editDraft)}
+        draft={editDraft}
+        onDraftChange={setEditDraft}
+        onClose={cancelEdit}
+        onSave={() => (editingId ? saveEdit(editingId) : undefined)}
+        busy={editSaving}
+        title={
+          editDraft
+            ? `עריכת שיבוץ — ${editDraft.subject || editDraft.lesson_name || "שיבוץ"}`
+            : "עריכת שיבוץ"
+        }
+        classes={clData?.items ?? []}
+        tracks={trData?.items ?? []}
+        specializations={spData?.items ?? []}
+      />
     </div>
   );
 }
