@@ -163,7 +163,7 @@ function SortButton({
       type="button"
       onClick={onClick}
       title={title ?? "לחיצה למיון — לחיצה שניה להפיכה — שלישית לביטול"}
-      className={`inline-flex max-w-full items-center gap-0.5 rounded px-0.5 py-0.5 text-[11px] leading-tight transition hover:bg-slate-200/60 ${
+      className={`inline-flex max-w-full items-center gap-0.5 rounded px-0.5 py-0.5 text-sm leading-tight transition hover:bg-slate-200/60 ${
         active ? "text-zinc-900" : "text-zinc-700"
       }`}
     >
@@ -193,11 +193,15 @@ function AbbrevHead({ label, title }: { label: string; title: string }) {
 
 function BoolCell({ value }: { value: boolean }) {
   return (
-    <span className={`text-[11px] ${value ? "font-semibold text-emerald-600" : "text-slate-400"}`}>
+    <span className={`text-sm ${value ? "font-semibold text-emerald-600" : "text-slate-400"}`}>
       {value ? "כן" : "לא"}
     </span>
   );
 }
+
+const TRACK_TH = "px-0.5 py-1";
+const TRACK_TD = "px-0.5 py-1 text-sm leading-snug";
+const TRACK_TD_TRUNC = "max-w-0 truncate px-0.5 py-1 text-sm tabular-nums leading-snug";
 
 export function TrackingClient() {
   const [tab, setTab] = useState<"exams" | "makeups">("exams");
@@ -447,10 +451,28 @@ export function TrackingClient() {
               </span>
             )}
           </ListTableToolbar>
-          <Table className="w-full table-fixed text-xs">
+          <Table className="w-full table-fixed text-sm">
+            <colgroup>
+              <col style={{ width: "11%" }} />
+              <col style={{ width: "9%" }} />
+              <col style={{ width: "7%" }} />
+              <col style={{ width: "7%" }} />
+              <col style={{ width: "7%" }} />
+              <col style={{ width: "7%" }} />
+              <col style={{ width: "3%" }} />
+              <col style={{ width: "7%" }} />
+              <col style={{ width: "4%" }} />
+              <col style={{ width: "4%" }} />
+              <col style={{ width: "6%" }} />
+              <col style={{ width: "6%" }} />
+              <col style={{ width: "4%" }} />
+              <col style={{ width: "4%" }} />
+              <col style={{ width: "4%" }} />
+              <col style={{ width: "3%" }} />
+            </colgroup>
             <TableHeader>
               <TableRow>
-                <TableHead className="px-1 py-2">
+                <TableHead className={TRACK_TH}>
                   <SortButton
                     label="מורה"
                     active={sortKey === "teacher_name"}
@@ -458,8 +480,8 @@ export function TrackingClient() {
                     onClick={() => toggleSort("teacher_name")}
                   />
                 </TableHead>
-                <TableHead className="px-1 py-2">מקצוע</TableHead>
-                <TableHead className="px-1 py-2">
+                <TableHead className={TRACK_TH}>מקצוע</TableHead>
+                <TableHead className={TRACK_TH}>
                   <SortButton
                     label="להגשה"
                     title="הגשת המבחן"
@@ -468,7 +490,7 @@ export function TrackingClient() {
                     onClick={() => toggleSort("submission_due")}
                   />
                 </TableHead>
-                <TableHead className="px-1 py-2">
+                <TableHead className={TRACK_TH}>
                   <SortButton
                     label="ת. מבחן"
                     title="תאריך מבחן"
@@ -477,7 +499,7 @@ export function TrackingClient() {
                     onClick={() => toggleSort("exam_date")}
                   />
                 </TableHead>
-                <TableHead className="px-1 py-2">
+                <TableHead className={TRACK_TH}>
                   <SortButton
                     label="מטלה"
                     title="הגשת מטלה (תלמידות)"
@@ -486,7 +508,7 @@ export function TrackingClient() {
                     onClick={() => toggleSort("student_submission_date")}
                   />
                 </TableHead>
-                <TableHead className="px-1 py-2">
+                <TableHead className={TRACK_TH}>
                   <SortButton
                     label="ציונים"
                     title="הגשת ציונים"
@@ -495,10 +517,10 @@ export function TrackingClient() {
                     onClick={() => toggleSort("grades_due")}
                   />
                 </TableHead>
-                <TableHead className="w-[2.5rem] px-1 py-2">
+                <TableHead className={`${TRACK_TH} w-[2.5rem]`}>
                   <AbbrevHead label="מבחן" title="פתיחת מבחן" />
                 </TableHead>
-                <TableHead className="px-1 py-2">
+                <TableHead className={TRACK_TH}>
                   <SortButton
                     label="הוגש"
                     title="הוגש מבחן (בפועל)"
@@ -507,28 +529,28 @@ export function TrackingClient() {
                     onClick={() => toggleSort("submitted_exam")}
                   />
                 </TableHead>
-                <TableHead className="px-1 py-2 whitespace-normal">
+                <TableHead className={`${TRACK_TH} whitespace-normal`}>
                   <AbbrevHead label="רכזת" title="אישור רכזת" />
                 </TableHead>
-                <TableHead className="px-1 py-2 whitespace-normal">
+                <TableHead className={`${TRACK_TH} whitespace-normal`}>
                   <AbbrevHead label="בדיקה" title="נשלח לבדיקה" />
                 </TableHead>
-                <TableHead className="px-1 py-2 whitespace-normal">
+                <TableHead className={`${TRACK_TH} whitespace-normal`}>
                   <AbbrevHead label="תז׳ הינדי" title='תזכורת 1 ע"י הינדי' />
                 </TableHead>
-                <TableHead className="px-1 py-2 whitespace-normal">
+                <TableHead className={`${TRACK_TH} whitespace-normal`}>
                   <AbbrevHead label="תז׳ בילר" title='תזכורת 2 ע"י בילר' />
                 </TableHead>
-                <TableHead className="px-1 py-2 whitespace-normal">
+                <TableHead className={`${TRACK_TH} whitespace-normal`}>
                   <AbbrevHead label="צ. הוגשו" title="ציונים הוגשו" />
                 </TableHead>
-                <TableHead className="px-1 py-2 whitespace-normal">
+                <TableHead className={`${TRACK_TH} whitespace-normal`}>
                   <AbbrevHead label="צ. אושרו" title="ציונים אושרו" />
                 </TableHead>
-                <TableHead className="px-1 py-2 whitespace-normal">
+                <TableHead className={`${TRACK_TH} whitespace-normal`}>
                   <AbbrevHead label="במערכת" title="הועבר למערכת" />
                 </TableHead>
-                <TableHead className="w-[2.5rem] px-1 py-2">
+                <TableHead className={`${TRACK_TH} w-[2.5rem]`}>
                   <AbbrevHead label="עריכה" title="עריכת שורת מעקב" />
                 </TableHead>
               </TableRow>
@@ -538,78 +560,79 @@ export function TrackingClient() {
                 filteredRows.map((row) => (
                   <TableRow key={row.id} className="align-top">
                     <TableCell
-                      className="truncate px-1 py-1.5 font-medium"
+                      className={`${TRACK_TD_TRUNC} font-medium`}
                       title={row.exam?.teacher_name ?? undefined}
                     >
                       {row.exam?.teacher_name ?? "—"}
                     </TableCell>
-                    <TableCell className="truncate px-1 py-1.5" title={row.exam?.subject ?? undefined}>
+                    <TableCell className={TRACK_TD_TRUNC} title={row.exam?.subject ?? undefined}>
                       {row.exam?.subject ?? "—"}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap px-1 py-1.5 tabular-nums text-[11px] text-zinc-600">
+                    <TableCell className={`${TRACK_TD_TRUNC} text-zinc-600`} title={examTrackingDueDate(row.exam?.exam_date, EXAM_SUBMISSION_DUE_OFFSET) ?? undefined}>
                       {examTrackingDueDate(row.exam?.exam_date, EXAM_SUBMISSION_DUE_OFFSET)}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap px-1 py-1.5 tabular-nums text-[11px]">
+                    <TableCell className={TRACK_TD_TRUNC} title={row.exam?.exam_date ? formatHebrewDateFromYmd(row.exam.exam_date) : undefined}>
                       {row.exam?.exam_date ? formatHebrewDateFromYmd(row.exam.exam_date) : "—"}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap px-1 py-1.5 tabular-nums text-[11px] text-zinc-700">
+                    <TableCell className={`${TRACK_TD_TRUNC} text-zinc-700`} title={row.student_submission_date ? formatHebrewDateFromYmd(row.student_submission_date.slice(0, 10)) : undefined}>
                       {row.student_submission_date
                         ? formatHebrewDateFromYmd(row.student_submission_date.slice(0, 10))
                         : "—"}
                     </TableCell>
                     {(() => {
                       const { date: gradesBase, fromSubmission } = gradesDueBase(row);
+                      const gradesLabel = examTrackingDueDate(gradesBase, GRADES_SUBMISSION_DUE_OFFSET);
                       const cellClass = fromSubmission
-                        ? "whitespace-nowrap px-1 py-1.5 tabular-nums text-[11px] rounded bg-amber-100 text-amber-900 ring-1 ring-amber-300"
-                        : "whitespace-nowrap px-1 py-1.5 tabular-nums text-[11px] text-zinc-600";
+                        ? `${TRACK_TD_TRUNC} rounded bg-amber-100 text-amber-900 ring-1 ring-amber-300`
+                        : `${TRACK_TD_TRUNC} text-zinc-600`;
                       const title = fromSubmission
                         ? "מחושב 7 ימים אחרי הגשת המטלה ע״י התלמידות"
                         : "מחושב 7 ימים אחרי תאריך המבחן";
                       return (
                         <TableCell className={cellClass} title={title}>
-                          {examTrackingDueDate(gradesBase, GRADES_SUBMISSION_DUE_OFFSET)}
+                          {gradesLabel}
                         </TableCell>
                       );
                     })()}
-                    <TableCell className="px-1 py-1.5 text-center">
+                    <TableCell className={`${TRACK_TD} text-center`}>
                       <button
                         type="button"
                         className={`${LIST_ROW_LINK_CLASS} !rounded-lg !px-1 !py-0.5`}
                         title="פתיחת מבחן"
                         onClick={() => setExamModalId(row.exam_id)}
                       >
-                        <BookOpen className="size-3 shrink-0 opacity-80" strokeWidth={2} />
+                        <BookOpen className="size-3.5 shrink-0 opacity-80" strokeWidth={2} />
                         <span className="sr-only">פתיחת מבחן</span>
                       </button>
                     </TableCell>
                     <TableCell
-                      className="whitespace-nowrap px-1 py-1.5 tabular-nums text-[11px]"
+                      className={TRACK_TD_TRUNC}
                       title={row.submitted_exam ? formatSubmittedDisplay(row.submitted_exam) : undefined}
                     >
                       {formatSubmittedCompact(row.submitted_exam)}
                     </TableCell>
-                    <TableCell className="px-1 py-1.5 text-center">
+                    <TableCell className={`${TRACK_TD} text-center`}>
                       <BoolCell value={row.approved_by_coordinator} />
                     </TableCell>
-                    <TableCell className="px-1 py-1.5 text-center">
+                    <TableCell className={`${TRACK_TD} text-center`}>
                       <BoolCell value={row.sent_for_review} />
                     </TableCell>
-                    <TableCell className="whitespace-nowrap px-1 py-1.5 tabular-nums text-[11px]">
+                    <TableCell className={TRACK_TD_TRUNC} title={formatOptionalDateYmd(row.reminder_1_hindi)}>
                       {formatOptionalDateYmd(row.reminder_1_hindi)}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap px-1 py-1.5 tabular-nums text-[11px]">
+                    <TableCell className={TRACK_TD_TRUNC} title={formatOptionalDateYmd(row.reminder_2_biller)}>
                       {formatOptionalDateYmd(row.reminder_2_biller)}
                     </TableCell>
-                    <TableCell className="px-1 py-1.5 text-center">
+                    <TableCell className={`${TRACK_TD} text-center`}>
                       <BoolCell value={row.grades_submitted} />
                     </TableCell>
-                    <TableCell className="px-1 py-1.5 text-center">
+                    <TableCell className={`${TRACK_TD} text-center`}>
                       <BoolCell value={row.grades_approved} />
                     </TableCell>
-                    <TableCell className="px-1 py-1.5 text-center">
+                    <TableCell className={`${TRACK_TD} text-center`}>
                       <BoolCell value={row.transferred_to_system} />
                     </TableCell>
-                    <TableCell className="px-1 py-1.5">
+                    <TableCell className={TRACK_TD}>
                       {!readOnly ? (
                         <button
                           type="button"
@@ -617,7 +640,7 @@ export function TrackingClient() {
                           title="עריכה"
                           onClick={() => setEditingRow(row)}
                         >
-                          <Pencil className="size-3 shrink-0" strokeWidth={2} />
+                          <Pencil className="size-3.5 shrink-0" strokeWidth={2} />
                           <span className="sr-only">עריכה</span>
                         </button>
                       ) : null}
