@@ -2,26 +2,16 @@
 
 import { Eye, EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
-export function LoginForm({
-  initialError,
-  clearStaleSession = false,
-}: {
-  initialError?: string;
-  clearStaleSession?: boolean;
-}) {
+/** שמור להתחברות ידנית במקרה חירום (?manual=1) */
+export function LoginForm({ initialError }: { initialError?: string }) {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(initialError === "wrong_password" ? "שם משתמש או סיסמה שגויים" : "");
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!clearStaleSession) return;
-    void fetch("/api/logout", { method: "POST" });
-  }, [clearStaleSession]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -50,26 +40,21 @@ export function LoginForm({
     }
   }
 
-  const fieldClass =
-    "mt-1.5 w-full rounded-xl border border-[#c5d9d3] bg-[#f7fbf9] px-3.5 py-3 text-sm text-[#0f2f2a] outline-none transition placeholder:text-[#8aa39c] focus:border-[#1f6f5b] focus:bg-white focus:ring-2 focus:ring-[#1f6f5b]/25";
-
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form onSubmit={onSubmit} className="mt-8 space-y-4">
       <label className="block">
-        <span className="text-sm font-medium text-[#2a4a44]">שם משתמש</span>
+        <span className="text-sm font-medium text-slate-700">שם משתמש</span>
         <input
           type="text"
           autoComplete="username"
           required
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          placeholder="הקלידי שם משתמש"
-          className={fieldClass}
+          className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-400"
         />
       </label>
-
       <label className="block">
-        <span className="text-sm font-medium text-[#2a4a44]">סיסמה</span>
+        <span className="text-sm font-medium text-slate-700">סיסמה</span>
         <div className="relative">
           <input
             type={showPassword ? "text" : "password"}
@@ -77,35 +62,29 @@ export function LoginForm({
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="הקלידי סיסמה"
-            className={`${fieldClass} pe-11`}
+            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 pe-11 text-sm outline-none focus:border-emerald-400"
           />
           <button
             type="button"
             onClick={() => setShowPassword((v) => !v)}
-            className="absolute end-2.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-[#5f7f77] transition hover:bg-[#e8f3ef] hover:text-[#1f6f5b]"
+            className="absolute end-2.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"
             aria-label={showPassword ? "הסתר סיסמה" : "הצג סיסמה"}
           >
             {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
           </button>
         </div>
       </label>
-
       {error ? (
-        <div
-          role="alert"
-          className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-800"
-        >
+        <div className="rounded-2xl border border-red-200/90 bg-red-50 px-4 py-2.5 text-sm text-red-800">
           {error}
         </div>
       ) : null}
-
       <button
         type="submit"
         disabled={loading}
-        className="mt-1 w-full rounded-xl bg-[#1f6f5b] px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-[#185a4a] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-55"
+        className="w-full rounded-2xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-emerald-800 disabled:opacity-60"
       >
-        {loading ? "מתחברת…" : "כניסה למערכת"}
+        {loading ? "מתחברת…" : "התחברות"}
       </button>
     </form>
   );

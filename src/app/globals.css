@@ -317,3 +317,24 @@ body {
     animation: none;
   }
 }
+
+@keyframes login-auto-progress {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+.login-auto-progress {
+  width: 0%;
+  animation: login-auto-progress 3s linear forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-auto-progress {
+    animation: none;
+    width: 100%;
+  }
+}
