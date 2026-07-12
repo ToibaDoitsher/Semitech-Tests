@@ -1,11 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import useSWR from "swr";
-import { useAcademicYear } from "@/components/academicYears/AcademicYearProvider";
+import { Download, Upload } from "lucide-react";
+import {
+  useAcademicYear,
+  withYearQuery,
+} from "@/components/academicYears/AcademicYearProvider";
 import { ListPageHeader } from "@/components/ui/ListPage";
 import { Spinner } from "@/components/ui/Spinner";
 import type { AcademicYearRow } from "@/lib/academicYears/types";
+import { YEAR_PACK_PARTS } from "@/lib/yearPack/manifest";
 
 const fetcher = async (url: string) => {
   const r = await fetch(url);
@@ -14,15 +19,28 @@ const fetcher = async (url: string) => {
   return j as { years: AcademicYearRow[] };
 };
 
+type PackPartResult = {
+  key: string;
+  label: string;
+  inserted: number;
+  updated: number;
+  failed: number;
+};
+
 export function AcademicYearsClient() {
-  const { refresh } = useAcademicYear();
+  const { refresh, viewingYear, readOnly } = useAcademicYear();
   const { data, error, isLoading, mutate } = useSWR("/api/academic-years", fetcher);
   const [yearName, setYearName] = useState("");
   const [setActive, setSetActive] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [packBusy, setPackBusy] = useState<"export" | "import" | null>(null);
+  const [packMsg, setPackMsg] = useState<string | null>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   const years = data?.years ?? [];
+  const yearId = viewingYear?.id ?? null;
+  const yearLabel = viewingYear?.year_name ?? "השנה הנצפית";
 
   async function createYear(e: React.FormEvent) {
     e.preventDefault();
@@ -64,12 +82,122 @@ export function AcademicYearsClient() {
     setMsg("השנה הפעילה עודכנה");
   }
 
+  async function exportYearPack() {
+    if (!yearId) {
+      setPackMsg("אין שנה נצפית לייצוא");
+      return;
+    }
+    setPackBusy("export");
+    setPackMsg(null);
+    try {
+      const r = await fetch(withYearQuery("/api/academic-years/year-pack/export", yearId));
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error((j as { error?: string }).error ?? "שגיאת ייצוא");
+      }
+      const blob = await r.blob();
+      const cd = r.headers.get("Content-Disposition") ?? "";
+      const m = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(cd);
+      const rawName = decodeURIComponent(m?.[1] || m?.[2] || `year-pack-${yearLabel}.zip`);
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = rawName;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      setPackMsg(`הורד ZIP לשנת ${yearLabel} (${YEAR_PACK_PARTS.map((p) => p.label).join(", ")})`);
+    } catch (err) {
+      setPackMsg((err as Error).message);
+    } finally {
+      setPackBusy(null);
+    }
+  }
+
+  async function onFolderSelected(fileList: FileList | null) {
+    if (!fileList?.length) return;
+    if (readOnly) {
+      setPackMsg("שנה בארכיון — ייבוא חסום");
+      return;
+    }
+    if (!yearId) {
+      setPackMsg("אין שנה פעילה לייבוא");
+      return;
+    }
+    setPackBusy("import");
+    setPackMsg(null);
+    try {
+      const fd = new FormData();
+      for (const f of Array.from(fileList)) {
+        if (/\.(xlsx|xlsm|xls)$/i.test(f.name) || /\.(xlsx|xlsm|xls)$/i.test(f.webkitRelativePath)) {
+          fd.append("files", f);
+        }
+      }
+      const r = await fetch(withYearQuery("/api/academic-years/year-pack/import", yearId), {
+        method: "POST",
+        body: fd,
+      });
+      const j = (await r.json().catch(() => ({}))) as {
+        error?: string;
+        parts?: PackPartResult[];
+      };
+      if (!r.ok) throw new Error(j.error ?? "שגיאת ייבוא");
+      const summary = (j.parts ?? [])
+        .map((p) => `${p.label}: +${p.inserted} / עדכון ${p.updated}${p.failed ? ` / כשל ${p.failed}` : ""}`)
+        .join(" · ");
+      setPackMsg(summary || "הייבוא הושלם");
+      await refresh();
+    } catch (err) {
+      setPackMsg((err as Error).message);
+    } finally {
+      setPackBusy(null);
+      if (folderInputRef.current) folderInputRef.current.value = "";
+    }
+  }
+
   return (
     <div className="space-y-8">
       <ListPageHeader
         title="שנות לימוד"
         subtitle="כל שנה היא מערכת עצמאית — אין העתקה או קידום בין שנים. רק שנה אחת פעילה."
       />
+
+      <section className="rounded-2xl border bg-white p-6 dark:bg-zinc-900/40">
+        <h2 className="text-lg font-semibold">ייצוא / ייבוא שנה</h2>
+        <p className="mt-1 text-sm text-zinc-600">
+          לשנה הנצפית כרגע: <span className="font-medium">{yearLabel}</span>
+          {readOnly ? " (ארכיון — ייבוא חסום)" : ""}. כולל כיתות, התמחויות, מסלולים, מורות,
+          תלמידות ושיבוצים — ללא מבחנים, השלמות ומעקב.
+        </p>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            disabled={!yearId || packBusy !== null}
+            onClick={() => void exportYearPack()}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-50 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+          >
+            <Download className="h-4 w-4" aria-hidden />
+            {packBusy === "export" ? "מייצא…" : "ייצוא"}
+          </button>
+          <button
+            type="button"
+            disabled={!yearId || readOnly || packBusy !== null}
+            onClick={() => folderInputRef.current?.click()}
+            title={readOnly ? "ייבוא חסום בארכיון" : undefined}
+            className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+          >
+            <Upload className="h-4 w-4" aria-hidden />
+            {packBusy === "import" ? "מייבא…" : "ייבוא"}
+          </button>
+          <input
+            ref={folderInputRef}
+            type="file"
+            className="hidden"
+            multiple
+            {...({ webkitdirectory: "", directory: "" } as Record<string, string>)}
+            onChange={(e) => void onFolderSelected(e.target.files)}
+          />
+        </div>
+        {packMsg ? <p className="mt-3 text-sm text-zinc-600">{packMsg}</p> : null}
+      </section>
 
       <form onSubmit={createYear} className="rounded-2xl border bg-white p-6 dark:bg-zinc-900/40">
         <h2 className="text-lg font-semibold">פתיחת שנת לימודים</h2>
