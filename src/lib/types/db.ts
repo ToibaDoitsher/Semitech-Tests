@@ -1,6 +1,6 @@
-import type { GradeLevel } from "@/lib/academicYears/types";
+import type { GradeLevel, Term } from "@/lib/academicYears/types";
 
-export type { GradeLevel };
+export type { GradeLevel, Term };
 /** סוג הוראה על תלמידה / teaching_track_type במבחן — full או short בלבד */
 export type TeachingTrackType = "full" | "short";
 
@@ -77,6 +77,7 @@ export type TeacherAssignment = {
 export type Exam = {
   id: string;
   academic_year_id: string;
+  term?: Term;
   teacher_id: string;
   subject: string;
   exam_date: string;
@@ -109,6 +110,7 @@ export type MakeupExam = {
   id: string;
   student_id: string;
   exam_id: string;
+  term?: Term;
   status: MakeupExamStatus;
   created_at: string;
   completed_at: string | null;
@@ -118,6 +120,7 @@ export type ExamTracking = {
   id: string;
   exam_id: string;
   teacher_id: string;
+  term?: Term;
   submitted_exam: string | null;
   approved_by_coordinator: boolean;
   sent_for_review: boolean;

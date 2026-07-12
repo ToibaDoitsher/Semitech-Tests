@@ -19,12 +19,12 @@ import { notDeleted } from "@/lib/db/softDelete";
 import { formatGradeLevelsLabel } from "@/lib/assignments/multiTarget";
 import {
   readOnlyResponse,
-  resolveAcademicYearScope,
-  scopeFromSearchParams,
+  resolveScopeFromUrl,
 } from "@/lib/academicYears/scope";
 import { TEACHER_EMBED_IN_EXAM } from "@/lib/teachers/db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { filterGradeLevels } from "@/lib/gradeLevels/options";
+import { dbSchemaHint } from "@/lib/db/schemaHint";
 
 export const dynamic = "force-dynamic";
 
@@ -48,16 +48,17 @@ export async function GET(request: Request) {
   );
 
   const supabase = createSupabaseAdminClient();
-  const scope = await resolveAcademicYearScope(supabase, scopeFromSearchParams(searchParams));
+  const scope = await resolveScopeFromUrl(supabase, searchParams);
 
   let query = notDeleted(supabase.from("exams").select(`*, ${TEACHER_EMBED_IN_EXAM}`))
     .eq("academic_year_id", scope.year.id)
+    .eq("term", scope.term)
     .order("exam_date", { ascending: false })
     .order("created_at", { ascending: false });
 
   const { data, error } = await query;
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ error: dbSchemaHint(error.message) }, { status: 500 });
   let exams = data ?? [];
 
   if (gradeFilter.length) {
@@ -92,7 +93,12 @@ export async function GET(request: Request) {
     };
   });
 
-  return NextResponse.json({ exams: enriched, readOnly: scope.readOnly, academicYear: scope.year });
+  return NextResponse.json({
+    exams: enriched,
+    readOnly: scope.readOnly,
+    academicYear: scope.year,
+    term: scope.term,
+  });
 }
 
 function badRequest(error: string, ctx: Record<string, unknown> = {}): NextResponse {
@@ -130,10 +136,7 @@ export async function POST(request: Request) {
   }
 
   const supabase = createSupabaseAdminClient();
-  const yearScope = await resolveAcademicYearScope(
-    supabase,
-    scopeFromSearchParams(new URL(request.url).searchParams),
-  );
+  const yearScope = await resolveScopeFromUrl(supabase, new URL(request.url).searchParams);
   if (yearScope.readOnly) {
     return NextResponse.json(readOnlyResponse(), { status: 403 });
   }
@@ -242,6 +245,7 @@ export async function POST(request: Request) {
     supabase,
     academicYearId: yearScope.year.id,
     academicYearName: yearScope.year.year_name,
+    term: yearScope.term,
     teacherId: teacher_id,
     subject,
     examDate: exam_date,
@@ -251,7 +255,7 @@ export async function POST(request: Request) {
   });
 
   if ("error" in result) {
-    return badRequest(result.error, {
+    return badRequest(dbSchemaHint(result.error), {
       teacher_id,
       assignmentId,
       exam_date,

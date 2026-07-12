@@ -5,7 +5,7 @@ import { CalendarPlus, PenLine, Users } from "lucide-react";
 import { useDeferredValue, useMemo, useState } from "react";
 import useSWR from "swr";
 import { ExamWorkspaceModal } from "@/components/exams/ExamWorkspaceModal";
-import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
+import { useAcademicYear, withYearQuery, withYearTermQuery } from "@/components/academicYears/AcademicYearProvider";
 import {
   ListDataCard,
   ListPageHeader,
@@ -46,8 +46,8 @@ type ExamRow = {
 type LookupItem = { id: string; name: string };
 
 export function ExamsListClient() {
-  const { viewingYear, readOnly } = useAcademicYear();
-  const url = withYearQuery("/api/exams", viewingYear?.id);
+  const { viewingYear, viewingTerm, readOnly } = useAcademicYear();
+  const url = withYearTermQuery("/api/exams", viewingYear?.id, viewingTerm);
   const { data, error, isLoading, mutate } = useSWR<{ exams: ExamRow[] }>(url, fetcher);
 
   const { data: clData } = useSWR<{ items: LookupItem[] }>(
@@ -121,13 +121,13 @@ export function ExamsListClient() {
               label="מבחנים לאקסל"
               filename="מבחנים"
               sheetName="מבחנים"
-              exportUrl={withYearQuery("/api/export/exams", viewingYear?.id)}
+              exportUrl={withYearTermQuery("/api/export/exams", viewingYear?.id, viewingTerm)}
             />
             <ExportExcelButton
               label="תלמידות במבחנים"
               filename="מבחנים-תלמידות"
               sheetName="שורות"
-              exportUrl={withYearQuery("/api/export/exam-lines", viewingYear?.id)}
+              exportUrl={withYearTermQuery("/api/export/exam-lines", viewingYear?.id, viewingTerm)}
             />
             {!readOnly ? (
               <Link href="/exams/new" className={LIST_PRIMARY_LINK_CLASS}>
@@ -302,7 +302,7 @@ export function ExamsListClient() {
           <TableClearFooter
             label="מבחנים"
             count={totalCount}
-            apiPath={withYearQuery("/api/exams/clear-all", viewingYear?.id)}
+            apiPath={withYearTermQuery("/api/exams/clear-all", viewingYear?.id, viewingTerm)}
             scopePreviewPath={withYearQuery("/api/scope/delete-preview", viewingYear?.id)}
             confirmHint="מחיקה רכה של מבחנים בשנה הנבחרת."
             onCleared={() => void mutate()}

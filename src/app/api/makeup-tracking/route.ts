@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { examGradeLevelsLabel } from "@/lib/assignments/multiTarget";
-import { resolveAcademicYearScope, scopeFromSearchParams } from "@/lib/academicYears/scope";
+import { resolveScopeFromUrl } from "@/lib/academicYears/scope";
 import {
   backfillMakeupTrackingFromMakeups,
   makeupTrackingTableHint,
@@ -79,7 +79,7 @@ export async function GET(request: Request) {
   const sync = searchParams.get("sync") === "1";
 
   const supabase = createSupabaseAdminClient();
-  const scope = await resolveAcademicYearScope(supabase, scopeFromSearchParams(searchParams));
+  const scope = await resolveScopeFromUrl(supabase, searchParams);
 
   if (sync) {
     const backfill = await backfillMakeupTrackingFromMakeups(supabase, scope.year.id);
@@ -93,7 +93,8 @@ export async function GET(request: Request) {
     .select(
       "id, exam_id, teacher_id, student_id, sent_to_teacher_at, grade_received_at, grade, makeup_exam_id",
     )
-    .eq("academic_year_id", scope.year.id);
+    .eq("academic_year_id", scope.year.id)
+    .eq("term", scope.term);
 
   if (teacherId) q = q.eq("teacher_id", teacherId);
 

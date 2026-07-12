@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import useSWR from "swr";
+import { useAcademicYear, withYearTermQuery } from "@/components/academicYears/AcademicYearProvider";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 import { ListDataCard, ListPageHeader } from "@/components/ui/ListPage";
@@ -72,12 +73,13 @@ function NotificationIcon({ icon, severity }: { icon: IconKey; severity: Severit
 }
 
 export function NotificationsClient() {
+  const { viewingYear, viewingTerm } = useAcademicYear();
   const { data, error, isLoading, mutate, isValidating } = useSWR<{
     items: Notification[];
     counts: Counts;
     generated_at?: string;
     read_only?: boolean;
-  }>("/api/notifications", fetcher, {
+  }>(withYearTermQuery("/api/notifications", viewingYear?.id, viewingTerm), fetcher, {
     refreshInterval: 60_000,
     refreshWhenHidden: false,
   });

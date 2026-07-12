@@ -15,7 +15,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TableClearFooter } from "@/components/ui/TableClearFooter";
-import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
+import { useAcademicYear, withYearQuery, withYearTermQuery } from "@/components/academicYears/AcademicYearProvider";
 import { formatHebrewDateFromYmd } from "@/lib/hebrewDate";
 import {
   examTrackingDueDate,
@@ -205,10 +205,10 @@ const TRACK_TD_TRUNC = "max-w-0 truncate px-0.5 py-1 text-sm tabular-nums leadin
 
 export function TrackingClient() {
   const [tab, setTab] = useState<"exams" | "makeups">("exams");
-  const { viewingYear, readOnly } = useAcademicYear();
+  const { viewingYear, viewingTerm, readOnly } = useAcademicYear();
   const yearId = viewingYear?.id;
   const { data, error, isLoading, mutate } = useSWR<{ tracking: Row[] }>(
-    withYearQuery("/api/tracking", yearId),
+    withYearTermQuery("/api/tracking", yearId, viewingTerm),
     fetcher,
   );
   const [editingRow, setEditingRow] = useState<Row | null>(null);
@@ -329,7 +329,7 @@ export function TrackingClient() {
               label="ייצוא לאקסל"
               filename="מעקב-מבחנים"
               sheetName="מעקב"
-              exportUrl={withYearQuery("/api/export/tracking", yearId)}
+              exportUrl={withYearTermQuery("/api/export/tracking", yearId, viewingTerm)}
             />
           ) : null
         }
@@ -660,7 +660,7 @@ export function TrackingClient() {
             <TableClearFooter
               label="שורות מעקב"
               count={totalCount}
-              apiPath={withYearQuery("/api/tracking/clear-all", yearId)}
+              apiPath={withYearTermQuery("/api/tracking/clear-all", yearId, viewingTerm)}
               onCleared={() => void mutate()}
             />
           ) : null}

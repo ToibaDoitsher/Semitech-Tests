@@ -3,7 +3,9 @@ import {
   createAcademicYear,
   listAcademicYears,
   setActiveAcademicYear,
+  setActiveTerm,
 } from "@/lib/academicYears/years";
+import { parseTerm } from "@/lib/academicYears/types";
 import { dbSchemaHint } from "@/lib/db/schemaHint";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -46,11 +48,26 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const body = (await request.json()) as { active_year_id?: string };
+    const body = (await request.json()) as {
+      active_year_id?: string;
+      active_term?: string;
+      year_id?: string;
+    };
+    const supabase = createSupabaseAdminClient();
+
+    const term = parseTerm(body.active_term);
+    if (term) {
+      const yearId = (body.year_id ?? body.active_year_id)?.trim();
+      if (!yearId) {
+        return NextResponse.json({ error: "year_id חובה לעדכון מחצית" }, { status: 400 });
+      }
+      const year = await setActiveTerm(supabase, yearId, term);
+      return NextResponse.json({ year });
+    }
+
     const id = body.active_year_id?.trim();
     if (!id) return NextResponse.json({ error: "active_year_id חובה" }, { status: 400 });
 
-    const supabase = createSupabaseAdminClient();
     const year = await setActiveAcademicYear(supabase, id);
     return NextResponse.json({ year });
   } catch (e) {

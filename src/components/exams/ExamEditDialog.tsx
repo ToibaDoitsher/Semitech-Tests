@@ -6,7 +6,7 @@ import { HebrewDatePicker } from "@/components/ui/HebrewDatePicker";
 import { InlineNotice } from "@/components/ui/InlineNotice";
 import { Spinner } from "@/components/ui/Spinner";
 import { TeacherSearchCombobox } from "@/components/teachers/TeacherSearchCombobox";
-import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
+import { useAcademicYear, withYearQuery, withYearTermQuery } from "@/components/academicYears/AcademicYearProvider";
 import { TEACHING_TRACK_NAME } from "@/lib/students/fields";
 import { teachingModeSelectionLabel } from "@/lib/teachers/display";
 import {
@@ -76,7 +76,7 @@ export function ExamEditDialog({
   initial,
   locked,
 }: Props) {
-  const { viewingYear } = useAcademicYear();
+  const { viewingYear, viewingTerm } = useAcademicYear();
   const yearId = viewingYear?.id;
 
   const { data: clData } = useSWR<{ items: LookupItem[] }>(
@@ -147,7 +147,7 @@ export function ExamEditDialog({
     setBusy(true);
     setError(null);
     try {
-      const r = await fetch(withYearQuery(`/api/exams/${examId}`, yearId), {
+      const r = await fetch(withYearTermQuery(`/api/exams/${examId}`, yearId, viewingTerm), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

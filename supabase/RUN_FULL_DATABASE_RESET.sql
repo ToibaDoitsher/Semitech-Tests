@@ -63,13 +63,15 @@ create table public.academic_years (
   start_date date,
   end_date date,
   is_active boolean not null default false,
-  created_at timestamptz not null default now()
+  active_term text not null default 'א',
+  created_at timestamptz not null default now(),
+  constraint academic_years_active_term_check check (active_term in ('א', 'ב'))
 );
 
 create unique index uq_academic_years_one_active on public.academic_years (is_active) where is_active = true;
 
-insert into public.academic_years (year_name, is_active) values
-  ('תשפ״ו', true)
+insert into public.academic_years (year_name, is_active, active_term) values
+  ('תשפ״ו', true, 'א')
 on conflict (year_name) do nothing;
 
 create table public.classes (
@@ -280,6 +282,7 @@ create index idx_teacher_assignments_teacher on public.teacher_assignments (teac
 create table public.exams (
   id uuid primary key default gen_random_uuid(),
   academic_year_id uuid not null references public.academic_years (id) on delete restrict,
+  term text not null default 'א',
   teacher_assignment_id uuid not null references public.teacher_assignments (id) on delete restrict,
   grade_levels text[] not null default '{}',
   teacher_id uuid not null references public.teachers (id) on delete restrict,
@@ -297,6 +300,9 @@ create table public.exams (
   created_at timestamptz not null default now(),
   deleted_at timestamptz
 );
+
+alter table public.exams add constraint exams_term_check
+  check (term in ('א', 'ב'));
 
 alter table public.exams add constraint exams_category_check
   check (assignment_category in ('חובה', 'התמחות'));
@@ -370,6 +376,7 @@ create table public.exam_students (
 create table public.makeup_exams (
   id uuid primary key default gen_random_uuid(),
   academic_year_id uuid not null references public.academic_years (id) on delete restrict,
+  term text not null default 'א',
   student_id uuid not null references public.students (id) on delete restrict,
   exam_id uuid not null references public.exams (id) on delete restrict,
   status public.makeup_exam_status not null default 'open',
@@ -381,9 +388,13 @@ create table public.makeup_exams (
   unique (student_id, exam_id)
 );
 
+alter table public.makeup_exams add constraint makeup_exams_term_check
+  check (term in ('א', 'ב'));
+
 create table public.makeup_tracking (
   id uuid primary key default gen_random_uuid(),
   academic_year_id uuid not null references public.academic_years (id) on delete restrict,
+  term text not null default 'א',
   exam_id uuid not null references public.exams (id) on delete restrict,
   teacher_id uuid not null references public.teachers (id) on delete restrict,
   student_id uuid not null references public.students (id) on delete restrict,
@@ -396,7 +407,11 @@ create table public.makeup_tracking (
   unique (exam_id, student_id)
 );
 
+alter table public.makeup_tracking add constraint makeup_tracking_term_check
+  check (term in ('א', 'ב'));
+
 create index idx_makeup_tracking_academic_year on public.makeup_tracking (academic_year_id);
+create index idx_makeup_tracking_year_term on public.makeup_tracking (academic_year_id, term);
 create index idx_makeup_tracking_exam_id on public.makeup_tracking (exam_id);
 create index idx_makeup_tracking_teacher_id on public.makeup_tracking (teacher_id);
 create index idx_makeup_tracking_student_id on public.makeup_tracking (student_id);
@@ -405,6 +420,7 @@ create index idx_makeup_tracking_makeup_exam_id on public.makeup_tracking (makeu
 create table public.exam_tracking (
   id uuid primary key default gen_random_uuid(),
   academic_year_id uuid not null references public.academic_years (id) on delete restrict,
+  term text not null default 'א',
   exam_id uuid not null references public.exams (id) on delete restrict,
   teacher_id uuid not null references public.teachers (id) on delete restrict,
   submitted_exam timestamptz,
@@ -419,6 +435,9 @@ create table public.exam_tracking (
   deleted_at timestamptz,
   unique (exam_id, teacher_id)
 );
+
+alter table public.exam_tracking add constraint exam_tracking_term_check
+  check (term in ('א', 'ב'));
 
 create table public.student_history (
   id uuid primary key default gen_random_uuid(),
@@ -688,13 +707,17 @@ create trigger trg_teachers_validate_year
 create or replace function public.exam_tracking_fill_academic_year()
 returns trigger language plpgsql as $$
 begin
-  if new.academic_year_id is null then
-    select e.academic_year_id into new.academic_year_id
+  if new.academic_year_id is null or new.term is null then
+    select e.academic_year_id, e.term
+      into new.academic_year_id, new.term
     from public.exams e
     where e.id = new.exam_id;
   end if;
   if new.academic_year_id is null then
     raise exception 'exam_tracking: exam not found';
+  end if;
+  if new.term is null then
+    new.term := 'א';
   end if;
   return new;
 end;
@@ -726,13 +749,17 @@ create trigger trg_student_history_fill_year
 create or replace function public.makeup_exams_fill_academic_year()
 returns trigger language plpgsql as $$
 begin
-  if new.academic_year_id is null then
-    select e.academic_year_id into new.academic_year_id
+  if new.academic_year_id is null or new.term is null then
+    select e.academic_year_id, e.term
+      into new.academic_year_id, new.term
     from public.exams e
     where e.id = new.exam_id;
   end if;
   if new.academic_year_id is null then
     raise exception 'makeup_exams: exam not found';
+  end if;
+  if new.term is null then
+    new.term := 'א';
   end if;
   return new;
 end;
@@ -745,13 +772,17 @@ create trigger trg_makeup_exams_fill_year
 create or replace function public.makeup_tracking_fill_academic_year()
 returns trigger language plpgsql as $$
 begin
-  if new.academic_year_id is null then
-    select e.academic_year_id into new.academic_year_id
+  if new.academic_year_id is null or new.term is null then
+    select e.academic_year_id, e.term
+      into new.academic_year_id, new.term
     from public.exams e
     where e.id = new.exam_id;
   end if;
   if new.academic_year_id is null then
     raise exception 'makeup_tracking: exam not found';
+  end if;
+  if new.term is null then
+    new.term := 'א';
   end if;
   return new;
 end;
@@ -768,6 +799,7 @@ create index idx_students_import_batch on public.students (import_batch_id);
 create index idx_teacher_assignments_grade_levels on public.teacher_assignments using gin (grade_levels);
 create index idx_teacher_assignments_year on public.teacher_assignments (academic_year_id);
 create index idx_exams_academic_year on public.exams (academic_year_id);
+create index idx_exams_year_term on public.exams (academic_year_id, term) where deleted_at is null;
 create index idx_exams_exam_date on public.exams (exam_date);
 create index idx_exams_grade_levels_gin on public.exams using gin (grade_levels);
 create index idx_exams_deleted on public.exams (deleted_at) where deleted_at is null;
@@ -775,9 +807,11 @@ create index idx_exam_students_exam_id on public.exam_students (exam_id);
 create index idx_exam_students_student_id on public.exam_students (student_id);
 create index idx_exam_students_status on public.exam_students (status);
 create index idx_makeup_exams_academic_year on public.makeup_exams (academic_year_id);
+create index idx_makeup_exams_year_term on public.makeup_exams (academic_year_id, term) where deleted_at is null;
 create index idx_makeup_exams_student_id on public.makeup_exams (student_id);
 create index idx_makeup_status on public.makeup_exams (status);
 create index idx_exam_tracking_academic_year on public.exam_tracking (academic_year_id);
+create index idx_exam_tracking_year_term on public.exam_tracking (academic_year_id, term);
 create index idx_exam_tracking_exam_id on public.exam_tracking (exam_id);
 create index idx_exam_tracking_deleted on public.exam_tracking (deleted_at) where deleted_at is null;
 create index idx_audit_entity on public.audit_logs (entity_type, entity_id);

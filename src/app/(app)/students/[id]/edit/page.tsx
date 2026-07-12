@@ -48,14 +48,29 @@ export default async function EditStudentPage({ params }: { params: Promise<{ id
 
 
 
+  const yearId = s.academic_year_id;
   const [cl, sp, tr] = await Promise.all([
-
-    supabase.from("classes").select("id,name").order("name"),
-
-    supabase.from("specializations").select("id,name").order("name"),
-
-    supabase.from("tracks").select("id,name").order("name"),
-
+    supabase
+      .from("classes")
+      .select("id,name")
+      .eq("academic_year_id", yearId)
+      .eq("is_active", true)
+      .is("deleted_at", null)
+      .order("name"),
+    supabase
+      .from("specializations")
+      .select("id,name")
+      .eq("academic_year_id", yearId)
+      .eq("is_active", true)
+      .is("deleted_at", null)
+      .order("name"),
+    supabase
+      .from("tracks")
+      .select("id,name")
+      .eq("academic_year_id", yearId)
+      .eq("is_active", true)
+      .is("deleted_at", null)
+      .order("name"),
   ]);
 
 

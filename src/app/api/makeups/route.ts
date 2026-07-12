@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import {
-  resolveAcademicYearScope,
-  scopeFromSearchParams,
-} from "@/lib/academicYears/scope";
+import { resolveScopeFromUrl } from "@/lib/academicYears/scope";
+import { dbSchemaHint } from "@/lib/db/schemaHint";
 import { TEACHER_EMBED_IN_EXAM } from "@/lib/teachers/db";
 import { teacherEmbedDisplayName } from "@/lib/teachers/display";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -11,10 +9,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const supabase = createSupabaseAdminClient();
-  const scope = await resolveAcademicYearScope(
-    supabase,
-    scopeFromSearchParams(new URL(request.url).searchParams),
-  );
+  const scope = await resolveScopeFromUrl(supabase, new URL(request.url).searchParams);
 
   const SELECT_WITH_FIELDS =
     "id, status, created_at, completed_at, grade, student_id, exam_id, notes, auto_registered, starting_grade, is_paid";
@@ -27,6 +22,7 @@ export async function GET(request: Request) {
     .from("makeup_exams")
     .select(SELECT_WITH_FIELDS)
     .eq("academic_year_id", scope.year.id)
+    .eq("term", scope.term)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
@@ -40,6 +36,7 @@ export async function GET(request: Request) {
       .from("makeup_exams")
       .select(SELECT_WITH_AUTO)
       .eq("academic_year_id", scope.year.id)
+      .eq("term", scope.term)
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
     rows = (mid.data ?? null) as Array<Record<string, unknown>> | null;
@@ -51,13 +48,14 @@ export async function GET(request: Request) {
       .from("makeup_exams")
       .select(SELECT_LEGACY)
       .eq("academic_year_id", scope.year.id)
+      .eq("term", scope.term)
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
     rows = (legacy.data ?? null) as Array<Record<string, unknown>> | null;
     error = legacy.error;
   }
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ error: dbSchemaHint(error.message) }, { status: 500 });
 
   const studentIds = [...new Set((rows ?? []).map((r) => r.student_id as string))];
   const examIds = [...new Set((rows ?? []).map((r) => r.exam_id as string))];

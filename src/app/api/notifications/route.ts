@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import {
-  resolveAcademicYearScope,
-  scopeFromSearchParams,
+  resolveScopeFromUrl,
 } from "@/lib/academicYears/scope";
 import { notDeleted } from "@/lib/db/softDelete";
 import { teacherEmbedDisplayName } from "@/lib/teachers/display";
@@ -56,9 +55,9 @@ function buildNotification(item: Omit<Notification, "category">): Notification {
 
 export async function GET(request: Request) {
   const supabase = createSupabaseAdminClient();
-  const scope = await resolveAcademicYearScope(
+  const scope = await resolveScopeFromUrl(
     supabase,
-    scopeFromSearchParams(new URL(request.url).searchParams),
+    new URL(request.url).searchParams,
   );
 
   // בארכיון — אין התראות (נתונים סגורים)
@@ -72,6 +71,7 @@ export async function GET(request: Request) {
   }
 
   const yearId = scope.year.id;
+  const term = scope.term;
   const today = todayLocalYmd();
   const tomorrow = addDays(today, 1);
   const trackingWindowStart = addDays(today, -90); // נסתכל גם 90 יום אחורה למצוא איחורים
@@ -89,6 +89,7 @@ export async function GET(request: Request) {
       ),
   )
     .eq("academic_year_id", yearId)
+    .eq("term", term)
     .gte("exam_date", trackingWindowStart)
     .lte("exam_date", trackingWindowEnd)
     .order("exam_date", { ascending: true })
@@ -122,6 +123,7 @@ export async function GET(request: Request) {
           supabase.from("exam_tracking").select(trackingSelect),
         )
           .eq("academic_year_id", yearId)
+          .eq("term", term)
           .in("exam_id", examIds)
           .limit(500);
         if (first.error && /student_submission_date/i.test(first.error.message)) {
@@ -129,6 +131,7 @@ export async function GET(request: Request) {
             supabase.from("exam_tracking").select(trackingSelectLegacy),
           )
             .eq("academic_year_id", yearId)
+            .eq("term", term)
             .in("exam_id", examIds)
             .limit(500);
         }
@@ -144,6 +147,7 @@ export async function GET(request: Request) {
       ),
   )
     .eq("academic_year_id", yearId)
+    .eq("term", term)
     .eq("status", "open")
     .order("created_at", { ascending: true })
     .limit(200);
@@ -154,6 +158,7 @@ export async function GET(request: Request) {
       "id, exam_id, student_id, sent_to_teacher_at, grade_received_at, exams ( id, subject, exam_date ), students ( id, first_name, last_name )",
     )
     .eq("academic_year_id", yearId)
+    .eq("term", term)
     .not("sent_to_teacher_at", "is", null)
     .is("grade_received_at", null)
     .limit(200);

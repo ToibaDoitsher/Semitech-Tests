@@ -4,7 +4,7 @@ import Link from "next/link";
 import { BookOpen, CheckCircle2, Pencil, Undo2, UserRound } from "lucide-react";
 import { useDeferredValue, useMemo, useState } from "react";
 import useSWR from "swr";
-import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
+import { useAcademicYear, withYearQuery, withYearTermQuery } from "@/components/academicYears/AcademicYearProvider";
 import { ExamWorkspaceModal } from "@/components/exams/ExamWorkspaceModal";
 import { CompleteMakeupDialog } from "@/components/makeup/CompleteMakeupDialog";
 import {
@@ -121,10 +121,10 @@ function makeupDateYmd(iso: string | null): string | null {
 }
 
 export function MakeupsClient() {
-  const { viewingYear, readOnly } = useAcademicYear();
+  const { viewingYear, viewingTerm, readOnly } = useAcademicYear();
   const yearId = viewingYear?.id;
   const { data, error, isLoading, mutate } = useSWR<{ makeups: Row[] }>(
-    withYearQuery("/api/makeups", yearId),
+    withYearTermQuery("/api/makeups", yearId, viewingTerm),
     fetcher,
   );
   const [completeId, setCompleteId] = useState<string | null>(null);
@@ -740,7 +740,7 @@ export function MakeupsClient() {
           <TableClearFooter
             label="השלמות"
             count={totalCount}
-            apiPath={withYearQuery("/api/makeups/clear-all", yearId)}
+            apiPath={withYearTermQuery("/api/makeups/clear-all", yearId, viewingTerm)}
             onCleared={() => void mutate()}
           />
         ) : null}

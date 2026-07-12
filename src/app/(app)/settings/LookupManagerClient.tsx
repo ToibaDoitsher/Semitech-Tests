@@ -97,7 +97,11 @@ export function LookupManagerClient({ entity }: { entity: LookupEntitySlug }) {
     <div className="space-y-8">
       <ListPageHeader
         title={title}
-        subtitle="ערכים קבועים בלבד — ללא הקלדה חופשית במסכים אחרים"
+        subtitle={
+          isYearScopedLookup(entity) && viewingYear
+            ? `רק ערכים של שנת ${viewingYear.year_name} — ללא הקלדה חופשית במסכים אחרים`
+            : "ערכים קבועים בלבד — ללא הקלדה חופשית במסכים אחרים"
+        }
         actions={
           <>
             <Link href={`/settings/${entity}/import`} className={LIST_SECONDARY_LINK_CLASS}>
@@ -108,7 +112,14 @@ export function LookupManagerClient({ entity }: { entity: LookupEntitySlug }) {
               label="ייצוא לאקסל"
               filename={`לוקאפ-${entity}`}
               sheetName={title}
-              exportUrl={`/api/export/lookups?entity=${encodeURIComponent(entity)}`}
+              exportUrl={
+                isYearScopedLookup(entity)
+                  ? withYearQuery(
+                      `/api/export/lookups?entity=${encodeURIComponent(entity)}`,
+                      viewingYear?.id,
+                    )
+                  : `/api/export/lookups?entity=${encodeURIComponent(entity)}`
+              }
             />
           </>
         }

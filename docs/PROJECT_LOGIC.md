@@ -8,7 +8,8 @@
 ## 1. עקרונות כלליים
 
 - כל הנתונים התפעוליים **מבודדים לפי שנת לימודים** (`academic_year_id`).
-- שנה **פעילה** — עריכה מותרת. שנה **בארכיון** — צפייה בלבד (`readOnly: true`, 403 על מוטציות).
+- בתוך שנה: **מחצית א / מחצית ב** (`term`) מבודדת רק מבחנים, מעקב מבחנים, השלמות ומעקב השלמות. תלמידות, מורות, שיבוצים ולוקאפים **משותפים** לשתי המחציות.
+- שנה **פעילה** — עריכה מותרת. שנה **בארכיון** — צפייה בלבד (`readOnly: true`, 403 על מוטציות). מעבר בין מחציות **אינו** משנה `readOnly`.
 - רוב הטבלאות משתמשות ב-**מחיקה רכה** (`deleted_at`). שאילתות חייבות לסנן `deleted_at IS NULL` (`notDeleted()`).
 - מבחנים ושיבוצים משתמשים ב-**יעד מרובה** (כיתות / מסלולים / פסיכולוגיה / כל השכבה) — לא יעד יחיד.
 
@@ -18,6 +19,13 @@
 
 ### שנת לימודים (`academic_years`)
 שנה אחת פעילה בכל זמן. כל תלמידה, מורה, מבחן ושיבוץ שייכים לשנה.
+- `active_term` — מחצית ברירת מחדל לצפייה (`א` / `ב`). שנה חדשה מתחילה ב־`א`. אחרי מיגרציה: שנה פעילה קיימת = `ב` (כל הנתונים הישנים).
+
+### מחצית (`term` על exams / exam_tracking / makeup_exams / makeup_tracking)
+- ערכים: `א` | `ב` (עמודה מפורשת — לא לפי תאריכים).
+- יצירת מבחן נעשית לפי המחצית הנצפית (`?term=` / `viewingTerm`).
+- `exam_students` נגזר מ־`exam_id` (בלי עמודת מחצית נפרדת).
+- מיגרציה: `PATCH_TERM_HALVES.sql` — ADD COLUMN + backfill ל־`ב` בלבד; אין מחיקה.
 
 ### תלמידות (`students`)
 - שכבה: `א` | `ב` | `ג`
@@ -154,6 +162,8 @@ makeup  → completed   (סיום השלמה)
 | `PATCH_MAKEUP_REGISTRATION_FIELDS.sql` | `starting_grade`, `is_paid` |
 | `PATCH_ASSIGNMENT_MULTI_TARGET.sql` | יעדים מרובים |
 | `PATCH_EXAM_STUDENTS_NOTES.sql` | `exam_students.notes` |
+| `PATCH_FIX_MISSING_CORE_COLUMNS.sql` | `grade_level` / שמות מורות / `deleted_at` חסרים |
+| `PATCH_TERM_HALVES.sql` | `active_term` + `term` (מחציות א/ב) — backfill ל־ב |
 
 ### צ'קליסט לסוכן לפני שינוי DB
 - [ ] קרא מסמך זה
@@ -166,10 +176,12 @@ makeup  → completed   (סיום השלמה)
 
 ## 6. API — דפוסים
 
-- Scope: `?academic_year_id=` → `resolveAcademicYearScope()`
+- Scope: `?academic_year_id=` + `?term=` → `resolveScopeFromUrl()` / `resolveAcademicYearScope(..., term)`
+- מבחנים / מעקב / השלמות / יומן / סטטיסטיקות מבחנים: `.eq('term', scope.term)` בנוסף לשנה
+- תלמידות / מורות / שיבוצים / לוקאפים: **בלי** פילטר `term`
 - מוטציה בשנה בארכיון → 403
 - בדיקת `academic_year_id` על הרשומה לפני עדכון
-- ייצוא: `GET /api/export/[kind]`
+- ייצוא: `GET /api/export/[kind]` (exams/tracking/makeups/exam-lines לפי מחצית)
 
 ---
 

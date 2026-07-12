@@ -20,6 +20,12 @@ export function dbSchemaHint(message: string): string {
     return "טבלת אפשרויות שכבה חסרה — הריצי supabase/PATCH_GRADE_LEVEL_OPTIONS.sql או RUN_FULL_DATABASE_RESET.sql";
   }
   if (
+    (/\bactive_term\b/i.test(message) || /\bcolumn\s+["']?term["']?/i.test(message) || /['"]term['"]\s+column/i.test(message)) &&
+    (/does not exist/i.test(message) || /schema cache/i.test(message) || /could not find/i.test(message))
+  ) {
+    return "סכמת מחציות חסרה — הריצי supabase/PATCH_TERM_HALVES.sql ב-Supabase SQL Editor (בלי מחיקת נתונים)";
+  }
+  if (
     (m.includes("targets_fingerprint") ||
       m.includes("grade_levels") ||
       m.includes("class_ids") ||

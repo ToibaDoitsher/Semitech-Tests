@@ -4,7 +4,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { AlarmClock, ArrowLeft, CalendarDays, ClipboardList, Eye, Users } from "lucide-react";
 import Link from "next/link";
 import useSWR from "swr";
-import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
+import { useAcademicYear, withYearTermQuery } from "@/components/academicYears/AcademicYearProvider";
 import { ListPageHeader } from "@/components/ui/ListPage";
 import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
@@ -92,13 +92,13 @@ function StatCard({
 
 export function DashboardClient() {
   const reduceMotion = useReducedMotion();
-  const { viewingYear } = useAcademicYear();
+  const { viewingYear, viewingTerm } = useAcademicYear();
   const { data, error, isLoading } = useSWR<{ items: Item[] }>(
-    withYearQuery("/api/exams/upcoming?limit=8", viewingYear?.id),
+    withYearTermQuery("/api/exams/upcoming?limit=8", viewingYear?.id, viewingTerm),
     apiFetcher,
   );
   const { data: stats, error: statsErr } = useSWR<Stats>(
-    withYearQuery("/api/stats/dashboard", viewingYear?.id),
+    withYearTermQuery("/api/stats/dashboard", viewingYear?.id, viewingTerm),
     apiFetcher,
   );
 
@@ -113,7 +113,7 @@ export function DashboardClient() {
             filename="מבחנים-קרובים"
             sheetName="קרובים"
             getRows={async () => {
-              const r = await fetch(withYearQuery("/api/exams/upcoming?limit=300", viewingYear?.id));
+              const r = await fetch(withYearTermQuery("/api/exams/upcoming?limit=300", viewingYear?.id, viewingTerm));
               const j = (await r.json()) as { items?: Item[]; error?: string };
               if (!r.ok) throw new Error(j.error ?? "שגיאה");
               return (j.items ?? []).map((it) => ({

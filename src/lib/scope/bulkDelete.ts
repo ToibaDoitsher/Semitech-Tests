@@ -82,14 +82,16 @@ async function softDeleteScoped(
   supabase: SupabaseClient,
   table: "students" | "exams" | "teacher_assignments",
   academicYearId: string,
+  term?: string,
 ): Promise<number> {
   const now = new Date().toISOString();
-  const { data, error } = await supabase
+  let q = supabase
     .from(table)
     .update({ deleted_at: now })
     .eq("academic_year_id", academicYearId)
-    .is("deleted_at", null)
-    .select("id");
+    .is("deleted_at", null);
+  if (term && table === "exams") q = q.eq("term", term);
+  const { data, error } = await q.select("id");
   if (error) throw new Error(error.message);
   return data?.length ?? 0;
 }
@@ -104,8 +106,9 @@ export async function softDeleteStudentsInYear(
 export async function softDeleteExamsInYear(
   supabase: SupabaseClient,
   academicYearId: string,
+  term?: string,
 ): Promise<number> {
-  return softDeleteScoped(supabase, "exams", academicYearId);
+  return softDeleteScoped(supabase, "exams", academicYearId, term);
 }
 
 export async function softDeleteAssignmentsInYear(
@@ -118,14 +121,16 @@ export async function softDeleteAssignmentsInYear(
 export async function softDeleteMakeupsInYear(
   supabase: SupabaseClient,
   academicYearId: string,
+  term?: string,
 ): Promise<number> {
   const now = new Date().toISOString();
-  const { data, error } = await supabase
+  let q = supabase
     .from("makeup_exams")
     .update({ deleted_at: now })
     .eq("academic_year_id", academicYearId)
-    .is("deleted_at", null)
-    .select("id");
+    .is("deleted_at", null);
+  if (term) q = q.eq("term", term);
+  const { data, error } = await q.select("id");
   if (error) throw new Error(error.message);
   return data?.length ?? 0;
 }

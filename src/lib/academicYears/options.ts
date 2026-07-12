@@ -19,7 +19,16 @@ export async function listGradeOptions(
     supabase.from("students").select("grade_level"),
   ).eq("academic_year_id", academicYearId);
 
-  if (error) throw new Error(error.message);
+  // אם העמודה חסרה בסכמה — לא מפילים את כל המסך; מחזירים שכבות ברירת מחדל
+  if (error) {
+    if (/grade_level/i.test(error.message) && /does not exist/i.test(error.message)) {
+      return GRADE_LEVELS.map((grade_level) => ({
+        grade_level,
+        label: formatGradeLabel(grade_level),
+      }));
+    }
+    throw new Error(error.message);
+  }
 
   const seen = new Set<GradeLevel>();
   const out: GradeOption[] = [];

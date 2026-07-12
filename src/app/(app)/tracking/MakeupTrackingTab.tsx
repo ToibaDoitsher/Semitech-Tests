@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
-import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
+import { useAcademicYear, withYearQuery, withYearTermQuery } from "@/components/academicYears/AcademicYearProvider";
 import { ListDataCard, ListTableToolbar } from "@/components/ui/ListPage";
 import { Spinner } from "@/components/ui/Spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -106,7 +106,7 @@ function GradeEditor({
 }
 
 export function MakeupTrackingTab() {
-  const { viewingYear, readOnly } = useAcademicYear();
+  const { viewingYear, viewingTerm, readOnly } = useAcademicYear();
   const [subjectFilter, setSubjectFilter] = useState("");
   const [completed, setCompleted] = useState<"" | "true" | "false">("false");
   const listUrl = useMemo(() => {
@@ -115,15 +115,15 @@ export function MakeupTrackingTab() {
     if (subjectFilter.trim()) p.set("subject", subjectFilter.trim());
     if (completed) p.set("completed", completed);
     const q = p.toString();
-    return withYearQuery(`/api/makeup-tracking?${q}`, viewingYear?.id);
-  }, [subjectFilter, completed, viewingYear?.id]);
+    return withYearTermQuery(`/api/makeup-tracking?${q}`, viewingYear?.id, viewingTerm);
+  }, [subjectFilter, completed, viewingYear?.id, viewingTerm]);
 
   const { data, error, isLoading, mutate } = useSWR<{ groups: GroupRow[] }>(listUrl, fetcher);
   const [openExamId, setOpenExamId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const detailUrl = openExamId
-    ? withYearQuery(`/api/makeup-tracking/exams/${openExamId}`, viewingYear?.id)
+    ? withYearTermQuery(`/api/makeup-tracking/exams/${openExamId}`, viewingYear?.id, viewingTerm)
     : null;
   const { data: detail, mutate: mutateDetail } = useSWR<{ items: DetailItem[] }>(detailUrl, fetcher);
 

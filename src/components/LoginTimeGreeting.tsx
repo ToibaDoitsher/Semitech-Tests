@@ -2,36 +2,30 @@
 
 import { useEffect, useState } from "react";
 
-function greetingForHour(h: number): { line: string; emoji: string } {
-  if (h >= 5 && h < 12) return { line: "בוקר טוב", emoji: "🌅" };
-  if (h >= 12 && h < 18) return { line: "צהריים טובים", emoji: "😊" };
-  return { line: "ערב טוב", emoji: "🌙" };
+function greetingForHour(h: number): string {
+  if (h >= 5 && h < 12) return "בוקר טוב";
+  if (h >= 12 && h < 17) return "צהריים טובים";
+  if (h >= 17 && h < 21) return "ערב טוב";
+  return "לילה טוב";
 }
 
 export function LoginTimeGreeting() {
-  const [greeting, setGreeting] = useState<{ line: string; emoji: string } | null>(null);
+  const [line, setLine] = useState<string | null>(null);
 
   useEffect(() => {
-    setGreeting(greetingForHour(new Date().getHours()));
+    setLine(greetingForHour(new Date().getHours()));
   }, []);
-
-  const { line, emoji } = greeting ?? { line: "צהריים טובים", emoji: "😊" };
 
   return (
     <p
-      aria-hidden={!greeting}
       aria-live="polite"
       className={[
-        "text-balance text-center text-3xl font-extrabold leading-tight tracking-tight text-slate-800 md:text-4xl dark:text-zinc-50",
-        greeting ? "" : "invisible",
+        "mt-4 text-xl font-medium tracking-tight text-[#d7efe8] sm:text-2xl",
+        line ? "opacity-100" : "opacity-0",
+        "transition-opacity duration-500",
       ].join(" ")}
     >
-      <span className="inline-flex flex-wrap items-center justify-center gap-2 md:justify-start">
-        <span>{line}</span>
-        <span className="select-none text-[1.15em] leading-none" aria-hidden>
-          {emoji}
-        </span>
-      </span>
+      {line ?? "צהריים טובים"}
     </p>
   );
 }

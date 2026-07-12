@@ -14,7 +14,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { ExportExcelButton } from "@/components/ui/ExportExcelButton";
 import { ExamSchedulePrintSheet } from "@/components/calendar/ExamSchedulePrintSheet";
 import { PrintButton } from "@/components/PrintButton";
-import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
+import { useAcademicYear, withYearTermQuery } from "@/components/academicYears/AcademicYearProvider";
 import type { CalendarExamProps } from "@/lib/calendar/types";
 import { formatGregorianDateLong } from "@/lib/calendar/schedulePrint";
 import { formatHebrewDateFromDate, formatHebrewDateFromYmd } from "@/lib/hebrewDate";
@@ -51,7 +51,7 @@ function eventStartYmd(ev: EventInput): string {
 type XProps = CalendarExamProps;
 
 export function CalendarClient() {
-  const { viewingYear } = useAcademicYear();
+  const { viewingYear, viewingTerm } = useAcademicYear();
   const [rawEvents, setRawEvents] = useState<EventInput[]>([]);
   const [dayExamCount, setDayExamCount] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
@@ -76,9 +76,10 @@ export function CalendarClient() {
     setLoading(true);
     setLoadError(null);
     try {
-      const url = withYearQuery(
+      const url = withYearTermQuery(
         `/api/calendar/exams?start=${encodeURIComponent(s)}&end=${encodeURIComponent(e)}`,
         viewingYear?.id,
+        viewingTerm,
       );
       const r = await fetch(url);
       const j = await r.json().catch(() => ({}));
@@ -92,7 +93,7 @@ export function CalendarClient() {
     } finally {
       setLoading(false);
     }
-  }, [viewingYear]);
+  }, [viewingYear, viewingTerm]);
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -100,9 +101,10 @@ export function CalendarClient() {
       const g = rangeRef.current;
       if (!g) return;
       void (async () => {
-        const url = withYearQuery(
+        const url = withYearTermQuery(
           `/api/calendar/exams?start=${encodeURIComponent(g.start)}&end=${encodeURIComponent(g.end)}`,
           viewingYear?.id,
+          viewingTerm,
         );
         const r = await fetch(url);
         const j = await r.json().catch(() => ({}));
@@ -114,15 +116,16 @@ export function CalendarClient() {
       })();
     }, 60_000);
     return () => window.clearInterval(id);
-  }, [viewingYear]);
+  }, [viewingYear, viewingTerm]);
 
   useEffect(() => {
     const g = rangeRef.current;
     if (!g) return;
     void (async () => {
-      const url = withYearQuery(
+      const url = withYearTermQuery(
         `/api/calendar/exams?start=${encodeURIComponent(g.start)}&end=${encodeURIComponent(g.end)}`,
         viewingYear?.id,
+        viewingTerm,
       );
       const r = await fetch(url);
       const j = await r.json().catch(() => ({}));
@@ -132,7 +135,7 @@ export function CalendarClient() {
         setDayExamCount((j as { dayExamCount?: Record<string, number> }).dayExamCount ?? {});
       }
     })();
-  }, [viewingYear]);
+  }, [viewingYear, viewingTerm]);
 
   const filterOptions = useMemo(() => {
     const teachers = new Map<string, string>();

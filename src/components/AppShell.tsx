@@ -124,7 +124,7 @@ export function AppShell({
             className="rounded-xl p-2 text-[var(--muted)] ring-1 ring-transparent transition hover:bg-white hover:text-[var(--foreground)] hover:shadow-md hover:ring-slate-200/80 active:scale-95 dark:hover:bg-white/10 dark:hover:ring-white/15"
             title={collapsed ? "הרחבה" : "כיווץ"}
           >
-            <ChevronLeft className={`size-5 text-sky-600 transition-transform hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 ${collapsed ? "rotate-180" : ""}`} />
+            <ChevronLeft className={`size-5 text-[var(--color-primary)] transition-transform hover:text-[var(--color-primary-hover)] dark:text-emerald-400 ${collapsed ? "rotate-180" : ""}`} />
           </button>
         </div>
 
@@ -187,19 +187,18 @@ export function AppShell({
         </div>
       </aside>
 
-      <div className="flex min-h-screen min-w-0 flex-1 flex-col bg-[linear-gradient(145deg,rgb(248_250_252_/_0.95)_0%,rgb(239_246_255_/_0.45)_32%,var(--background)_58%)] dark:bg-[linear-gradient(145deg,rgb(15_23_42_/_0.98)_0%,rgb(30_41_59_/_0.6)_45%,var(--background)_70%)]">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col bg-[linear-gradient(150deg,rgb(236_246_241_/_0.98)_0%,rgb(232_242_236_/_0.7)_34%,var(--background)_62%)] dark:bg-[linear-gradient(145deg,rgb(15_23_42_/_0.98)_0%,rgb(30_41_59_/_0.6)_45%,var(--background)_70%)]">
         <header className="sticky top-0 z-30 flex h-auto min-h-[3.75rem] shrink-0 flex-wrap items-center gap-3 border-b border-[var(--border)] bg-[var(--surface)]/85 px-4 py-2 shadow-sm backdrop-blur-md md:px-8 dark:bg-[var(--surface)]/80">
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-lg font-bold tracking-tight text-[var(--color-primary)] dark:text-blue-200">{pageTitle}</h1>
+            <h1 className="truncate text-lg font-bold tracking-tight text-[var(--color-primary)] dark:text-emerald-200">{pageTitle}</h1>
           </div>
           {userDisplayName ? (
             <div
-              className="hidden items-center gap-2 rounded-2xl border border-sky-200/70 bg-gradient-to-l from-sky-50 via-white to-violet-50 px-3.5 py-1.5 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-white/60 sm:inline-flex dark:border-sky-400/30 dark:from-sky-950/40 dark:via-zinc-900/40 dark:to-violet-950/40 dark:text-zinc-100 dark:ring-white/5"
+              className="hidden items-center gap-2 rounded-2xl border border-emerald-200/80 bg-gradient-to-l from-emerald-50 via-white to-teal-50 px-3.5 py-1.5 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-white/60 sm:inline-flex dark:border-emerald-400/30 dark:from-emerald-950/40 dark:via-zinc-900/40 dark:to-teal-950/40 dark:text-zinc-100 dark:ring-white/5"
               title={`שלום, ${userDisplayName}`}
             >
-              <span aria-hidden className="text-base leading-none">👋</span>
               <span className="text-[var(--muted)] dark:text-zinc-300">שלום,</span>
-              <span className="bg-gradient-to-l from-[var(--color-primary)] to-violet-600 bg-clip-text font-extrabold text-transparent dark:from-sky-300 dark:to-violet-300">
+              <span className="font-extrabold text-[var(--color-primary)] dark:text-emerald-300">
                 {userDisplayName}
               </span>
             </div>

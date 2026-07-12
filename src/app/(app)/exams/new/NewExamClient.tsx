@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
-import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
+import { useAcademicYear, withYearQuery, withYearTermQuery } from "@/components/academicYears/AcademicYearProvider";
 import {
   AssignmentTargetForm,
   type AssignmentTargetFormValue,
@@ -59,7 +59,7 @@ const emptyNewTarget = (): AssignmentTargetFormValue => ({
 
 export function NewExamClient() {
   const router = useRouter();
-  const { viewingYear, readOnly } = useAcademicYear();
+  const { viewingYear, viewingTerm, readOnly } = useAcademicYear();
 
   const [teacherId, setTeacherId] = useState("");
   const [assignmentMode, setAssignmentMode] = useState<"existing" | "new">("new");
@@ -239,7 +239,7 @@ export function NewExamClient() {
               },
             };
 
-      const r = await fetch(withYearQuery("/api/exams", viewingYear?.id), {
+      const r = await fetch(withYearTermQuery("/api/exams", viewingYear?.id, viewingTerm), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

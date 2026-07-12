@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Term } from "@/lib/academicYears/types";
 import { writeAudit } from "@/lib/audit/log";
 import {
   fetchStudentIdsForMultiTarget,
@@ -22,6 +23,8 @@ export type CreateOneExamParams = {
   supabase: SupabaseClient;
   academicYearId: string;
   academicYearName: string;
+  /** מחצית נצפית — חובה ביצירה */
+  term: Term;
   teacherId: string;
   subject: string;
   examDate: string;
@@ -48,6 +51,7 @@ export async function createOneExam(
     supabase,
     academicYearId,
     academicYearName,
+    term,
     teacherId,
     subject,
     examDate,
@@ -82,6 +86,7 @@ export async function createOneExam(
   const dup = await notDeleted(supabase.from("exams").select("id"))
     .eq("teacher_assignment_id", assignmentId)
     .eq("exam_date", examDate)
+    .eq("term", term)
     .limit(1);
   if (dup.error) return { error: dup.error.message };
   if (dup.data?.length) {
@@ -157,6 +162,7 @@ export async function createOneExam(
 
   const insertRow: Record<string, unknown> = {
     academic_year_id: academicYearId,
+    term,
     teacher_id: teacherId,
     subject,
     exam_date: examDate,
@@ -188,6 +194,7 @@ export async function createOneExam(
     exam_id: examId,
     teacher_id: teacherId,
     academic_year_id: academicYearId,
+    term,
   });
   if (trErr) {
     await rollbackExam();

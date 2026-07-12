@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import {
-  resolveAcademicYearScope,
-  scopeFromSearchParams,
-} from "@/lib/academicYears/scope";
+import { resolveScopeFromUrl } from "@/lib/academicYears/scope";
+import { dbSchemaHint } from "@/lib/db/schemaHint";
 import { TEACHER_EMBED_IN_EXAM } from "@/lib/teachers/db";
 import { teacherEmbedDisplayName } from "@/lib/teachers/display";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -22,10 +20,7 @@ function isMissingColumnError(message: string, column: string): boolean {
 
 export async function GET(request: Request) {
   const supabase = createSupabaseAdminClient();
-  const scope = await resolveAcademicYearScope(
-    supabase,
-    scopeFromSearchParams(new URL(request.url).searchParams),
-  );
+  const scope = await resolveScopeFromUrl(supabase, new URL(request.url).searchParams);
 
   let selectFields = SELECT_FULL;
   let rows: Array<Record<string, unknown>> | null = null;
@@ -37,6 +32,7 @@ export async function GET(request: Request) {
       .from("exam_tracking")
       .select(fields)
       .eq("academic_year_id", scope.year.id)
+      .eq("term", scope.term)
       .order("id", { ascending: false });
     rows = (result.data ?? null) as Array<Record<string, unknown>> | null;
     error = result.error;
@@ -49,10 +45,13 @@ export async function GET(request: Request) {
     ) {
       continue;
     }
+    if (isMissingColumnError(msg, "term")) {
+      return NextResponse.json({ error: dbSchemaHint(msg) }, { status: 500 });
+    }
     break;
   }
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ error: dbSchemaHint(error.message) }, { status: 500 });
 
   const examIds = [...new Set((rows ?? []).map((r) => r.exam_id as string))];
   let examsBy: Record<string, { subject: string; exam_date: string; teacher_name: string | null }> = {};

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import useSWR from "swr";
-import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
+import { useAcademicYear, withYearQuery, withYearTermQuery } from "@/components/academicYears/AcademicYearProvider";
 import { ExamEditDialog, type SaveSummary } from "@/components/exams/ExamEditDialog";
 import { ExamStudentsPanel } from "@/components/exams/ExamStudentsPanel";
 import { ConfirmDangerDialog } from "@/components/ui/ConfirmDangerDialog";
@@ -79,7 +79,7 @@ export function ExamEditClient({
   view?: "students" | "edit";
 }) {
   const router = useRouter();
-  const { viewingYear, readOnly } = useAcademicYear();
+  const { viewingYear, viewingTerm, readOnly } = useAcademicYear();
   const yearId = viewingYear?.id;
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -88,7 +88,7 @@ export function ExamEditClient({
     exam_students: Line[];
     delete_preview?: DeletePreview;
   }>(
-    withYearQuery(`/api/exams/${id}`, yearId),
+    withYearTermQuery(`/api/exams/${id}`, yearId, viewingTerm),
     fetcher,
   );
 

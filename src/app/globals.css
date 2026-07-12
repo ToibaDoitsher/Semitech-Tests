@@ -5,26 +5,26 @@
   לחזרה למראה הקודם: git checkout -- src/app/globals.css (או כתבי «לא אוהבת» ונשחזר את כל השינוי בקומיט).
 */
 :root {
-  --background: #f0f4fa;
-  --foreground: #0f172a;
-  --app-bg: #f0f4fa;
+  --background: #eef5f1;
+  --foreground: #0f1f1c;
+  --app-bg: #eef5f1;
   --surface: #ffffff;
-  --border: #e2e8f0;
-  --muted: #5c6b7e;
-  --sidebar-bg: #f8fafc;
+  --border: #d5e3dc;
+  --muted: #5a726a;
+  --sidebar-bg: #f6faf8;
 
-  --color-primary: #2563eb;
-  --color-primary-hover: #1d4ed8;
-  --color-accent: #ea580c;
-  --color-accent-soft: rgb(234 88 12 / 0.12);
+  --color-primary: #1f6f5b;
+  --color-primary-hover: #185a4a;
+  --color-accent: #c45c26;
+  --color-accent-soft: rgb(196 92 38 / 0.12);
   --color-success: #16a34a;
   --color-warning: #f59e0b;
   --color-danger: #dc2626;
-  --color-info: #0891b2;
+  --color-info: #0e7490;
 
   --sidebar-w: 17rem;
   --sidebar-w-collapsed: 4.5rem;
-  --shadow-card: 0 14px 48px -12px rgb(15 23 42 / 0.1), 0 4px 12px -4px rgb(37 99 235 / 0.08);
+  --shadow-card: 0 14px 48px -12px rgb(15 31 28 / 0.1), 0 4px 12px -4px rgb(31 111 91 / 0.1);
   --radius-card: 1.25rem;
 }
 
@@ -65,7 +65,7 @@ html {
 
 body {
   min-height: 100%;
-  background: linear-gradient(165deg, #e4eef9 0%, #eef2f7 38%, #f0f4fa 100%);
+  background: linear-gradient(160deg, #e2efe8 0%, #eef5f1 42%, #f4f8f5 100%);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", Arial,
     sans-serif;
@@ -207,5 +207,113 @@ body {
   .login-password-caret {
     animation: none;
     opacity: 1;
+  }
+}
+
+/* ─── מסך כניסה ─── */
+.login-shell {
+  background: #0b2a24;
+  color: #e8f5f1;
+}
+
+.login-atmosphere {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 90% 70% at 85% 15%, rgb(47 140 118 / 0.45), transparent 55%),
+    radial-gradient(ellipse 70% 60% at 10% 80%, rgb(20 70 60 / 0.55), transparent 50%),
+    linear-gradient(145deg, #0a221e 0%, #123d34 48%, #0f332c 100%);
+}
+
+.login-grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.14;
+  background-image:
+    linear-gradient(rgb(200 230 220 / 0.25) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(200 230 220 / 0.25) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 75% 65% at 50% 40%, #000 20%, transparent 75%);
+}
+
+.login-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(48px);
+  pointer-events: none;
+}
+
+.login-orb-a {
+  width: 22rem;
+  height: 22rem;
+  top: -6rem;
+  inset-inline-end: -4rem;
+  background: rgb(56 163 135 / 0.35);
+  animation: login-drift 18s ease-in-out infinite alternate;
+}
+
+.login-orb-b {
+  width: 18rem;
+  height: 18rem;
+  bottom: -4rem;
+  inset-inline-start: -3rem;
+  background: rgb(30 100 85 / 0.4);
+  animation: login-drift 22s ease-in-out infinite alternate-reverse;
+}
+
+.login-panel {
+  border-radius: 1.35rem;
+  border: 1px solid rgb(255 255 255 / 0.55);
+  background: rgb(255 255 255 / 0.94);
+  padding: 1.75rem 1.5rem;
+  box-shadow: 0 24px 60px -20px rgb(0 0 0 / 0.45);
+  backdrop-filter: blur(10px);
+}
+
+@media (min-width: 640px) {
+  .login-panel {
+    padding: 2rem 1.75rem;
+  }
+}
+
+@keyframes login-drift {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(-1.5rem, 1.25rem) scale(1.06);
+  }
+}
+
+@keyframes login-rise {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.login-fade-in {
+  animation: login-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.login-fade-in-delay {
+  animation: login-rise 0.75s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+}
+
+.login-fade-in-delay-2 {
+  animation: login-rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.22s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-orb-a,
+  .login-orb-b,
+  .login-fade-in,
+  .login-fade-in-delay,
+  .login-fade-in-delay-2 {
+    animation: none;
   }
 }

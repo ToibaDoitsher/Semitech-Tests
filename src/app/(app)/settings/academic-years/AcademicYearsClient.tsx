@@ -10,7 +10,7 @@ import {
 import { ListPageHeader } from "@/components/ui/ListPage";
 import { Spinner } from "@/components/ui/Spinner";
 import type { AcademicYearRow } from "@/lib/academicYears/types";
-import { YEAR_PACK_PARTS } from "@/lib/yearPack/manifest";
+import { YEAR_PACK_PARTS, matchYearPackPart } from "@/lib/yearPack/manifest";
 
 const fetcher = async (url: string) => {
   const r = await fetch(url);
@@ -36,6 +36,7 @@ export function AcademicYearsClient() {
   const [msg, setMsg] = useState<string | null>(null);
   const [packBusy, setPackBusy] = useState<"export" | "import" | null>(null);
   const [packMsg, setPackMsg] = useState<string | null>(null);
+  const zipInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
   const years = data?.years ?? [];
@@ -112,8 +113,7 @@ export function AcademicYearsClient() {
     }
   }
 
-  async function onFolderSelected(fileList: FileList | null) {
-    if (!fileList?.length) return;
+  async function postYearPack(fd: FormData) {
     if (readOnly) {
       setPackMsg("שנה בארכיון — ייבוא חסום");
       return;
@@ -123,14 +123,8 @@ export function AcademicYearsClient() {
       return;
     }
     setPackBusy("import");
-    setPackMsg(null);
+    setPackMsg("מייבא… זה יכול לקחת דקה–שתיים בקבצים גדולים. אל תסגרי את הדף.");
     try {
-      const fd = new FormData();
-      for (const f of Array.from(fileList)) {
-        if (/\.(xlsx|xlsm|xls)$/i.test(f.name) || /\.(xlsx|xlsm|xls)$/i.test(f.webkitRelativePath)) {
-          fd.append("files", f);
-        }
-      }
       const r = await fetch(withYearQuery("/api/academic-years/year-pack/import", yearId), {
         method: "POST",
         body: fd,
@@ -141,16 +135,57 @@ export function AcademicYearsClient() {
       };
       if (!r.ok) throw new Error(j.error ?? "שגיאת ייבוא");
       const summary = (j.parts ?? [])
-        .map((p) => `${p.label}: +${p.inserted} / עדכון ${p.updated}${p.failed ? ` / כשל ${p.failed}` : ""}`)
+        .map(
+          (p) =>
+            `${p.label}: +${p.inserted} / עדכון ${p.updated}${p.failed ? ` / כשל ${p.failed}` : ""}`,
+        )
         .join(" · ");
       setPackMsg(summary || "הייבוא הושלם");
       await refresh();
     } catch (err) {
-      setPackMsg((err as Error).message);
+      const m = (err as Error).message || "";
+      if (/failed to fetch|networkerror|load failed/i.test(m)) {
+        setPackMsg(
+          "החיבור נקטע או שהשרת איטי. רענני את הדף ובדקי אם הנתונים כבר נכנסו. מומלץ ייבוא ZIP.",
+        );
+      } else {
+        setPackMsg(m || "שגיאת ייבוא");
+      }
     } finally {
       setPackBusy(null);
+      if (zipInputRef.current) zipInputRef.current.value = "";
       if (folderInputRef.current) folderInputRef.current.value = "";
     }
+  }
+
+  async function onZipSelected(fileList: FileList | null) {
+    const file = fileList?.[0];
+    if (!file) return;
+    if (!/\.zip$/i.test(file.name)) {
+      setPackMsg("יש לבחור קובץ ZIP (אותו קובץ שהורדת בייצוא)");
+      return;
+    }
+    const fd = new FormData();
+    fd.append("zip", file);
+    await postYearPack(fd);
+  }
+
+  async function onFolderSelected(fileList: FileList | null) {
+    if (!fileList?.length) return;
+    const picked = new Map<string, File>();
+    for (const f of Array.from(fileList)) {
+      const key = matchYearPackPart(f.webkitRelativePath || f.name);
+      if (key) picked.set(key, f);
+    }
+    if (!picked.size) {
+      setPackMsg(
+        `לא נמצאו קבצי חבילת שנה בתיקייה. צפויים: ${YEAR_PACK_PARTS.map((p) => p.filename).join(", ")}`,
+      );
+      return;
+    }
+    const fd = new FormData();
+    for (const f of picked.values()) fd.append("files", f);
+    await postYearPack(fd);
   }
 
   return (
@@ -167,6 +202,10 @@ export function AcademicYearsClient() {
           {readOnly ? " (ארכיון — ייבוא חסום)" : ""}. כולל כיתות, התמחויות, מסלולים, מורות,
           תלמידות ושיבוצים — ללא מבחנים, השלמות ומעקב.
         </p>
+        <p className="mt-2 text-sm text-zinc-500">
+          מומלץ: ייצוא → הורדת ZIP → ייבוא אותו ZIP לשנה החדשה. תיקייה פתוחה עלולה להיכשל אם יש בה הרבה
+          קבצים.
+        </p>
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <button
             type="button"
@@ -180,13 +219,29 @@ export function AcademicYearsClient() {
           <button
             type="button"
             disabled={!yearId || readOnly || packBusy !== null}
-            onClick={() => folderInputRef.current?.click()}
-            title={readOnly ? "ייבוא חסום בארכיון" : undefined}
+            onClick={() => zipInputRef.current?.click()}
+            title={readOnly ? "ייבוא חסום בארכיון" : "ייבוא קובץ ZIP מהייצוא"}
             className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
           >
             <Upload className="h-4 w-4" aria-hidden />
-            {packBusy === "import" ? "מייבא…" : "ייבוא"}
+            {packBusy === "import" ? "מייבא…" : "ייבוא ZIP"}
           </button>
+          <button
+            type="button"
+            disabled={!yearId || readOnly || packBusy !== null}
+            onClick={() => folderInputRef.current?.click()}
+            title={readOnly ? "ייבוא חסום בארכיון" : "ייבוא מתיקייה עם קבצי האקסל"}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-50 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+          >
+            ייבוא תיקייה
+          </button>
+          <input
+            ref={zipInputRef}
+            type="file"
+            className="hidden"
+            accept=".zip,application/zip"
+            onChange={(e) => void onZipSelected(e.target.files)}
+          />
           <input
             ref={folderInputRef}
             type="file"

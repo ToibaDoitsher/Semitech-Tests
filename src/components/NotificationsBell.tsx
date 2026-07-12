@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
+import { useAcademicYear, withYearTermQuery } from "@/components/academicYears/AcademicYearProvider";
 import { countBySeverity, isTeacherNotification } from "@/lib/notifications/categories";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -70,9 +71,10 @@ function NotificationIcon({ icon, severity }: { icon: IconKey; severity: Severit
 export function NotificationsBell() {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const { viewingYear, viewingTerm } = useAcademicYear();
 
   const { data, isLoading } = useSWR<{ items: Notification[]; counts: Counts; read_only?: boolean }>(
-    "/api/notifications",
+    withYearTermQuery("/api/notifications", viewingYear?.id, viewingTerm),
     fetcher,
     {
       refreshInterval: 120_000,

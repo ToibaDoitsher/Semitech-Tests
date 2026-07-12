@@ -5,7 +5,7 @@ import {
   multiTargetTypeLabel,
   rowToMultiTarget,
 } from "@/lib/assignments/multiTarget";
-import { resolveAcademicYearScope, scopeFromSearchParams } from "@/lib/academicYears/scope";
+import { resolveScopeFromUrl } from "@/lib/academicYears/scope";
 import { ASSIGNMENT_WITH_LOOKUPS } from "@/lib/db/assignmentSelect";
 import { notDeleted } from "@/lib/db/softDelete";
 import { asStudentRows, type StudentWithLookupsRow } from "@/lib/db/studentRow";
@@ -131,10 +131,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
   }
 
   const supabase = createSupabaseAdminClient();
-  const scope = await resolveAcademicYearScope(
-    supabase,
-    scopeFromSearchParams(new URL(request.url).searchParams),
-  );
+  const scope = await resolveScopeFromUrl(supabase, new URL(request.url).searchParams);
 
   try {
     if (kind === "students") {
@@ -207,6 +204,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
           .from("exams")
           .select("id, subject, exam_date, grade_levels, class_ids, track_ids, specialization_ids, psychology_enabled, applies_to_all_in_grade, assignment_category, teachers ( id, first_name, last_name, full_name_generated )")
           .eq("academic_year_id", scope.year.id)
+          .eq("term", scope.term)
           .order("exam_date", { ascending: false })
           .range(from, to),
       );
@@ -298,6 +296,8 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
             .select(
               "id, status, created_at, completed_at, student_id, exam_id, auto_registered, starting_grade, is_paid",
             )
+            .eq("academic_year_id", scope.year.id)
+            .eq("term", scope.term)
             .order("created_at", { ascending: false })
             .range(from, to),
         );
@@ -310,6 +310,8 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
               .select(
                 "id, status, created_at, completed_at, student_id, exam_id, auto_registered",
               )
+              .eq("academic_year_id", scope.year.id)
+              .eq("term", scope.term)
               .order("created_at", { ascending: false })
               .range(from, to),
           );
@@ -318,6 +320,8 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
             supabase
               .from("makeup_exams")
               .select("id, status, created_at, completed_at, student_id, exam_id")
+              .eq("academic_year_id", scope.year.id)
+              .eq("term", scope.term)
               .order("created_at", { ascending: false })
               .range(from, to),
           );
@@ -399,6 +403,8 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
             supabase
               .from("exam_tracking")
               .select(fields)
+              .eq("academic_year_id", scope.year.id)
+              .eq("term", scope.term)
               .order("id", { ascending: false })
               .range(from, to),
           );
@@ -480,7 +486,18 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
       return NextResponse.json({ rows });
     }
 
-    /* exam-lines — כל שורות תלמידה–מבחן עם סטטוס */
+    /* exam-lines — כל שורות תלמידה–מבחן עם סטטוס (למחצית הנצפית) */
+    const { data: termExamRows, error: termExamErr } = await notDeleted(
+      supabase.from("exams").select("id"),
+    )
+      .eq("academic_year_id", scope.year.id)
+      .eq("term", scope.term);
+    if (termExamErr) throw termExamErr;
+    const termExamIds = (termExamRows ?? []).map((e) => (e as { id: string }).id);
+    if (!termExamIds.length) {
+      return NextResponse.json({ rows: [] });
+    }
+
     const lines = await paginateSelect((from, to) =>
       supabase
         .from("exam_students")
@@ -495,6 +512,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ kind: strin
           exams ( id, subject, exam_date, grade_levels, class_ids, track_ids, specialization_ids, psychology_enabled, applies_to_all_in_grade, assignment_category, ${TEACHER_EMBED_IN_EXAM} )
         `,
         )
+        .in("exam_id", termExamIds)
         .order("exam_id")
         .range(from, to),
     );

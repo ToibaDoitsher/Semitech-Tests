@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
+import {
+  resolveAcademicYearScope,
+  scopeFromSearchParams,
+} from "@/lib/academicYears/scope";
 import { ENTITY_TO_TABLE, isLookupEntity } from "@/lib/lookups/entities";
+import { isYearScopedLookup } from "@/lib/lookups/yearScope";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +18,16 @@ export async function GET(request: Request) {
 
   const table = ENTITY_TO_TABLE[entity];
   const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase.from(table).select("id, name").order("name");
+  let q = supabase.from(table).select("id, name").order("name");
+
+  if (isYearScopedLookup(entity)) {
+    const scope = await resolveAcademicYearScope(supabase, scopeFromSearchParams(searchParams));
+    q = q.eq("academic_year_id", scope.year.id).is("deleted_at", null).eq("is_active", true);
+  } else if (table === "grade_level_options") {
+    q = q.eq("is_active", true);
+  }
+
+  const { data, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const rows = (data ?? []).map((r) => {

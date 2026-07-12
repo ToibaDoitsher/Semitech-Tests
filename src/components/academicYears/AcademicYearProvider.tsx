@@ -1,18 +1,26 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
-import type { AcademicYearRow } from "@/lib/academicYears/types";
+import {
+  defaultTermForYear,
+  parseTerm,
+  type AcademicYearRow,
+  type Term,
+} from "@/lib/academicYears/types";
 
 type Ctx = {
   years: AcademicYearRow[];
   activeYear: AcademicYearRow | null;
   viewingYear: AcademicYearRow | null;
+  /** מחצית נצפית (א/ב) */
+  viewingTerm: Term;
   readOnly: boolean;
   isLoading: boolean;
   error: Error | null;
   setViewingYearId: (id: string | null) => void;
+  setViewingTerm: (term: Term) => void;
   refresh: () => Promise<void>;
 };
 
@@ -37,34 +45,74 @@ export function AcademicYearProvider({
   const activeYear = years.find((y) => y.is_active) ?? null;
 
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const [viewId, setViewId] = useState<string | null>(initialViewYearId ?? null);
+  const [termOverride, setTermOverride] = useState<Term | null>(null);
 
   useEffect(() => {
     const fromUrl = searchParams.get("academic_year_id");
     if (fromUrl) setViewId(fromUrl);
   }, [searchParams]);
 
+  useEffect(() => {
+    const t = parseTerm(searchParams.get("term"));
+    if (t) setTermOverride(t);
+  }, [searchParams]);
+
   const viewingYear = viewId ? years.find((y) => y.id === viewId) ?? null : activeYear;
   const readOnly = Boolean(viewingYear && activeYear && viewingYear.id !== activeYear.id);
 
+  const viewingTerm: Term =
+    termOverride ?? defaultTermForYear(viewingYear ?? activeYear);
+
   const setViewingYearId = useCallback((id: string | null) => {
     setViewId(id);
+    setTermOverride(null);
   }, []);
+
+  const setViewingTerm = useCallback(
+    (term: Term) => {
+      setTermOverride(term);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("term", term);
+      const yearId = viewId ?? activeYear?.id;
+      if (yearId && viewId) {
+        params.set("academic_year_id", yearId);
+      }
+      const q = params.toString();
+      router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+    },
+    [searchParams, router, pathname, viewId, activeYear?.id],
+  );
 
   const value = useMemo(
     () => ({
       years,
       activeYear,
       viewingYear,
+      viewingTerm,
       readOnly,
       isLoading,
       error: error ?? null,
       setViewingYearId,
+      setViewingTerm,
       refresh: async () => {
         await mutate();
       },
     }),
-    [years, activeYear, viewingYear, readOnly, isLoading, error, setViewingYearId, mutate],
+    [
+      years,
+      activeYear,
+      viewingYear,
+      viewingTerm,
+      readOnly,
+      isLoading,
+      error,
+      setViewingYearId,
+      setViewingTerm,
+      mutate,
+    ],
   );
 
   return <AcademicYearContext.Provider value={value}>{children}</AcademicYearContext.Provider>;
@@ -80,4 +128,16 @@ export function withYearQuery(baseUrl: string, yearId: string | undefined | null
   if (!yearId) return baseUrl;
   const sep = baseUrl.includes("?") ? "&" : "?";
   return `${baseUrl}${sep}academic_year_id=${encodeURIComponent(yearId)}`;
+}
+
+/** שנה + מחצית — לרשימות מבחנים/מעקב/השלמות */
+export function withYearTermQuery(
+  baseUrl: string,
+  yearId: string | undefined | null,
+  term: Term | undefined | null,
+): string {
+  let url = withYearQuery(baseUrl, yearId);
+  if (!term) return url;
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}term=${encodeURIComponent(term)}`;
 }

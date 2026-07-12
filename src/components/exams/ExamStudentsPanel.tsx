@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import useSWR from "swr";
-import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
+import { useAcademicYear, withYearQuery, withYearTermQuery } from "@/components/academicYears/AcademicYearProvider";
 import { ExamStudentStatusBadge } from "@/components/ui/StatusBadge";
 import { Spinner } from "@/components/ui/Spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -76,13 +76,13 @@ export function resolveStoredExamStatus(requested: ExamStudentStatus): ExamStude
 }
 
 export function useExamStudentsData(examId: string) {
-  const { viewingYear, readOnly } = useAcademicYear();
+  const { viewingYear, viewingTerm, readOnly } = useAcademicYear();
   const yearId = viewingYear?.id;
   const swr = useSWR<ExamPayload>(
-    withYearQuery(`/api/exams/${examId}`, yearId),
+    withYearTermQuery(`/api/exams/${examId}`, yearId, viewingTerm),
     fetcher,
   );
-  return { ...swr, readOnly, yearId };
+  return { ...swr, readOnly, yearId, viewingTerm };
 }
 
 export async function patchExamStudentStatus({
@@ -120,7 +120,7 @@ type PanelProps = {
 };
 
 export function ExamStudentsPanel({ examId, embedded, showTitle = true, onEditExam }: PanelProps) {
-  const { data, error, isLoading, mutate, readOnly, yearId } = useExamStudentsData(examId);
+  const { data, error, isLoading, mutate, readOnly, yearId, viewingTerm } = useExamStudentsData(examId);
 
   async function setStatus(
     lineId: string,
@@ -176,7 +176,7 @@ export function ExamStudentsPanel({ examId, embedded, showTitle = true, onEditEx
 
   async function finishMakeups() {
     if (!confirm("ליצור רשומות השלמה לכל התלמידות שסומנו כלא נבחנות?")) return;
-    const r = await fetch(withYearQuery(`/api/exams/${examId}/finish`, yearId), { method: "POST" });
+    const r = await fetch(withYearTermQuery(`/api/exams/${examId}/finish`, yearId, viewingTerm), { method: "POST" });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) {
       alert((j as { error?: string }).error ?? "פעולה נכשלה");

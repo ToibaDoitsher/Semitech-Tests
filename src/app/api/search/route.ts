@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { formatGradeLabel, parseGradeLevel } from "@/lib/academicYears/labels";
-import { resolveAcademicYearScope, scopeFromSearchParams } from "@/lib/academicYears/scope";
+import { resolveScopeFromUrl } from "@/lib/academicYears/scope";
 import { examGradeLevelsLabel } from "@/lib/assignments/multiTarget";
 import { notDeleted } from "@/lib/db/softDelete";
 import { teacherDisplayName } from "@/lib/teachers/display";
@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   const browse = q.length < 2;
 
   const supabase = createSupabaseAdminClient();
-  const scope = await resolveAcademicYearScope(supabase, scopeFromSearchParams(searchParams));
+  const scope = await resolveScopeFromUrl(supabase, searchParams);
   const yearId = scope.year.id;
 
   let studentsQ = notDeleted(
@@ -47,6 +47,7 @@ export async function GET(request: Request) {
       .from("exams")
       .select("id, subject, exam_date, grade_levels")
       .eq("academic_year_id", yearId)
+      .eq("term", scope.term)
       .limit(browse ? BROWSE_LIMIT : SEARCH_LIMIT),
   );
 

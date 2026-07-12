@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { listGradeOptions } from "@/lib/academicYears/options";
 import { GRADE_LEVELS } from "@/lib/academicYears/types";
-import { resolveAcademicYearScope, scopeFromSearchParams } from "@/lib/academicYears/scope";
+import { resolveScopeFromUrl } from "@/lib/academicYears/scope";
 import { dbSchemaHint } from "@/lib/db/schemaHint";
 import { notDeleted } from "@/lib/db/softDelete";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -21,11 +21,9 @@ function todayISODate(): string {
 export async function GET(request: Request) {
   try {
   const supabase = createSupabaseAdminClient();
-  const scope = await resolveAcademicYearScope(
-    supabase,
-    scopeFromSearchParams(new URL(request.url).searchParams),
-  );
+  const scope = await resolveScopeFromUrl(supabase, new URL(request.url).searchParams);
   const yearId = scope.year.id;
+  const term = scope.term;
   const today = todayISODate();
   const grades = await listGradeOptions(supabase, yearId);
 
@@ -44,37 +42,52 @@ export async function GET(request: Request) {
     makeupsNoGrade,
     makeupsCompletedWeek,
   ] = await Promise.all([
-    notDeleted(supabase.from("exams").select("id", { count: "exact", head: true })).eq(
-      "academic_year_id",
-      yearId,
-    ),
     notDeleted(supabase.from("exams").select("id", { count: "exact", head: true }))
       .eq("academic_year_id", yearId)
+      .eq("term", term),
+    notDeleted(supabase.from("exams").select("id", { count: "exact", head: true }))
+      .eq("academic_year_id", yearId)
+      .eq("term", term)
       .eq("exam_date", today),
     notDeleted(supabase.from("exams").select("id", { count: "exact", head: true }))
       .eq("academic_year_id", yearId)
+      .eq("term", term)
       .gte("exam_date", today),
-    supabase.from("makeup_exams").select("id", { count: "exact", head: true }).eq("status", "open"),
+    supabase
+      .from("makeup_exams")
+      .select("id", { count: "exact", head: true })
+      .eq("academic_year_id", yearId)
+      .eq("term", term)
+      .eq("status", "open")
+      .is("deleted_at", null),
     notDeleted(supabase.from("students").select("id", { count: "exact", head: true })).eq(
       "academic_year_id",
       yearId,
     ),
-    notDeleted(supabase.from("exam_tracking").select("id", { count: "exact", head: true })).or(
-      "grades_submitted.eq.false,transferred_to_system.eq.false",
-    ),
+    notDeleted(supabase.from("exam_tracking").select("id", { count: "exact", head: true }))
+      .eq("academic_year_id", yearId)
+      .eq("term", term)
+      .or("grades_submitted.eq.false,transferred_to_system.eq.false"),
     supabase
       .from("makeup_tracking")
       .select("id", { count: "exact", head: true })
+      .eq("academic_year_id", yearId)
+      .eq("term", term)
       .is("sent_to_teacher_at", null),
     supabase
       .from("makeup_tracking")
       .select("id", { count: "exact", head: true })
+      .eq("academic_year_id", yearId)
+      .eq("term", term)
       .is("grade", null),
     supabase
       .from("makeup_exams")
       .select("id", { count: "exact", head: true })
+      .eq("academic_year_id", yearId)
+      .eq("term", term)
       .eq("status", "completed")
-      .gte("completed_at", weekAgoIso),
+      .gte("completed_at", weekAgoIso)
+      .is("deleted_at", null),
   ]);
 
   for (const r of [
@@ -107,6 +120,7 @@ export async function GET(request: Request) {
           .eq("grade_level", grade),
         notDeleted(supabase.from("exams").select("id", { count: "exact", head: true }))
           .eq("academic_year_id", yearId)
+          .eq("term", term)
           .contains("grade_levels", [grade]),
       ]);
       if (ex.error && !isMissingTableError(ex.error.message)) {

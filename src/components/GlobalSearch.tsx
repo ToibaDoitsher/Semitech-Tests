@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useAcademicYear, withYearQuery } from "@/components/academicYears/AcademicYearProvider";
+import { useAcademicYear, withYearTermQuery } from "@/components/academicYears/AcademicYearProvider";
 type Result = { type: string; id: string; label: string; href: string };
 
 export function GlobalSearch() {
-  const { viewingYear } = useAcademicYear();
+  const { viewingYear, viewingTerm } = useAcademicYear();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Result[]>([]);
   const [open, setOpen] = useState(false);
@@ -30,7 +30,7 @@ export function GlobalSearch() {
         trimmed.length >= 2
           ? `/api/search?q=${encodeURIComponent(trimmed)}`
           : "/api/search";
-      const url = withYearQuery(path, viewingYear?.id);
+      const url = withYearTermQuery(path, viewingYear?.id, viewingTerm);
 
       void fetch(url)
         .then((r) => r.json())
@@ -48,7 +48,7 @@ export function GlobalSearch() {
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [q, open, viewingYear?.id]);
+  }, [q, open, viewingYear?.id, viewingTerm]);
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (!open || !results.length) {

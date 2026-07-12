@@ -15,9 +15,27 @@ export default async function NewStudentPage() {
   if (!activeYear) throw new Error("לא הוגדרה שנה פעילה");
 
   const [cl, sp, tr] = await Promise.all([
-    supabase.from("classes").select("id,name").order("name"),
-    supabase.from("specializations").select("id,name").order("name"),
-    supabase.from("tracks").select("id,name").order("name"),
+    supabase
+      .from("classes")
+      .select("id,name")
+      .eq("academic_year_id", activeYear.id)
+      .eq("is_active", true)
+      .is("deleted_at", null)
+      .order("name"),
+    supabase
+      .from("specializations")
+      .select("id,name")
+      .eq("academic_year_id", activeYear.id)
+      .eq("is_active", true)
+      .is("deleted_at", null)
+      .order("name"),
+    supabase
+      .from("tracks")
+      .select("id,name")
+      .eq("academic_year_id", activeYear.id)
+      .eq("is_active", true)
+      .is("deleted_at", null)
+      .order("name"),
   ]);
   if (cl.error || sp.error || tr.error) throw new Error("שגיאת טעינה");
 

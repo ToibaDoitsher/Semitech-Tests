@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import {
-  resolveAcademicYearScope,
-  scopeFromSearchParams,
-} from "@/lib/academicYears/scope";
+import { resolveScopeFromUrl } from "@/lib/academicYears/scope";
+import { dbSchemaHint } from "@/lib/db/schemaHint";
 import { notDeleted } from "@/lib/db/softDelete";
 import { teacherEmbedDisplayName } from "@/lib/teachers/display";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -21,7 +19,7 @@ export async function GET(request: Request) {
   const start = (searchParams.get("from") ?? todayISODate()).trim();
 
   const supabase = createSupabaseAdminClient();
-  const scope = await resolveAcademicYearScope(supabase, scopeFromSearchParams(searchParams));
+  const scope = await resolveScopeFromUrl(supabase, searchParams);
 
   const { data: exams, error } = await notDeleted(
     supabase
@@ -31,11 +29,12 @@ export async function GET(request: Request) {
       ),
   )
     .eq("academic_year_id", scope.year.id)
+    .eq("term", scope.term)
     .gte("exam_date", start)
     .order("exam_date", { ascending: true })
     .limit(limit);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ error: dbSchemaHint(error.message) }, { status: 500 });
 
   const examIds = (exams ?? []).map((e) => (e as { id: string }).id);
   let counts: Record<string, { took: number; open: number; completed: number; total: number }> = {};
